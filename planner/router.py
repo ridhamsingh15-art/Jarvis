@@ -1,4 +1,4 @@
-from skills.windows import open_app
+from tools.windows import open_app
 from core.llm import ask
 
 def handle(prompt: str):

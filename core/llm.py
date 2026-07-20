@@ -1,14 +1,15 @@
 from ollama import chat
-import json
+from core.parser import parse_json
+from core.normalizer import normalize
 
 MODEL = "qwen3:8b"
 
 SYSTEM_PROMPT = """
 You are Jarvis.
 
-Always answer ONLY with valid JSON.
+Return ONLY valid JSON.
 
-Schema:
+Single action:
 
 {
   "tool": "",
@@ -16,40 +17,24 @@ Schema:
   "args": {}
 }
 
-Examples:
+Multiple actions:
 
-Open Notepad
+[
+  {
+    "tool":"",
+    "action":"",
+    "args":{}
+  }
+]
 
-{
- "tool":"windows",
- "action":"open_app",
- "args":{
-   "app":"notepad"
- }
-}
-
-Open Calculator
-
-{
- "tool":"windows",
- "action":"open_app",
- "args":{
-   "app":"calculator"
- }
-}
-
-If no tool is required:
-
-{
- "tool":"none",
- "action":"chat",
- "args":{
-   "message":"..."
- }
-}
+Never explain.
+Never use markdown.
+Never use ```json.
+Only output JSON.
 """
 
 def plan(prompt: str):
+
     response = chat(
         model=MODEL,
         messages=[
@@ -64,4 +49,4 @@ def plan(prompt: str):
         ]
     )
 
-    return json.loads(response.message.content)
+    return normalize(parse_json(response.message.content))

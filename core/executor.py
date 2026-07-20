@@ -1,17 +1,29 @@
-from skills.windows import open_app
+from core.registry import get_tool
+
 
 def execute(plan):
 
-    tool = plan["tool"]
+    # Handle multiple actions
+    if isinstance(plan, list):
 
-    if tool == "windows":
+        results = []
 
-        action = plan["action"]
+        for step in plan:
+            result = execute(step)
+            results.append(result)
 
-        if action == "open_app":
-            return open_app(plan["args"]["app"])
+        return "\n".join(results)
 
-    if tool == "none":
+    # Handle normal chat
+    if plan["tool"] == "none":
         return plan["args"]["message"]
 
-    return "Unknown tool."
+    tool = get_tool(plan["tool"])
+
+    if tool is None:
+        return f"Unknown tool: {plan['tool']}"
+
+    return tool(
+        plan["action"],
+        plan["args"]
+    )
