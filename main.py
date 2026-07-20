@@ -1,9 +1,10 @@
-from core.llm import plan
-from core.executor import execute
+from core.agent import Agent
 
-print("="*40)
-print("Jarvis AI v1.0")
-print("="*40)
+agent = Agent()
+
+print("=" * 40)
+print("Jarvis AI v2")
+print("=" * 40)
 
 while True:
 
@@ -12,10 +13,12 @@ while True:
     if prompt.lower() == "exit":
         break
 
-    task = plan(prompt)
+    try:
 
-    print("\nPlan:", task)
+        results = agent.run(prompt)
 
-    result = execute(task)
+        for result in results:
+            print("Jarvis:", result)
 
-    print("\nJarvis:", result)
+    except Exception as e:
+        print("Error:", e)

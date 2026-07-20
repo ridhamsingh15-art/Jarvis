@@ -1,8 +1,26 @@
-from tools.windows import execute as windows_execute
+from tools.windows import execute
 
 TOOLS = {
-    "windows": windows_execute,
+    "windows": {
+        "description": "Control Windows applications",
+
+        "actions": {
+            "open_app": [
+                "notepad",
+                "calculator",
+                "paint",
+                "cmd"
+            ]
+        },
+
+        "execute": execute
+    }
 }
 
+
 def get_tool(name):
-    return TOOLS.get(name)
+
+    if name not in TOOLS:
+        return None
+
+    return TOOLS[name]["execute"]
