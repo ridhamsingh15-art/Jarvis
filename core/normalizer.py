@@ -1,37 +1,150 @@
-def normalize(plan):
+"""
+Normalizer — maps raw AI output to the internal canonical schema.
 
-    if isinstance(plan, list):
-        return [normalize(step) for step in plan]
+Resolves tool aliases, action aliases, and argument aliases so
+the rest of the pipeline can work with consistent names. This
+module is pure data transformation — it never executes anything.
+"""
 
-    tool_map = {
-        "application": "windows",
-        "app": "windows",
-        "desktop": "windows",
-        "program": "windows",
-        "windows": "windows"
-    }
+from typing import Any
 
-    action_map = {
-        "open": "open_app",
-        "launch": "open_app",
-        "start": "open_app",
-        "open_app": "open_app"
-    }
+# Tool name aliases → canonical tool name
+_TOOL_ALIASES: dict[str, str] = {
+    # Windows aliases
+    "application": "windows",
+    "app": "windows",
+    "desktop": "windows",
+    "program": "windows",
+    "system": "windows",
+    # Browser aliases
+    "web": "browser",
+    "internet": "browser",
+    "chrome": "browser",
+    "edge": "browser",
+    "firefox": "browser",
+    # File aliases
+    "folder": "file",
+    "directory": "file",
+    "filesystem": "file",
+    "files": "file",
+    "folders": "file",
+    "fs": "file",
+}
 
-    if "tool" in plan:
-        plan["tool"] = tool_map.get(plan["tool"].lower(), plan["tool"].lower())
+# Action name aliases → canonical action name
+_ACTION_ALIASES: dict[str, str] = {
+    # Windows action aliases
+    "open": "open_app",
+    "launch": "open_app",
+    "start": "open_app",
+    "run": "open_app",
+    # Browser action aliases
+    "search": "search_google",
+    "google": "search_google",
+    "search_web": "search_google",
+    "navigate": "open_url",
+    "go_to": "open_url",
+    "browse": "open_url",
+    "visit": "open_site",
+    # File action aliases
+    "ls": "list_directory",
+    "dir": "list_directory",
+    "list": "list_directory",
+    "list_files": "list_directory",
+    "mkdir": "create_folder",
+    "make_folder": "create_folder",
+    "create_directory": "create_folder",
+    "new_folder": "create_folder",
+    "rm": "delete",
+    "remove": "delete",
+    "mv": "move",
+    "cp": "copy",
+    "duplicate": "copy",
+    "open": "open_file",
+}
 
-    if "action" in plan:
-        plan["action"] = action_map.get(plan["action"].lower(), plan["action"].lower())
+# Argument name aliases → canonical argument name
+_ARG_ALIASES: dict[str, str] = {
+    # Windows arg aliases
+    "name": "app",
+    "program": "app",
+    "application": "app",
+    "app_name": "app",
+    # Browser arg aliases
+    "link": "url",
+    "address": "url",
+    "website": "url",
+    "webpage": "url",
+    "site_name": "site",
+    "website_name": "site",
+    "search_query": "query",
+    "search_term": "query",
+    "search": "query",
+    "text": "query",
+    # File arg aliases
+    "folder": "path",
+    "directory": "path",
+    "file_path": "path",
+    "folder_path": "path",
+    "dir": "path",
+    "source": "path",
+    "from": "path",
+    "destination": "dest",
+    "target": "dest",
+    "to": "dest",
+    "new_name": "new_name",
+    "filename": "new_name",
+}
 
-    if "args" in plan:
 
-        args = plan["args"]
+def _normalize_one(raw: dict[str, Any]) -> dict[str, Any]:
+    """Normalize a single action dict to canonical form.
 
-        if "name" in args:
-            args["app"] = args.pop("name").lower()
+    Args:
+        raw: A dict with 'tool', 'action', and optional 'args' keys.
 
-        if "program" in args:
-            args["app"] = args.pop("program").lower()
+    Returns:
+        A new dict with aliases resolved and keys lowercased.
+    """
+    result: dict[str, Any] = {}
 
-    return plan
+    # Normalize tool name
+    tool = raw.get("tool", "").lower().strip()
+    result["tool"] = _TOOL_ALIASES.get(tool, tool)
+
+    # Normalize action name
+    action = raw.get("action", "").lower().strip()
+    result["action"] = _ACTION_ALIASES.get(action, action)
+
+    # Normalize argument names and values
+    raw_args = raw.get("args", {})
+    normalized_args: dict[str, Any] = {}
+
+    for key, value in raw_args.items():
+        canonical_key = _ARG_ALIASES.get(key.lower(), key.lower())
+
+        if isinstance(value, str):
+            value = value.lower().strip()
+
+        normalized_args[canonical_key] = value
+
+    result["args"] = normalized_args
+
+    return result
+
+
+def normalize(raw: dict | list[dict]) -> list[dict]:
+    """Normalize parsed LLM output into canonical action dicts.
+
+    Always returns a list, even for single actions.
+
+    Args:
+        raw: A single action dict or a list of action dicts.
+
+    Returns:
+        List of normalized action dicts.
+    """
+    if isinstance(raw, dict):
+        return [_normalize_one(raw)]
+
+    return [_normalize_one(item) for item in raw]

@@ -1,29 +1,76 @@
-from core.registry import get_tool
+"""
+Executor — runs validated Task objects against registered tools.
+
+Takes a Task in PENDING state, transitions it through RUNNING
+to COMPLETED or FAILED. Looks up the tool via the Registry and
+delegates execution. Never parses JSON, never talks to the LLM.
+"""
+
+import logging
+
+from core.exceptions import ExecutionError
+from core.registry import Registry
+from core.task import Task
+
+logger = logging.getLogger(__name__)
 
 
-def execute(plan):
+class Executor:
+    """Executes validated Task objects using registered tools."""
 
-    # Handle multiple actions
-    if isinstance(plan, list):
+    def __init__(self, registry: Registry) -> None:
+        self._registry = registry
 
-        results = []
+    def execute(self, task: Task) -> Task:
+        """Execute a single validated task.
 
-        for step in plan:
-            result = execute(step)
-            results.append(result)
+        Lifecycle:
+            PENDING → RUNNING → COMPLETED or FAILED
 
-        return "\n".join(results)
+        Args:
+            task: A validated Task in PENDING state.
 
-    # Handle normal chat
-    if plan["tool"] == "none":
-        return plan["args"]["message"]
+        Returns:
+            The same Task with updated status, result, or error.
+        """
+        tool_impl = self._registry.get_executor(task.tool)
 
-    tool = get_tool(plan["tool"])
+        if tool_impl is None:
+            task.start()
+            task.fail(f"No executor found for tool: {task.tool}")
+            logger.error("No executor for tool: %s", task.tool)
+            return task
 
-    if tool is None:
-        return f"Unknown tool: {plan['tool']}"
+        task.start()
 
-    return tool(
-        plan["action"],
-        plan["args"]
-    )
+        logger.info(
+            "Executing: tool=%s action=%s args=%s",
+            task.tool,
+            task.action,
+            task.args,
+        )
+
+        try:
+            result = tool_impl.execute(task.action, task.args)
+            task.complete(result)
+
+            logger.info(
+                "Completed: tool=%s action=%s result=%s",
+                task.tool,
+                task.action,
+                result,
+            )
+        except ExecutionError as exc:
+            task.fail(str(exc))
+            logger.error("Execution failed: %s", exc)
+        except Exception as exc:
+            task.fail(f"Unexpected error: {exc}")
+            logger.error(
+                "Unexpected error in %s.%s: %s",
+                task.tool,
+                task.action,
+                exc,
+                exc_info=True,
+            )
+
+        return task
