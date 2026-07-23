@@ -8,11 +8,12 @@ structured, validated intent.
 
 import logging
 
-from core.llm import LLMClient
+from core.model_gateway import ModelGateway
 from core.parser import parse_json
 from core.normalizer import normalize
 from core.registry import Registry
 from core.task import Task
+from providers.provider_models import RouterError
 
 logger = logging.getLogger(__name__)
 
@@ -39,14 +40,14 @@ class Planner:
 
     Pipeline:
         1. Build system prompt from Registry descriptions
-        2. Send to LLM and get raw text
+        2. Send to ModelGateway and get raw text
         3. Parse JSON from raw text
         4. Normalize aliases to canonical names
         5. Create Task objects
     """
 
-    def __init__(self, llm: LLMClient, registry: Registry) -> None:
-        self._llm = llm
+    def __init__(self, gateway: ModelGateway, registry: Registry) -> None:
+        self._gateway = gateway
         self._registry = registry
 
     def plan(self, user_input: str, context: str = "") -> list[Task]:
@@ -60,13 +61,16 @@ class Planner:
             List of Task objects ready for validation and execution.
 
         Raises:
-            LLMConnectionError: If Ollama is unreachable.
+            RouterError: If the model gateway fails to generate a response.
             ParseError: If the LLM output cannot be parsed.
         """
         logger.info("Planning for: %s", user_input)
 
         system_prompt = self._build_system_prompt(context)
-        raw_response = self._llm.generate(system_prompt, user_input)
+        
+        # Use Gateway for text generation
+        response = self._gateway.generate(system_prompt, user_input)
+        raw_response = response.text
 
         logger.debug("Raw LLM response: %s", raw_response[:300])
 
