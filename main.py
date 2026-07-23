@@ -1,10 +1,11 @@
 """
 Jarvis — Local AI Operating System.
 
-Entry point that wires up all components and runs the
-interactive REPL loop.
+Entry point that wires up all components and launches the
+PySide6 desktop GUI by default, or the terminal REPL with --cli.
 """
 
+import argparse
 import logging
 import sys
 
@@ -16,6 +17,8 @@ from core.planner import Planner
 from core.registry import Registry
 from core.task import TaskStatus
 from core.validator import Validator
+from memory.memory_manager import MemoryManager
+from memory.sqlite_memory import SqliteMemory
 from tools.browser import BrowserTool
 from tools.file import FileTool
 from tools.windows import WindowsTool
@@ -30,16 +33,26 @@ def setup_logging() -> None:
     )
 
 
-def build_agent() -> Agent:
-    """Wire up all components and return a configured Agent.
+def build_agent() -> dict:
+    """Wire up all components and return agent + context.
+
+    Returns a dict with:
+        agent: Fully constructed Agent instance.
+        config: JarvisConfig (for display purposes).
+        registry: Registry (for read-only tool listing).
+        memory: SqliteMemory (for read-only memory browsing).
+        model_name: Display string for the current model.
+        memory_backend: Display string for the memory backend.
+        tool_count: Number of registered tools.
 
     Dependency graph:
-        Config → LLMClient
+        Config → LLMClient, SqliteMemory
         WindowsTool + BrowserTool + FileTool → Registry
         LLMClient + Registry → Planner
         Registry → Validator
         Registry → Executor
-        Planner + Validator + Executor → Agent
+        SqliteMemory → MemoryManager
+        Planner + Validator + Executor + MemoryManager → Agent
     """
     config = load_config()
 
@@ -54,13 +67,27 @@ def build_agent() -> Agent:
     registry.register(browser_tool)
     registry.register(file_tool)
 
+    # Memory
+    sqlite_memory = SqliteMemory(config.memory_db_path)
+    memory_manager = MemoryManager(sqlite_memory)
+
     # Core components
     llm = LLMClient(config)
     planner = Planner(llm, registry)
     validator = Validator(registry)
     executor = Executor(registry)
 
-    return Agent(planner, validator, executor)
+    agent = Agent(planner, validator, executor, memory=memory_manager)
+
+    return {
+        "agent": agent,
+        "config": config,
+        "registry": registry,
+        "memory": sqlite_memory,
+        "model_name": config.model,
+        "memory_backend": "SQLite",
+        "tool_count": len(registry.list_tools()),
+    }
 
 
 def display_results(tasks: list) -> None:
@@ -78,14 +105,32 @@ def display_results(tasks: list) -> None:
             print(f"  ? {task.tool}.{task.action} — {task.status.value}")
 
 
-def main() -> None:
-    """Run the Jarvis interactive REPL."""
-    setup_logging()
+def parse_args() -> argparse.Namespace:
+    """Parse command-line arguments.
 
+    Returns:
+        Parsed arguments with a ``cli`` boolean flag.
+    """
+    parser = argparse.ArgumentParser(
+        description="Jarvis — Local AI Operating System",
+    )
+    parser.add_argument(
+        "--cli",
+        action="store_true",
+        default=False,
+        help="Launch the terminal REPL instead of the desktop GUI.",
+    )
+    return parser.parse_args()
+
+
+def repl(agent: Agent) -> None:
+    """Run the interactive terminal REPL.
+
+    Args:
+        agent: A fully constructed Agent instance.
+    """
     print("\n  JARVIS — Local AI Operating System")
     print("  Type 'exit' or 'quit' to stop.\n")
-
-    agent = build_agent()
 
     while True:
         try:
@@ -104,6 +149,20 @@ def main() -> None:
         results = agent.run(user_input)
         display_results(results)
         print()
+
+
+def main() -> None:
+    """Entry point — launches GUI by default, REPL with --cli."""
+    setup_logging()
+    args = parse_args()
+    ctx = build_agent()
+
+    if args.cli:
+        repl(ctx["agent"])
+    else:
+        from gui import launch_gui
+
+        launch_gui(ctx["agent"], config_ctx=ctx)
 
 
 if __name__ == "__main__":

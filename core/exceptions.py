@@ -29,3 +29,7 @@ class ExecutionError(JarvisError):
 
 class InvalidStateError(JarvisError):
     """Raised when a Task undergoes an illegal state transition."""
+
+
+class MemoryError(JarvisError):
+    """Raised when a memory storage or retrieval operation fails."""

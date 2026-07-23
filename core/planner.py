@@ -29,7 +29,9 @@ For multiple actions return a JSON array:
 
 Available tools:
 
-{tool_descriptions}"""
+{tool_descriptions}
+
+{context}"""
 
 
 class Planner:
@@ -47,11 +49,12 @@ class Planner:
         self._llm = llm
         self._registry = registry
 
-    def plan(self, user_input: str) -> list[Task]:
+    def plan(self, user_input: str, context: str = "") -> list[Task]:
         """Convert user input into a list of Task objects.
 
         Args:
             user_input: Natural language instruction from the user.
+            context: Optional conversation history for LLM context.
 
         Returns:
             List of Task objects ready for validation and execution.
@@ -62,7 +65,7 @@ class Planner:
         """
         logger.info("Planning for: %s", user_input)
 
-        system_prompt = self._build_system_prompt()
+        system_prompt = self._build_system_prompt(context)
         raw_response = self._llm.generate(system_prompt, user_input)
 
         logger.debug("Raw LLM response: %s", raw_response[:300])
@@ -75,16 +78,21 @@ class Planner:
 
         return tasks
 
-    def _build_system_prompt(self) -> str:
+    def _build_system_prompt(self, context: str = "") -> str:
         """Build the system prompt dynamically from the Registry.
 
+        Args:
+            context: Optional conversation history to include.
+
         Returns:
-            Complete system prompt with tool descriptions injected.
+            Complete system prompt with tool descriptions and
+            context injected.
         """
         tool_descriptions = self._registry.describe()
 
         return _SYSTEM_PROMPT_TEMPLATE.format(
-            tool_descriptions=tool_descriptions
+            tool_descriptions=tool_descriptions,
+            context=context,
         )
 
     @staticmethod

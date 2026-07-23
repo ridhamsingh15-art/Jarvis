@@ -1,0 +1,1 @@
+"""Jarvis GUI view pages."""
