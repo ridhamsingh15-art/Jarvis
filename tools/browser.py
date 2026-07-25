@@ -49,27 +49,31 @@ class BrowserTool(BaseTool):
         """Human-readable description for LLM prompts."""
         return "Open websites, URLs, and perform Google searches"
 
-    def get_actions(self) -> dict[str, str]:
-        """Return available actions and their descriptions.
+    def get_actions(self) -> dict[str, ActionDefinition]:
+        """Return available actions and their structured definitions.
 
         Returns:
-            Dict mapping action names to descriptions.
+            Dict mapping action names to ActionDefinition objects.
         """
+        from core.action_definition import ActionDefinition
+        
         site_list = ", ".join(_KNOWN_SITES.keys())
 
         return {
-            "open_url": (
-                "Opens a URL in the default browser. "
-                "Requires 'url' argument."
+            "open_url": ActionDefinition(
+                name="open_url",
+                description="Opens a URL in the default browser.",
+                required_args=["url"]
             ),
-            "open_site": (
-                "Opens a known website by name. "
-                "Requires 'site' argument. "
-                f"Known sites: {site_list}"
+            "open_site": ActionDefinition(
+                name="open_site",
+                description=f"Opens a known website by name. Known sites: {site_list}",
+                required_args=["site"]
             ),
-            "search_google": (
-                "Searches Google with a query. "
-                "Requires 'query' argument."
+            "search_google": ActionDefinition(
+                name="search_google",
+                description="Searches Google with a query.",
+                required_args=["query"]
             ),
         }
 

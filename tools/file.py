@@ -118,36 +118,45 @@ class FileTool(BaseTool):
         """Human-readable description for LLM prompts."""
         return "Manage files and directories on the local filesystem"
 
-    def get_actions(self) -> dict[str, str]:
-        """Return available actions and their descriptions."""
+    def get_actions(self) -> dict[str, ActionDefinition]:
+        """Return available actions and their structured definitions."""
+        from core.action_definition import ActionDefinition
+        
         return {
-            "list_directory": (
-                "Lists contents of a directory. "
-                "Requires 'path' argument."
+            "list_directory": ActionDefinition(
+                name="list_directory",
+                description="Lists contents of a directory.",
+                required_args=["path"]
             ),
-            "create_folder": (
-                "Creates a new folder (and parents if needed). "
-                "Requires 'path' argument."
+            "create_folder": ActionDefinition(
+                name="create_folder",
+                description="Creates a new folder (and parents if needed).",
+                required_args=["path"]
             ),
-            "rename": (
-                "Renames a file or folder. "
-                "Requires 'path' (current) and 'new_name' arguments."
+            "rename": ActionDefinition(
+                name="rename",
+                description="Renames a file or folder.",
+                required_args=["path", "new_name"]
             ),
-            "move": (
-                "Moves a file or folder to a new location. "
-                "Requires 'path' (source) and 'dest' arguments."
+            "move": ActionDefinition(
+                name="move",
+                description="Moves a file or folder to a new location.",
+                required_args=["path", "dest"]
             ),
-            "copy": (
-                "Copies a file or folder. "
-                "Requires 'path' (source) and 'dest' arguments."
+            "copy": ActionDefinition(
+                name="copy",
+                description="Copies a file or folder.",
+                required_args=["path", "dest"]
             ),
-            "delete": (
-                "Deletes a file or empty folder. "
-                "Requires 'path' argument."
+            "delete": ActionDefinition(
+                name="delete",
+                description="Deletes a file or empty folder.",
+                required_args=["path"]
             ),
-            "open_file": (
-                "Opens a file with the default application. "
-                "Requires 'path' argument."
+            "open_file": ActionDefinition(
+                name="open_file",
+                description="Opens a file with the default application.",
+                required_args=["path"]
             ),
         }
 
