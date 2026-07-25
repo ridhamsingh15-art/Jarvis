@@ -28,7 +28,7 @@ class Validator:
         Checks:
             1. Tool exists in the Registry
             2. Action exists for that tool
-            3. Required arguments are present
+            3. Required arguments are present and valid
 
         Args:
             task: The Task to validate.
@@ -41,6 +41,7 @@ class Validator:
         """
         self._validate_tool(task)
         self._validate_action(task)
+        self._validate_arguments(task)
 
         logger.debug(
             "Validated: tool=%s action=%s",
@@ -79,3 +80,41 @@ class Validator:
                 f"Unknown action: '{task.action}' for tool "
                 f"'{task.tool}'. Available actions: [{available}]"
             )
+
+    def _validate_arguments(self, task: Task) -> None:
+        """Validate the arguments for the task's action.
+        
+        Uses the structured ActionDefinition to check:
+        1. Reject None values
+        2. Reject empty strings
+        3. Reject missing required arguments
+        4. Reject unknown arguments
+        
+        Raises:
+            ValidationError: If any argument validation fails.
+        """
+        actions = self._registry.get_actions(task.tool)
+        action_def = actions[task.action]
+
+        expected_args = set(action_def.required_args + action_def.optional_args)
+
+        # 1 & 2. Reject None and empty strings
+        for key, value in task.args.items():
+            if value is None:
+                raise ValidationError(f"Argument '{key}' cannot be None.")
+            if isinstance(value, str) and not value.strip():
+                raise ValidationError(f"Argument '{key}' cannot be an empty string.")
+
+        # 3. Missing required arguments
+        for req in action_def.required_args:
+            if req not in task.args:
+                raise ValidationError(
+                    f"Missing required argument: '{req}' for action '{task.action}'"
+                )
+
+        # 4. Unknown arguments
+        for provided in task.args.keys():
+            if provided not in expected_args:
+                raise ValidationError(
+                    f"Unknown argument: '{provided}' for action '{task.action}'"
+                )

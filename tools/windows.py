@@ -40,19 +40,21 @@ class WindowsTool(BaseTool):
         """Human-readable description for LLM prompts."""
         return "Control Windows desktop applications"
 
-    def get_actions(self) -> dict[str, str]:
-        """Return available actions and their descriptions.
+    def get_actions(self) -> dict[str, ActionDefinition]:
+        """Return available actions and their structured definitions.
 
         Returns:
-            Dict mapping action names to descriptions.
+            Dict mapping action names to ActionDefinition objects.
         """
+        from core.action_definition import ActionDefinition
+        
         app_list = ", ".join(_APP_COMMANDS.keys())
 
         return {
-            "open_app": (
-                f"Opens a Windows application. "
-                f"Requires 'app' argument. "
-                f"Known apps: {app_list}"
+            "open_app": ActionDefinition(
+                name="open_app",
+                description=f"Opens a Windows application. Known apps: {app_list}",
+                required_args=["app"]
             ),
         }
 

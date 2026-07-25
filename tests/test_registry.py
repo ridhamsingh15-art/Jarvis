@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 from core.exceptions import ToolNotFoundError, ToolRegistrationError
 from core.registry import Registry
 from tools.base_tool import BaseTool
+from core.action_definition import ActionDefinition
 
 
 class MockTool(BaseTool):
@@ -14,7 +15,13 @@ class MockTool(BaseTool):
     def __init__(self, name: str = "mock_tool", description: str = "A test tool."):
         self._name = name
         self._description = description
-        self._actions = {"mock_action": "Does a mock thing"}
+        self._actions = {
+            "mock_action": ActionDefinition(
+                name="mock_action",
+                description="Does a mock thing.",
+                required_args=[]
+            )
+        }
 
     @property
     def name(self) -> str:
@@ -24,7 +31,7 @@ class MockTool(BaseTool):
     def description(self) -> str:
         return self._description
 
-    def get_actions(self) -> dict[str, str]:
+    def get_actions(self) -> dict[str, ActionDefinition]:
         return self._actions
 
     def execute(self, action: str, args: dict) -> str:
@@ -119,7 +126,7 @@ class TestRegistry(unittest.TestCase):
     def test_get_actions(self):
         """Test getting actions for a tool."""
         self.registry.register(self.tool1)
-        self.assertEqual(self.registry.get_actions("tool1"), {"mock_action": "Does a mock thing"})
+        self.assertEqual(self.registry.get_actions("tool1"), self.tool1.get_actions())
         
         # Test non-existent tool returns empty dict
         self.assertEqual(self.registry.get_actions("missing"), {})
@@ -141,7 +148,7 @@ class TestRegistry(unittest.TestCase):
         
         self.assertEqual(meta["name"], "tool1")
         self.assertEqual(meta["description"], "Description for tool 1")
-        self.assertEqual(meta["actions"], {"mock_action": "Does a mock thing"})
+        self.assertEqual(meta["actions"], self.tool1.get_actions())
 
     def test_metadata_nonexistent_raises_error(self):
         """Test retrieving metadata for a missing tool raises an error."""

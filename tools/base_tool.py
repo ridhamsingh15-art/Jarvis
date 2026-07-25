@@ -8,6 +8,8 @@ across all current and future tools.
 
 from abc import ABC, abstractmethod
 
+from core.action_definition import ActionDefinition
+
 
 class BaseTool(ABC):
     """Contract that every Jarvis tool must fulfill."""
@@ -23,12 +25,11 @@ class BaseTool(ABC):
         """Human-readable description for LLM prompt generation."""
 
     @abstractmethod
-    def get_actions(self) -> dict[str, str]:
-        """Return available actions and their descriptions.
+    def get_actions(self) -> dict[str, ActionDefinition]:
+        """Return available actions and their structured definitions.
 
         Returns:
-            Dict mapping action names to human-readable descriptions.
-            Example: {"open_app": "Opens a Windows application by name"}
+            Dict mapping action names to ActionDefinition objects.
         """
 
     @abstractmethod

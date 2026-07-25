@@ -11,6 +11,7 @@ import logging
 import threading
 from typing import Any, Optional
 
+from core.action_definition import ActionDefinition
 from core.exceptions import ToolRegistrationError, ToolNotFoundError
 from tools.base_tool import BaseTool
 
@@ -89,14 +90,14 @@ class Registry:
         """Alias for get(name) to preserve backward compatibility."""
         return self.get(name)
 
-    def get_actions(self, name: str) -> dict[str, str]:
+    def get_actions(self, name: str) -> dict[str, ActionDefinition]:
         """Get available actions for a tool.
 
         Args:
             name: Tool name.
 
         Returns:
-            Dict of action names to descriptions, or empty dict
+            Dict of action names to ActionDefinitions, or empty dict
             if tool not found.
         """
         tool = self.get(name)
