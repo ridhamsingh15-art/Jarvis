@@ -1,0 +1,8 @@
+{
+  "host": "0.0.0.0",
+  "port": 8080,
+  "debug": true,
+  "api_key": "your_secret_api_key_here",
+  "timeout": 60,
+  "db_path": "/var/lib/jarvis/memory.db"
+}
