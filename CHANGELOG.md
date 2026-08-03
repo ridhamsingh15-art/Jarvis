@@ -10,6 +10,8 @@ does not claim ownership of pre-existing uncommitted changes.
 | `core/telemetry/context.py` | Added a safe default path for metadata in new threads. | Fixes concurrent logging; public API unchanged. |
 | `core/cognition/classifier.py` | Added high-confidence recognition of common conversational and identity/name requests, known sites, URLs, and searches. | Avoids unnecessary model planning; unknown input retains the existing model fallback. |
 | `core/agent.py` | Preserved the classifier-selected tool and added natural direct responses for common conversation and identity/name questions. | Browser actions no longer become Windows actions; existing Windows defaults remain. |
+| `memory/base_memory.py`, `memory/sqlite_memory.py`, `memory/memory_manager.py` | Added persistent key/value personal facts to the active SQLite memory backend. | Explicit user memories survive a new memory-manager instance; conversation history remains compatible. |
+| `tests/test_personal_memory.py` | Added persistence, recall, and safe-error-message regression coverage. | Test-only coverage. |
 | `tests/test_conversation_routing.py` | Added routing and response regressions. | Test-only coverage. |
 | `headless_smoke.py` | Repaired stale imports and lint issues. | Script now type-checks against the current package layout. |
 | `smoke_test.py` | Repaired lint and runtime-nullability issues. | Script now type-checks cleanly. |

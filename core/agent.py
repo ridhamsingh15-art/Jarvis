@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -60,7 +61,11 @@ class Agent:
         self._memory = memory
         self._cognitive_manager = cognitive_manager
 
-    def run(self, user_input: str) -> list[Task]:
+    def run(
+        self,
+        user_input: str,
+        on_action: Callable[[str], None] | None = None,
+    ) -> list[Task]:
         """Process user input through the full pipeline.
 
         Pipeline:
@@ -74,6 +79,7 @@ class Agent:
 
         Args:
             user_input: Natural language instruction from the user.
+            on_action: Optional callback invoked immediately before a tool runs.
 
         Returns:
             List of Task objects with status, result, and errors.
@@ -129,6 +135,8 @@ class Agent:
         results: list[Task] = []
 
         for task in tasks:
+            if on_action is not None and task.tool != "system":
+                on_action(self._action_announcement(task))
             result = self._process_task(task)
             results.append(result)
 
@@ -158,6 +166,29 @@ class Agent:
         )
 
         return results
+
+    @staticmethod
+    def _action_announcement(task: Task) -> str:
+        """Describe a pending tool action in clear, user-facing language."""
+        if task.tool == "windows" and task.action == "open_app":
+            return f"I'll open {task.args.get('app', 'that application')} for you."
+        if task.tool == "browser" and task.action == "open_site":
+            raw_site = str(task.args.get("site", "that site"))
+            site = {
+                "github": "GitHub",
+                "google": "Google",
+                "stackoverflow": "Stack Overflow",
+                "youtube": "YouTube",
+                "wikipedia": "Wikipedia",
+            }.get(raw_site.lower(), raw_site.title())
+            return f"I'll open {site} in your browser."
+        if task.tool == "browser" and task.action == "open_url":
+            return f"I'll open {task.args.get('url', 'that link')} in your browser."
+        if task.tool == "browser" and task.action == "search_google":
+            return f"I'll search Google for {task.args.get('query', 'that')}."
+        if task.tool == "file" and task.action == "create_file":
+            return f"I'll create {task.args.get('path', 'that file')}."
+        return "I'll take care of that."
 
     def _handle_personal_memory(self, user_input: str) -> str | None:
         """Handle explicit personal-memory requests without an LLM round trip."""

@@ -30,7 +30,7 @@ No component was moved and no new subsystem was introduced.
 | Runtime, events, tasks, scheduler | Healthy | Covered by the existing test suite. |
 | Conversation fast path | Improved | Natural common responses now bypass planning. |
 | Browser routing | Improved | Known sites, URLs, and searches route to `browser`. |
-| Memory | Healthy | SQLite initializes during startup. |
+| Memory | Improved | SQLite conversation history plus persistent explicit user facts. |
 | Ollama provider | Healthy | Retry/backoff and timeout coverage exists. |
 | Observability | Improved | Worker-thread logging context no longer crashes. |
 | Static quality | Healthy | Ruff and mypy pass. |

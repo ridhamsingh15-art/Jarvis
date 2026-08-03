@@ -81,6 +81,32 @@ def test_simple_browser_action_preserves_its_target_tool() -> None:
     assert result[0].args == {"site": "github"}
 
 
+def test_agent_announces_a_tool_action_before_execution() -> None:
+    cognitive_manager = MagicMock()
+    intent = IntentResult(
+        intent=IntentType.SIMPLE_ACTION,
+        confidence=1.0,
+        extracted_action="open_site",
+        parameters={"tool": "browser", "site": "github"},
+    )
+    cognitive_manager.analyze.return_value = intent
+    cognitive_manager.decide.return_value = CognitiveDecision(
+        decision_type=DecisionType.EXECUTE_ACTION,
+        intent_result=intent,
+        target_component="Executor",
+    )
+    executor = MagicMock()
+    executor.execute.side_effect = _complete
+    agent = Agent(
+        MagicMock(), MagicMock(), executor, cognitive_manager=cognitive_manager
+    )
+    announcements: list[str] = []
+
+    agent.run("open github", on_action=announcements.append)
+
+    assert announcements == ["I'll open GitHub in your browser."]
+
+
 def _complete(task: Task) -> Task:
     task.start()
     task.complete("Opened github")

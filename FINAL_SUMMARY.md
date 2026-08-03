@@ -16,7 +16,12 @@ An independent concurrency defect in telemetry was also fixed: logging from a
 new thread could raise `LookupError` before writing any entries. Metadata now
 has a safe empty fallback.
 
-Final validation passed: 317 tests, Ruff, mypy across 542 source files, and a
+The active SQLite memory layer now also stores explicit personal facts. JARVIS
+can remember and recall a name or preference deterministically, without an LLM
+request, and presents safe user-facing error messages instead of raw internal
+validation or execution details.
+
+Final validation passed: 322 tests, Ruff, mypy across 543 source files, and a
 safe CLI startup/shutdown check. The main next step is to consolidate the
 legacy and newer AIOS layers into a clearly documented production wiring plan,
 then tighten type checking and integration-boundary error handling.
