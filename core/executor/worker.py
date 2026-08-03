@@ -1,11 +1,11 @@
 import threading
 import time
-from typing import Callable, Optional, Dict
+from collections.abc import Callable
 
-from core.models import ExecutionResult
 from .enums import WorkerStatus
 from .models import ExecutionContext
 from .results import ExecutionResultBuilder
+
 
 class WorkerThread(threading.Thread):
     """
@@ -13,7 +13,7 @@ class WorkerThread(threading.Thread):
     Stays alive waiting for work to avoid thread creation overhead.
     Provides complete try/except isolation guaranteeing the thread survives panics.
     """
-    def __init__(self, name: str, execution_callback: Callable[[ExecutionContext], Dict], on_completion: Callable):
+    def __init__(self, name: str, execution_callback: Callable[[ExecutionContext], dict], on_completion: Callable):
         super().__init__(name=name, daemon=True)
         self._execute = execution_callback
         self._on_completion = on_completion
@@ -21,7 +21,7 @@ class WorkerThread(threading.Thread):
         self.status = WorkerStatus.IDLE
         self._stop_event = threading.Event()
         self._work_condition = threading.Condition()
-        self._current_context: Optional[ExecutionContext] = None
+        self._current_context: ExecutionContext | None = None
         
     def assign(self, context: ExecutionContext) -> None:
         """Assigns a context to this worker and wakes it up."""
@@ -64,9 +64,9 @@ class WorkerThread(threading.Thread):
                     else:
                         result = ExecutionResultBuilder.success(context.task, output, start_time)
                         
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     # Catch-all isolation for ANY internal exception inside the action
-                    result = ExecutionResultBuilder.failure(context.task, f"Execution Panic: {str(e)}", start_time)
+                    result = ExecutionResultBuilder.failure(context.task, f"Execution Panic: {e!s}", start_time)
                     
                 finally:
                     with self._work_condition:

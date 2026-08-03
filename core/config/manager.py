@@ -1,10 +1,11 @@
 """
 Configuration Manager for resolving, validating, and serving configuration.
 """
-from typing import Any, Dict, List, Optional
-from .schema import ConfigSchema
+from typing import Any
+
+from .exceptions import MissingConfigurationError, SchemaValidationError
 from .provider import ConfigProvider
-from .exceptions import SchemaValidationError, MissingConfigurationError
+from .schema import ConfigSchema
 
 
 class ConfigSnapshot:
@@ -12,7 +13,7 @@ class ConfigSnapshot:
     Immutable dictionary-like object that holds the final validated configuration.
     Provides O(1) property and dictionary-like access.
     """
-    def __init__(self, data: Dict[str, Any], schema: ConfigSchema):
+    def __init__(self, data: dict[str, Any], schema: ConfigSchema):
         # We store the internal data privately to prevent mutation
         super().__setattr__('_data', data)
         super().__setattr__('_schema', schema)
@@ -61,8 +62,8 @@ class ConfigManager:
             schema: The schema definition to validate against.
         """
         self._schema = schema
-        self._providers: List[ConfigProvider] = []
-        self._snapshot: Optional[ConfigSnapshot] = None
+        self._providers: list[ConfigProvider] = []
+        self._snapshot: ConfigSnapshot | None = None
 
     def add_provider(self, provider: ConfigProvider) -> None:
         """
@@ -85,7 +86,7 @@ class ConfigManager:
         Raises:
             ConfigurationError: If any validation or coercion fails (fail-fast).
         """
-        raw_config: Dict[str, Any] = {}
+        raw_config: dict[str, Any] = {}
         
         # Load defaults from schema first
         for key, field in self._schema.fields.items():
@@ -100,7 +101,7 @@ class ConfigManager:
                     raw_config[k] = v
 
         # Validate and Coerce
-        validated_config: Dict[str, Any] = {}
+        validated_config: dict[str, Any] = {}
         for key, field in self._schema.fields.items():
             if key not in raw_config:
                 if field.required:

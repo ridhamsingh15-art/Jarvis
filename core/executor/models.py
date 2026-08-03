@@ -1,8 +1,9 @@
 from dataclasses import dataclass, field
-from typing import Dict, Any
+from typing import Any
 
 from core.models import JarvisModel
-from core.tasks import TaskDefinition, CancellationToken
+from core.tasks import CancellationToken, TaskDefinition
+
 
 @dataclass(frozen=True, slots=True)
 class ExecutionContext(JarvisModel):
@@ -12,4 +13,4 @@ class ExecutionContext(JarvisModel):
     """
     task: TaskDefinition
     token: CancellationToken = field(default_factory=CancellationToken)
-    scratchpad: Dict[str, Any] = field(default_factory=dict)
+    scratchpad: dict[str, Any] = field(default_factory=dict)

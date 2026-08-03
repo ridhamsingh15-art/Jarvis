@@ -1,16 +1,15 @@
+import re
 import uuid
 from dataclasses import dataclass, field
-from typing import Callable, Union, Awaitable
-import re
 
-from core.models import Event
-from .interfaces import EventHandler, AsyncEventHandler
+from .interfaces import AsyncEventHandler, EventHandler
+
 
 @dataclass
 class Subscription:
     """Represents a bound handler to a specific topic pattern."""
     topic_pattern: str
-    handler: Union[EventHandler, AsyncEventHandler]
+    handler: EventHandler | AsyncEventHandler
     priority: int = 0
     once_only: bool = False
     

@@ -6,7 +6,6 @@ Single source of truth for what providers exist and what their capabilities are.
 
 import logging
 import threading
-from typing import Dict, List, Optional
 
 from providers.base_provider import BaseProvider
 from providers.capabilities import Capability
@@ -26,7 +25,7 @@ class ProviderRegistry:
             health_monitor: Monitor used to determine healthy providers.
         """
         self._lock = threading.RLock()
-        self._providers: Dict[str, BaseProvider] = {}
+        self._providers: dict[str, BaseProvider] = {}
         self._health_monitor = health_monitor
 
     def register(self, provider: BaseProvider) -> None:
@@ -65,7 +64,7 @@ class ProviderRegistry:
                 del self._providers[provider_id]
                 logger.info("Unregistered provider: %s", provider_id)
 
-    def get_provider(self, provider_id: str) -> Optional[BaseProvider]:
+    def get_provider(self, provider_id: str) -> BaseProvider | None:
         """Get a specific provider by its ID.
         
         Args:
@@ -77,7 +76,7 @@ class ProviderRegistry:
         with self._lock:
             return self._providers.get(provider_id)
 
-    def list_providers(self) -> List[BaseProvider]:
+    def list_providers(self) -> list[BaseProvider]:
         """List all registered providers.
         
         Returns:
@@ -86,7 +85,7 @@ class ProviderRegistry:
         with self._lock:
             return list(self._providers.values())
 
-    def list_by_capability(self, capability: Capability) -> List[BaseProvider]:
+    def list_by_capability(self, capability: Capability) -> list[BaseProvider]:
         """List all providers that support a specific capability.
         
         Args:
@@ -98,7 +97,7 @@ class ProviderRegistry:
         with self._lock:
             return [p for p in self._providers.values() if p.supports(capability)]
 
-    def list_healthy_providers(self) -> List[BaseProvider]:
+    def list_healthy_providers(self) -> list[BaseProvider]:
         """List all providers that are not UNAVAILABLE.
         
         Healthy and Degraded providers are included; Unavailable are excluded.

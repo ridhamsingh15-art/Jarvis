@@ -113,7 +113,7 @@ class Validator:
                 )
 
         # 4. Unknown arguments
-        for provided in task.args.keys():
+        for provided in task.args:
             if provided not in expected_args:
                 raise ValidationError(
                     f"Unknown argument: '{provided}' for action '{task.action}'"

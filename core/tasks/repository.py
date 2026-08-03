@@ -1,15 +1,15 @@
 import threading
-from typing import Dict, List
 
-from .models import Task
-from .interfaces import TaskRepository
 from .exceptions import TaskNotFoundError
+from .interfaces import TaskRepository
+from .models import Task
+
 
 class InMemoryTaskRepository(TaskRepository):
     """Thread-safe in-memory storage for Tasks."""
     
     def __init__(self):
-        self._store: Dict[str, Task] = {}
+        self._store: dict[str, Task] = {}
         self._lock = threading.Lock()
         
     def save(self, task: Task) -> Task:
@@ -23,7 +23,7 @@ class InMemoryTaskRepository(TaskRepository):
                 raise TaskNotFoundError(f"Task '{task_id}' not found.")
             return self._store[task_id]
             
-    def list(self) -> List[Task]:
+    def list(self) -> list[Task]:
         with self._lock:
             return list(self._store.values())
             

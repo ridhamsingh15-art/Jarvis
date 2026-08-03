@@ -1,15 +1,17 @@
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 from .base import JarvisModel
-from .enums import ExecutionState, Capability, Permission
-from .primitives import Identifier, Timestamp, Version, Metadata
+from .enums import Capability, ExecutionState, Permission
+from .primitives import Identifier, Metadata, Timestamp, Version
+
 
 @dataclass(frozen=True, slots=True)
 class ExecutionResult(JarvisModel):
     """The standardized output of any execution block."""
     success: bool
-    output: Dict[str, Any] = field(default_factory=dict)
-    error_message: Optional[str] = None
+    output: dict[str, Any] = field(default_factory=dict)
+    error_message: str | None = None
     execution_time_ms: int = 0
 
 @dataclass(frozen=True, slots=True)
@@ -27,14 +29,14 @@ class Resource(JarvisModel):
     id: Identifier
     type: str
     uri: str
-    capabilities: List[Capability] = field(default_factory=list)
+    capabilities: list[Capability] = field(default_factory=list)
 
 @dataclass(frozen=True, slots=True)
 class Context(JarvisModel):
     """Execution context injected into operations."""
     correlation_id: Identifier
     session_id: Identifier
-    permissions: List[Permission] = field(default_factory=list)
+    permissions: list[Permission] = field(default_factory=list)
     metadata: Metadata = field(default_factory=Metadata)
 
 @dataclass(frozen=True, slots=True)
@@ -43,7 +45,7 @@ class Event(JarvisModel):
     id: Identifier = field(default_factory=Identifier)
     timestamp: Timestamp = field(default_factory=Timestamp)
     topic: str = "system.default"
-    payload: Dict[str, Any] = field(default_factory=dict)
+    payload: dict[str, Any] = field(default_factory=dict)
     source: str = "unknown"
 
 @dataclass(frozen=True, slots=True)
@@ -61,8 +63,8 @@ class Command(JarvisModel):
     """A strict imperative action bound for a provider or tool."""
     id: Identifier = field(default_factory=Identifier)
     action: str = ""
-    parameters: Dict[str, Any] = field(default_factory=dict)
-    context: Optional[Context] = None
+    parameters: dict[str, Any] = field(default_factory=dict)
+    context: Context | None = None
 
 @dataclass(frozen=True, slots=True)
 class Task(JarvisModel):
@@ -71,8 +73,8 @@ class Task(JarvisModel):
     name: str = "Unnamed Task"
     description: str = ""
     state: ExecutionState = ExecutionState.PENDING
-    commands: List[Command] = field(default_factory=list)
-    result: Optional[ExecutionResult] = None
+    commands: list[Command] = field(default_factory=list)
+    result: ExecutionResult | None = None
     created_at: Timestamp = field(default_factory=Timestamp)
     updated_at: Timestamp = field(default_factory=Timestamp)
     version: Version = field(default_factory=Version)

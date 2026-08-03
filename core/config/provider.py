@@ -4,8 +4,8 @@ Configuration Providers for layered configuration loading.
 import json
 import os
 from abc import ABC, abstractmethod
-from typing import Any, Dict
 from pathlib import Path
+from typing import Any
 
 
 class ConfigProvider(ABC):
@@ -13,28 +13,27 @@ class ConfigProvider(ABC):
     Abstract base class for all configuration providers.
     """
     @abstractmethod
-    def load(self) -> Dict[str, Any]:
+    def load(self) -> dict[str, Any]:
         """
         Load and return configuration values as a dictionary.
         
         Returns:
             Dictionary of configuration keys and values.
         """
-        pass
 
 
 class DefaultConfigProvider(ConfigProvider):
     """
     Provides default configuration values defined in the schema.
     """
-    def __init__(self, defaults: Dict[str, Any]):
+    def __init__(self, defaults: dict[str, Any]):
         """
         Args:
             defaults: Dictionary of default configuration values.
         """
         self._defaults = defaults
 
-    def load(self) -> Dict[str, Any]:
+    def load(self) -> dict[str, Any]:
         return self._defaults.copy()
 
 
@@ -49,7 +48,7 @@ class FileConfigProvider(ConfigProvider):
         """
         self._file_path = Path(file_path)
 
-    def load(self) -> Dict[str, Any]:
+    def load(self) -> dict[str, Any]:
         if not self._file_path.exists():
             return {}
             
@@ -60,7 +59,7 @@ class FileConfigProvider(ConfigProvider):
             # According to specs, fail-fast on startup errors
             from .exceptions import ConfigurationError
             raise ConfigurationError(f"Failed to parse config file {self._file_path}: {e}")
-        except IOError as e:
+        except OSError as e:
             from .exceptions import ConfigurationError
             raise ConfigurationError(f"Failed to read config file {self._file_path}: {e}")
 
@@ -79,7 +78,7 @@ class EnvConfigProvider(ConfigProvider):
         """
         self._prefix = prefix
 
-    def load(self) -> Dict[str, Any]:
+    def load(self) -> dict[str, Any]:
         config = {}
         for key, value in os.environ.items():
             if key.startswith(self._prefix):

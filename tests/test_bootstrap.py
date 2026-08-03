@@ -1,8 +1,6 @@
-import os
-import pytest
+from core.bootstrap import Bootstrap, Runtime, StartupResult
 from core.models import Event
-from core.bootstrap import Bootstrap, StartupResult, Runtime
-from core.di import CircularDependencyError
+
 
 def test_successful_startup():
     # Make sure we don't have bad env vars breaking config

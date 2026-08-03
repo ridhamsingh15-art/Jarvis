@@ -1,8 +1,10 @@
 import asyncio
+
 import pytest
 
-from core.models import Event
 from core.events import EventBus
+from core.models import Event
+
 
 class DummyLogger:
     def __init__(self):
@@ -120,3 +122,18 @@ async def test_async_dispatch():
     
     await bus.publish_async(Event(topic="test"))
     assert count == 1
+
+def test_shutdown_clear():
+    logger = DummyLogger()
+    bus = EventBus(logger)
+    
+    count = 0
+    def handler(evt: Event):
+        nonlocal count
+        count += 1
+        
+    bus.subscribe("test", handler)
+    bus.shutdown()
+    bus.publish(Event(topic="test"))
+    
+    assert count == 0

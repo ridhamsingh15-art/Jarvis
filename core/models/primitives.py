@@ -1,10 +1,11 @@
-import re
 import uuid
-from datetime import datetime, timezone
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional
+from datetime import datetime, timezone
+from typing import Any
+
 from .base import JarvisModel
 from .exceptions import ModelValidationError
+
 
 @dataclass(frozen=True, slots=True)
 class Identifier(JarvisModel):
@@ -45,8 +46,8 @@ class Version(JarvisModel):
 @dataclass(frozen=True, slots=True)
 class Metadata(JarvisModel):
     """Generic bucket for loosely-structured contextual data."""
-    tags: Dict[str, str] = field(default_factory=dict)
-    annotations: Dict[str, Any] = field(default_factory=dict)
+    tags: dict[str, str] = field(default_factory=dict)
+    annotations: dict[str, Any] = field(default_factory=dict)
 
     def validate(self) -> None:
         if not isinstance(self.tags, dict) or not isinstance(self.annotations, dict):

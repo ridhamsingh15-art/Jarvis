@@ -1,16 +1,16 @@
 import unittest
 from unittest.mock import MagicMock
 
-from core.planner import Planner
 from core.model_gateway import ModelGateway
+from core.planner import Planner
 from core.registry import Registry
-from core.task import Task
 from providers.provider_models import (
-    ModelResponse, 
-    RouterError,
+    ModelResponse,
     NoCapableProviderError,
-    ProviderExecutionError
+    ProviderExecutionError,
+    RouterError,
 )
+
 
 class TestPlanner(unittest.TestCase):
     def setUp(self):
@@ -33,7 +33,7 @@ class TestPlanner(unittest.TestCase):
         
         self.assertEqual(len(tasks), 1)
         self.assertEqual(tasks[0].tool, "browser")
-        self.assertEqual(tasks[0].action, "open_file")
+        self.assertEqual(tasks[0].action, "open_url")
         self.assertEqual(tasks[0].args, {"url": "https://example.com"})
         
         self.mock_gateway.generate.assert_called_once()

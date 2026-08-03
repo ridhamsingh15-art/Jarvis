@@ -1,10 +1,9 @@
 import threading
-from typing import List, Optional, Callable, Dict
+from collections.abc import Callable
 
-from core.models import ExecutionResult
 from .enums import WorkerStatus
 from .worker import WorkerThread
-from .models import ExecutionContext
+
 
 class WorkerPool:
     """Manages a dynamic pool of WorkerThreads scaling bounded queues safely."""
@@ -16,14 +15,14 @@ class WorkerPool:
         self._execute = execute_callback
         self._completion = completion_callback
         
-        self._workers: List[WorkerThread] = []
+        self._workers: list[WorkerThread] = []
         self._lock = threading.Lock()
         
         # Pre-warm minimum workers
         for i in range(self._min):
             self._spawn_worker()
             
-    def _spawn_worker(self) -> Optional[WorkerThread]:
+    def _spawn_worker(self) -> WorkerThread | None:
         """Spawns a new worker if under the maximum cap."""
         with self._lock:
             if len(self._workers) >= self._max:
@@ -37,7 +36,7 @@ class WorkerPool:
             worker.start()
             return worker
 
-    def acquire_idle_worker(self) -> Optional[WorkerThread]:
+    def acquire_idle_worker(self) -> WorkerThread | None:
         """Returns an IDLE worker, or spawns a new one if permitted."""
         with self._lock:
             for w in self._workers:
@@ -55,7 +54,7 @@ class WorkerPool:
             # We don't join immediately to prevent blocking, they will die cleanly as Daemons.
             self._workers.clear()
             
-    def get_stats(self) -> Dict[str, int]:
+    def get_stats(self) -> dict[str, int]:
         with self._lock:
             busy = sum(1 for w in self._workers if w.status == WorkerStatus.BUSY)
             return {

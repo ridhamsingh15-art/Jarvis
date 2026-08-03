@@ -8,7 +8,7 @@ calls this module and handles everything downstream.
 
 import logging
 
-from ollama import chat, ResponseError, RequestError
+from ollama import RequestError, ResponseError, chat
 
 from config.config import JarvisConfig
 from core.exceptions import LLMConnectionError
@@ -64,7 +64,7 @@ class LLMClient:
                 f"Ollama returned an error: {exc}"
             ) from exc
 
-        raw_text = response.message.content
+        raw_text = response.message.content or ""
         logger.debug("LLM response length: %d chars", len(raw_text))
 
         return raw_text

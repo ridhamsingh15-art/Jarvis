@@ -8,7 +8,7 @@ sections. Each entry shows timestamp + summary. Read-only.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt
@@ -35,7 +35,7 @@ class HistoryView(QWidget):
 
     def __init__(
         self,
-        memory: "SqliteMemory | None" = None,
+        memory: SqliteMemory | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -78,8 +78,8 @@ class HistoryView(QWidget):
 
         try:
             entries = self._memory.get_recent(limit=100)
-        except Exception as exc:
-            logger.warning("Failed to load history: %s", exc)
+        except Exception:
+            logger.exception("Failed to load history")
             self._add_label("Failed to load history.")
             return
 

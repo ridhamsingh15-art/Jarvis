@@ -6,9 +6,8 @@ Does not perform background polling; state is updated passively
 by the fallback manager or actively by external health checks.
 """
 
-import threading
 import logging
-from typing import Dict
+import threading
 
 from providers.provider_models import ProviderHealthStatus
 
@@ -36,10 +35,10 @@ class HealthMonitor:
         self._recovery_required_successes = recovery_required_successes
 
         self._lock = threading.RLock()
-        self._states: Dict[str, ProviderHealthStatus] = {}
-        self._consecutive_failures: Dict[str, int] = {}
-        self._total_failures: Dict[str, int] = {}  # for unavailable threshold
-        self._consecutive_successes: Dict[str, int] = {}
+        self._states: dict[str, ProviderHealthStatus] = {}
+        self._consecutive_failures: dict[str, int] = {}
+        self._total_failures: dict[str, int] = {}  # for unavailable threshold
+        self._consecutive_successes: dict[str, int] = {}
 
     def mark_success(self, provider_id: str) -> None:
         """Record a successful operation for a provider."""

@@ -1,12 +1,16 @@
 import sys
-import pytest
 
-from core.telemetry.context import set_correlation_id, set_component_name, clear_context
 from core.errors import (
-    ErrorCategory, ErrorSeverity,
-    JarvisError, ValidationError, NetworkError, FatalError,
-    ErrorHandler
+    ErrorCategory,
+    ErrorHandler,
+    ErrorSeverity,
+    FatalError,
+    JarvisError,
+    NetworkError,
+    ValidationError,
 )
+from core.telemetry.context import clear_context, set_component_name, set_correlation_id
+
 
 def test_jarvis_error_base():
     clear_context()
@@ -48,7 +52,7 @@ def test_error_hierarchy_defaults():
 
 def test_nested_errors():
     try:
-        1 / 0
+        _ = 1 / 0
     except ZeroDivisionError as e:
         root_cause = e
         

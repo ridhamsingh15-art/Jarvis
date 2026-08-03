@@ -51,6 +51,19 @@ class Task:
     result: Any = None
     error: str = ""
 
+    def __post_init__(self) -> None:
+        """Normalize status to TaskStatus enum at construction boundary."""
+        if isinstance(self.status, str):
+            status_str: str = self.status
+            try:
+                self.status = TaskStatus(status_str)
+            except ValueError:
+                # Try matching by name (e.g. "COMPLETED" -> TaskStatus.COMPLETED)
+                try:
+                    self.status = TaskStatus[status_str.upper()]
+                except KeyError:
+                    self.status = TaskStatus.PENDING
+
     def _transition(self, target: TaskStatus) -> None:
         """Transition to a new state, enforcing valid transitions.
 

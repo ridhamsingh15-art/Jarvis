@@ -2,10 +2,10 @@
 Configuration settings for AI providers.
 """
 
-from typing import Dict, Any
+from typing import Any
 
 # Provider configurations
-PROVIDER_CONFIG: Dict[str, Dict[str, Any]] = {
+PROVIDER_CONFIG: dict[str, dict[str, Any]] = {
     "ollama": {
         "base_url": "http://localhost:11434",
         "default_model": "llama3",

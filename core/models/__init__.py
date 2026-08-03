@@ -5,20 +5,37 @@ The canonical, immutable domain models mapped across the entire operating system
 No raw dictionaries should cross subsystem boundaries.
 """
 
-from .exceptions import ModelValidationError
-from .enums import ExecutionState, Capability, Permission
 from .base import JarvisModel
-from .primitives import Identifier, Timestamp, Version, Metadata
 from .domain import (
-    ExecutionResult, Artifact, Resource, Context,
-    Event, Message, Command, Task
+    Artifact,
+    Command,
+    Context,
+    Event,
+    ExecutionResult,
+    Message,
+    Resource,
+    Task,
 )
+from .enums import Capability, ExecutionState, Permission
+from .exceptions import ModelValidationError
+from .primitives import Identifier, Metadata, Timestamp, Version
 
 __all__ = [
-    "ModelValidationError",
-    "ExecutionState", "Capability", "Permission",
+    "Artifact",
+    "Capability",
+    "Command",
+    "Context",
+    "Event",
+    "ExecutionResult",
+    "ExecutionState",
+    "Identifier",
     "JarvisModel",
-    "Identifier", "Timestamp", "Version", "Metadata",
-    "ExecutionResult", "Artifact", "Resource", "Context",
-    "Event", "Message", "Command", "Task"
+    "Message",
+    "Metadata",
+    "ModelValidationError",
+    "Permission",
+    "Resource",
+    "Task",
+    "Timestamp",
+    "Version"
 ]

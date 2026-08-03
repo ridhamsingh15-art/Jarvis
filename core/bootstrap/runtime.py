@@ -1,8 +1,9 @@
-from core.telemetry import AsyncLogger
 from core.di import Container
 from core.events import EventBus
+from core.telemetry import AsyncLogger
 
 from .lifecycle import LifecycleManager
+
 
 class Runtime:
     """

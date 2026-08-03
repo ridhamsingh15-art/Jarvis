@@ -8,12 +8,11 @@ as a temporary widget and removed when results arrive.
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
-    QVBoxLayout,
     QWidget,
 )
 

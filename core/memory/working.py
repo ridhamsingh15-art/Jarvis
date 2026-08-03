@@ -1,13 +1,14 @@
-import time
 import threading
-from typing import Optional, Any, Dict, List
+import time
+from typing import Any
 
-from core.models import Identifier, Timestamp, Event
 from core.events import EventBus
+from core.models import Event, Identifier, Timestamp
+
 from .enums import MemoryType
+from .interfaces import MemoryItem, MemoryRepository, StorageProvider
 from .models import WorkingMemoryItem
-from .interfaces import StorageProvider, MemoryRepository
-from .exceptions import MemoryNotFoundError
+
 
 class WorkingMemoryRepository(MemoryRepository):
     """Repository mapping WorkingMemoryItem to a generic StorageProvider."""
@@ -15,16 +16,20 @@ class WorkingMemoryRepository(MemoryRepository):
         self._provider = provider
         self._collection = "working_memory"
         
-    def save(self, item: WorkingMemoryItem) -> None:
+    def save(self, item: MemoryItem) -> None:
+        """Stores a temporary item."""
+        if not isinstance(item, WorkingMemoryItem):
+            raise TypeError("Expected WorkingMemoryItem")
         self._provider.insert(self._collection, item.to_dict())
         
-    def get(self, item_id: str) -> Optional[WorkingMemoryItem]:
+    def get(self, item_id: str) -> WorkingMemoryItem | None:
         results = self._provider.query(self._collection, {"id": {"value": item_id}}, limit=1)
         if results:
             return WorkingMemoryItem.from_dict(results[0])
         return None
         
-    def find(self, filters: Dict[str, Any], limit: int = 100) -> List[WorkingMemoryItem]:
+    def find(self, filters: dict[str, Any], limit: int = 100) -> list[MemoryItem]:
+        """Query working memory."""
         results = self._provider.query(self._collection, filters, limit=limit)
         return [WorkingMemoryItem.from_dict(r) for r in results]
         
@@ -41,7 +46,7 @@ class WorkingMemoryManager:
         self._event_bus = event_bus
         self._lock = threading.Lock()
         
-    def store_context(self, key: str, value: Any, ttl_seconds: Optional[float] = None) -> WorkingMemoryItem:
+    def store_context(self, key: str, value: Any, ttl_seconds: float | None = None) -> WorkingMemoryItem:
         """Stores a value in working memory, replacing existing if present by key."""
         with self._lock:
             # We'll use the key as the identifier for O(1) lookups in this manager
@@ -59,7 +64,7 @@ class WorkingMemoryManager:
             self._repo.save(item)
             return item
             
-    def get_context(self, key: str) -> Optional[Any]:
+    def get_context(self, key: str) -> Any | None:
         """Retrieves a value. Automatically evicts if TTL has expired."""
         with self._lock:
             item = self._repo.get(key)

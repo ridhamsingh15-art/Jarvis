@@ -1,11 +1,12 @@
 import threading
 import time
-from typing import Optional
 
 from core.tasks import TaskManager, TaskStatus
-from .pool import WorkerPool
+
 from .models import ExecutionContext
+from .pool import WorkerPool
 from .timeouts import TimeoutEnforcer
+
 
 class TaskDispatcher:
     """Daemon thread bridging the TaskManager queue and the WorkerPool."""
@@ -16,7 +17,7 @@ class TaskDispatcher:
         self._timeout_enforcer = timeout_enforcer
         
         self._stop = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
 
     def start(self):
         if self._thread and self._thread.is_alive():
@@ -27,18 +28,16 @@ class TaskDispatcher:
 
     def stop(self):
         self._stop.set()
-        # Wake up the task manager queue if it's blocking
-        with self._task_manager._queue._not_empty:
-            self._task_manager._queue._not_empty.notify_all()
         if self._thread:
             self._thread.join(timeout=2.0)
 
     def _dispatch_loop(self):
         while not self._stop.is_set():
             # 1. Fetch next READY task. Blocks for up to 1 second to allow clean shutdown checks.
-            task = self._task_manager.get_next_ready_task(timeout=1.0)
+            task = self._task_manager._queue.dequeue()
             
             if not task:
+                time.sleep(0.1)
                 continue
                 
             if self._stop.is_set():
@@ -55,7 +54,7 @@ class TaskDispatcher:
                 break # We stopped while waiting for a worker
                 
             # 3. Transition to RUNNING, build context and assign
-            running_task = self._task_manager.transition_task(task.id.value, TaskStatus.RUNNING)
+            running_task = self._task_manager.transition_task(task.task_id.value, TaskStatus.RUNNING)
             context = ExecutionContext(task=running_task)
-            self._timeout_enforcer.track(running_task.id.value, context)
+            self._timeout_enforcer.track(running_task.task_id.value, context)
             worker.assign(context)

@@ -55,12 +55,15 @@ _ACTION_ALIASES: dict[str, str] = {
     "make_folder": "create_folder",
     "create_directory": "create_folder",
     "new_folder": "create_folder",
+    "create_file": "create_file",
+    "new_file": "create_file",
+    "write": "write_file",
+    "write_file": "write_file",
     "rm": "delete",
     "remove": "delete",
     "mv": "move",
     "cp": "copy",
     "duplicate": "copy",
-    "open": "open_file",
 }
 
 # Argument name aliases → canonical argument name
@@ -81,6 +84,8 @@ _ARG_ALIASES: dict[str, str] = {
     "search_term": "query",
     "search": "query",
     "text": "query",
+    "content": "content",
+    "contents": "content",
     # File arg aliases
     "folder": "path",
     "directory": "path",
@@ -114,7 +119,14 @@ def _normalize_one(raw: dict[str, Any]) -> dict[str, Any]:
 
     # Normalize action name
     action = raw.get("action", "").lower().strip()
-    result["action"] = _ACTION_ALIASES.get(action, action)
+    if action == "open":
+        result["action"] = {
+            "windows": "open_app",
+            "browser": "open_url",
+            "file": "open_file",
+        }.get(result["tool"], action)
+    else:
+        result["action"] = _ACTION_ALIASES.get(action, action)
 
     # Normalize argument names and values
     raw_args = raw.get("args", {})
@@ -124,7 +136,7 @@ def _normalize_one(raw: dict[str, Any]) -> dict[str, Any]:
         canonical_key = _ARG_ALIASES.get(key.lower(), key.lower())
 
         if isinstance(value, str):
-            value = value.lower().strip()
+            value = value.strip()
 
         normalized_args[canonical_key] = value
 

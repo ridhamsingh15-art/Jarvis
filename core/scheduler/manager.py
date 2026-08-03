@@ -1,14 +1,13 @@
-from typing import Dict, Any
 
 from core.events import EventBus
-from core.runtime import BaseComponent, HealthReport, RuntimeState
-from core.tasks import TaskManager, TaskDefinition, TaskStatus
-from core.workflows import WorkflowManager, WorkflowDefinition
+from core.runtime import BaseComponent, ComponentMetadata, HealthReport, RuntimeState
+from core.tasks import Task, TaskManager
+from core.workflows import Workflow, WorkflowManager
 
-from .scheduler import SchedulerEngine
 from .models import JobType
+from .scheduler import SchedulerEngine
 from .triggers import Trigger
-from .policies import BackoffPolicy
+
 
 class SchedulerManager(BaseComponent):
     """
@@ -16,7 +15,7 @@ class SchedulerManager(BaseComponent):
     Implements RuntimeComponent.
     """
     def __init__(self, event_bus: EventBus, task_manager: TaskManager, workflow_manager: WorkflowManager):
-        super().__init__("SchedulerEngine")
+        super().__init__(ComponentMetadata(id="SchedulerEngine", name="Scheduler", version="1.0.0"))
         self._engine = SchedulerEngine(event_bus, task_manager, workflow_manager)
         self._event_bus = event_bus
         self._task_manager = task_manager
@@ -25,11 +24,11 @@ class SchedulerManager(BaseComponent):
         # Here we bind a direct callback for testing intercepting 'task.failed'.
         self._event_bus.subscribe("task.failed", self._handle_task_failure)
 
-    def schedule_task(self, task: TaskDefinition, trigger: Trigger) -> str:
+    def schedule_task(self, task: Task, trigger: Trigger) -> str:
         """Schedules a Task for future execution."""
         return self._engine.schedule(task, trigger, JobType.TASK)
 
-    def schedule_workflow(self, workflow: WorkflowDefinition, trigger: Trigger) -> str:
+    def schedule_workflow(self, workflow: Workflow, trigger: Trigger) -> str:
         """Schedules a Workflow for future execution."""
         return self._engine.schedule(workflow, trigger, JobType.WORKFLOW)
 
@@ -49,13 +48,13 @@ class SchedulerManager(BaseComponent):
             
         try:
             task = self._task_manager.get(task_id)
-        except Exception:
+        except Exception:  # noqa: BLE001
             return
             
         # Check retry limits using the Task as the single source of truth
         if task.max_retries > 0 and task.retry_count < task.max_retries:
-            from .triggers import DelayedTrigger
             from .policies import ExponentialBackoff
+            from .triggers import DelayedTrigger
             
             attempt = task.retry_count + 1
             
@@ -67,20 +66,18 @@ class SchedulerManager(BaseComponent):
             self._engine.schedule(task, trigger, JobType.TASK)
 
     # RuntimeComponent overrides
-    def start(self) -> None:
-        super().start()
+    async def _do_start(self) -> None:
         self._engine.start()
 
-    def stop(self) -> None:
-        super().stop()
+    async def _do_stop(self) -> None:
         self._engine.stop()
 
-    def health(self) -> HealthReport:
-        is_healthy = self._state == RuntimeState.RUNNING
+    async def health(self) -> HealthReport:
+        is_healthy = self.state == RuntimeState.RUNNING
+        from core.runtime.enums import HealthState
         return HealthReport(
-            is_healthy=is_healthy,
-            status=self._state.value,
-            component_name=self._name,
+            component_id=self.metadata.id,
+            state=HealthState.HEALTHY if is_healthy else HealthState.DEGRADED,
             details={
                 "queued_jobs": self._engine._queue.qsize()
             }

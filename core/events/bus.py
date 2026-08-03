@@ -1,11 +1,10 @@
-from typing import Union
 
 from core.models import Event
 from core.telemetry import AsyncLogger
 
-from .interfaces import EventHandler, AsyncEventHandler
-from .registry import HandlerRegistry
 from .dispatcher import EventDispatcher
+from .interfaces import AsyncEventHandler, EventHandler
+from .registry import HandlerRegistry
 
 
 class EventBus:
@@ -20,7 +19,7 @@ class EventBus:
     def subscribe(
         self, 
         topic_pattern: str, 
-        handler: Union[EventHandler, AsyncEventHandler], 
+        handler: EventHandler | AsyncEventHandler, 
         priority: int = 0, 
         once_only: bool = False
     ) -> str:
@@ -51,4 +50,4 @@ class EventBus:
         """
         Cleans up the event bus.
         """
-        self._registry._subscriptions.clear()
+        self._registry.clear()

@@ -1,21 +1,21 @@
 import threading
-from typing import List, Dict, Union
 
+from .interfaces import AsyncEventHandler, EventHandler
 from .subscription import Subscription
-from .interfaces import EventHandler, AsyncEventHandler
+
 
 class HandlerRegistry:
     """
     Thread-safe registry managing pub/sub subscriptions.
     """
     def __init__(self):
-        self._subscriptions: List[Subscription] = []
+        self._subscriptions: list[Subscription] = []
         self._lock = threading.Lock()
 
     def subscribe(
         self, 
         topic_pattern: str, 
-        handler: Union[EventHandler, AsyncEventHandler], 
+        handler: EventHandler | AsyncEventHandler, 
         priority: int = 0, 
         once_only: bool = False
     ) -> str:
@@ -49,10 +49,17 @@ class HandlerRegistry:
                     return True
         return False
 
-    def get_matching_subscriptions(self, topic: str) -> List[Subscription]:
+    def get_matching_subscriptions(self, topic: str) -> list[Subscription]:
         """
         Returns a priority-ordered list of subscriptions matching the topic.
         """
         with self._lock:
             # We copy the list to prevent mutation during iteration
             return [sub for sub in self._subscriptions if sub.matches(topic)]
+
+    def clear(self) -> None:
+        """
+        Thread-safe removal of all active subscriptions.
+        """
+        with self._lock:
+            self._subscriptions.clear()

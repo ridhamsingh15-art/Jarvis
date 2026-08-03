@@ -1,8 +1,10 @@
 import threading
-from core.models import Event
-from core.events import EventBus
-from core.telemetry import AsyncLogger
+
 from core.di import Container
+from core.events import EventBus
+from core.models import Event
+from core.telemetry import AsyncLogger
+
 
 class LifecycleManager:
     """Manages the state transitions and graceful shutdown of the runtime."""

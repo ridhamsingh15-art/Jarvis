@@ -6,7 +6,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Any
 
 from core.exceptions import JarvisError
 from providers.capabilities import Capability

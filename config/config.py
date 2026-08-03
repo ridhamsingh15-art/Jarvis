@@ -18,10 +18,12 @@ _DEFAULT_MEMORY_DB = str(
 class JarvisConfig:
     """Immutable configuration for the Jarvis agent framework."""
 
+    provider: str = "ollama"
     model: str = "qwen3:8b"
     ollama_host: str = "http://localhost:11434"
     max_retries: int = 3
     request_timeout: int = 30
+    retry_backoff_seconds: float = 1.0
     memory_db_path: str = _DEFAULT_MEMORY_DB
 
 
@@ -29,7 +31,8 @@ def load_config() -> JarvisConfig:
     """Load configuration from environment variables with defaults.
 
     Environment variables:
-        JARVIS_MODEL: Ollama model name (default: qwen3:8b)
+        JARVIS_PROVIDER: AI provider name (default: ollama)
+        JARVIS_MODEL: Model name (default: qwen3:8b)
         OLLAMA_HOST: Ollama server URL (default: http://localhost:11434)
         JARVIS_MAX_RETRIES: Max LLM retry attempts (default: 3)
         JARVIS_TIMEOUT: Request timeout in seconds (default: 30)
@@ -39,10 +42,13 @@ def load_config() -> JarvisConfig:
         JarvisConfig: Frozen configuration instance.
     """
     return JarvisConfig(
+        provider=os.environ.get("JARVIS_PROVIDER", "ollama"),
         model=os.environ.get("JARVIS_MODEL", "qwen3:8b"),
         ollama_host=os.environ.get("OLLAMA_HOST", "http://localhost:11434"),
         max_retries=int(os.environ.get("JARVIS_MAX_RETRIES", "3")),
         request_timeout=int(os.environ.get("JARVIS_TIMEOUT", "30")),
+        retry_backoff_seconds=float(
+            os.environ.get("JARVIS_RETRY_BACKOFF_SECONDS", "1.0")
+        ),
         memory_db_path=os.environ.get("JARVIS_MEMORY_DB", _DEFAULT_MEMORY_DB),
     )
-

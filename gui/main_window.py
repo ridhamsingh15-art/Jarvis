@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Qt, Slot
+from PySide6.QtCore import Slot
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -34,8 +34,6 @@ from gui.views.settings_view import SettingsView
 
 if TYPE_CHECKING:
     from core.agent import Agent
-    from core.registry import Registry
-    from memory.sqlite_memory import SqliteMemory
 
 
 # Page key → stack index
@@ -59,7 +57,7 @@ class MainWindow(QMainWindow):
 
     def __init__(
         self,
-        agent: "Agent",
+        agent: Agent,
         config_ctx: dict | None = None,
     ) -> None:
         super().__init__()

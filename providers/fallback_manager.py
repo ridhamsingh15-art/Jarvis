@@ -2,7 +2,6 @@
 Fallback management for routing requests.
 """
 
-from typing import List, Optional, Set
 
 from providers.base_provider import BaseProvider
 from providers.provider_models import AllProvidersExhaustedError
@@ -11,7 +10,7 @@ from providers.provider_models import AllProvidersExhaustedError
 class FallbackChain:
     """Stateful iterator for a single request's fallback chain."""
 
-    def __init__(self, candidates: List[BaseProvider], max_fallback_attempts: int) -> None:
+    def __init__(self, candidates: list[BaseProvider], max_fallback_attempts: int) -> None:
         """Initialize the chain.
         
         Args:
@@ -21,7 +20,7 @@ class FallbackChain:
         self._candidates = candidates
         self._max_attempts = max_fallback_attempts + 1  # 1 initial + N fallbacks
         self._attempts = 0
-        self._tried_provider_ids: Set[str] = set()
+        self._tried_provider_ids: set[str] = set()
 
     def get_next(self) -> BaseProvider:
         """Get the next candidate provider.
@@ -60,7 +59,7 @@ class FallbackManager:
         """
         self._max_fallback_attempts = max_fallback_attempts
 
-    def create_chain(self, candidates: List[BaseProvider]) -> FallbackChain:
+    def create_chain(self, candidates: list[BaseProvider]) -> FallbackChain:
         """Create a new fallback chain for a request.
         
         Args:

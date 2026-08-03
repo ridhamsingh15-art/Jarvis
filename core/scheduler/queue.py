@@ -1,13 +1,14 @@
 import heapq
 import threading
-from typing import List, Optional
+
 from .models import ScheduledJob
+
 
 class SchedulerQueue:
     """Thread-safe O(log n) min-heap for Scheduled Jobs."""
     
     def __init__(self):
-        self._heap: List[ScheduledJob] = []
+        self._heap: list[ScheduledJob] = []
         self._lock = threading.Lock()
         self._not_empty = threading.Condition(self._lock)
         
@@ -17,21 +18,21 @@ class SchedulerQueue:
             heapq.heappush(self._heap, job)
             self._not_empty.notify()
             
-    def dequeue(self) -> Optional[ScheduledJob]:
+    def dequeue(self) -> ScheduledJob | None:
         """Pops the soonest job. Returns None if empty."""
         with self._lock:
             if self._heap:
                 return heapq.heappop(self._heap)
             return None
             
-    def peek(self) -> Optional[ScheduledJob]:
+    def peek(self) -> ScheduledJob | None:
         """Returns the soonest job without popping it."""
         with self._lock:
             if self._heap:
                 return self._heap[0]
             return None
             
-    def wait_for_item(self, timeout: Optional[float] = None) -> bool:
+    def wait_for_item(self, timeout: float | None = None) -> bool:
         """Blocks until an item is added or timeout expires. Returns True if notified."""
         with self._not_empty:
             if not self._heap:
@@ -51,3 +52,6 @@ class SchedulerQueue:
     def qsize(self) -> int:
         with self._lock:
             return len(self._heap)
+
+    def size(self) -> int:
+        return self.qsize()

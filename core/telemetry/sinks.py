@@ -10,11 +10,9 @@ class LogSink(ABC):
     @abstractmethod
     def write(self, formatted_log: str) -> None:
         """Writes a formatted log string to the sink."""
-        pass
         
     def close(self) -> None:
         """Optional cleanup routine for the sink."""
-        pass
 
 
 class ConsoleSink(LogSink):
@@ -25,7 +23,7 @@ class ConsoleSink(LogSink):
         try:
             sys.stdout.write(formatted_log + "\n")
             sys.stdout.flush()
-        except Exception:
+        except (OSError, UnicodeEncodeError):
             # Silent fail to prevent crashing if stdout is broken
             pass
 
@@ -40,14 +38,14 @@ class FileSink(LogSink):
         os.makedirs(os.path.dirname(os.path.abspath(file_path)), exist_ok=True)
         # Open in append mode with unbuffered or line-buffered behavior ideally, 
         # but we use standard buffering for performance and flush explicitly or on close.
-        self._file = open(self.file_path, "a", encoding="utf-8")
+        self._file = open(self.file_path, "a", encoding="utf-8")  # noqa: SIM115
 
     def write(self, formatted_log: str) -> None:
         if not self._file.closed:
             try:
                 self._file.write(formatted_log + "\n")
                 self._file.flush()
-            except Exception:
+            except OSError:
                 # Silently fail rather than crashing the logging thread
                 pass
 

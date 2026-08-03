@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class WorkflowStatus(str, Enum):
     """Lifecycle states of a Workflow."""
     CREATED = "CREATED"

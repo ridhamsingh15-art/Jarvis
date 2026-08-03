@@ -1,5 +1,7 @@
 import inspect
-from typing import Any, Callable, Dict, Optional, Type
+from collections.abc import Callable
+from typing import Any
+
 from .exceptions import DependencyResolutionError
 
 
@@ -8,7 +10,7 @@ class DependencyResolver:
     Analyzes constructors and factories to determine required dependencies via type hints.
     """
     @staticmethod
-    def get_dependencies(target: Callable[..., Any]) -> Dict[str, Type]:
+    def get_dependencies(target: Callable[..., Any]) -> dict[str, type]:
         """
         Parses the signature of a class __init__ or factory function.
         Returns a mapping of parameter names to their type hints.
@@ -17,9 +19,9 @@ class DependencyResolver:
         deps = {}
         if isinstance(target, type):
             # Target is a class; inspect __init__ if it exists
-            if not hasattr(target, "__init__") or target.__init__ is object.__init__:
+            if not hasattr(target, "__init__") or target.__init__ is object.__init__: # type: ignore[misc]
                 return {}
-            signature_target = target.__init__
+            signature_target = target.__init__ # type: ignore[misc]
             is_class = True
         else:
             # Target is a function/factory

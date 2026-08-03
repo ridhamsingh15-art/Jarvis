@@ -4,11 +4,18 @@ Ollama local provider implementation.
 
 import logging
 import time
-from typing import Any, Dict, Optional
+from typing import Any
+
 import requests
 
+from config.providers import PROVIDER_CONFIG
 from providers.base_provider import BaseProvider
 from providers.capabilities import Capability
+from providers.provider_exceptions import (
+    ProviderAPIError,
+    ProviderConnectionError,
+    ProviderTimeoutError,
+)
 from providers.provider_models import (
     EmbeddingResponse,
     InferenceRequirements,
@@ -16,12 +23,6 @@ from providers.provider_models import (
     ProviderHealthStatus,
     TokenUsage,
 )
-from providers.provider_exceptions import (
-    ProviderAPIError,
-    ProviderConnectionError,
-    ProviderTimeoutError,
-)
-from config.providers import PROVIDER_CONFIG
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +30,16 @@ logger = logging.getLogger(__name__)
 class OllamaProvider(BaseProvider):
     """Ollama local AI provider implementation."""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None):
         self._config = config or PROVIDER_CONFIG.get("ollama", {})
         self._base_url = self._config.get("base_url", "http://localhost:11434")
         self._default_model = self._config.get("default_model", "llama3")
         self._default_embed_model = self._config.get("default_embedding_model", "nomic-embed-text")
-        self._timeout = self._config.get("timeout_seconds", 30)
+        self._timeout = float(self._config.get("timeout_seconds", 30))
+        self._max_retries = int(self._config.get("max_retries", 3))
+        self._retry_backoff_seconds = float(
+            self._config.get("retry_backoff_seconds", 1.0)
+        )
 
     @property
     def provider_id(self) -> str:
@@ -62,7 +67,7 @@ class OllamaProvider(BaseProvider):
         self,
         system_prompt: str,
         user_prompt: str,
-        requirements: Optional[InferenceRequirements] = None,
+        requirements: InferenceRequirements | None = None,
     ) -> ModelResponse:
         model_id = self._default_model
         if requirements and requirements.prefer_provider == self.provider_id:
@@ -80,9 +85,7 @@ class OllamaProvider(BaseProvider):
         
         try:
             logger.debug("Sending generation request to Ollama: %s", model_id)
-            response = requests.post(url, json=payload, timeout=self._timeout)
-            response.raise_for_status()
-            data = response.json()
+            data = self._post_json(url, payload, "generation")
             
             latency_ms = int((time.time() - start_time) * 1000)
             
@@ -103,20 +106,19 @@ class OllamaProvider(BaseProvider):
                 cost=0.0
             )
             
-        except requests.exceptions.Timeout as e:
-            logger.error("Ollama request timed out: %s", e)
-            raise ProviderTimeoutError(f"Ollama request timed out: {e}") from e
-        except requests.exceptions.ConnectionError as e:
-            logger.error("Failed to connect to Ollama: %s", e)
-            raise ProviderConnectionError(f"Failed to connect to Ollama at {self._base_url}") from e
-        except requests.exceptions.RequestException as e:
-            logger.error("Ollama API error: %s", e)
-            raise ProviderAPIError(f"Ollama API error: {e}") from e
+        except requests.exceptions.Timeout as exc:
+            raise ProviderTimeoutError(
+                f"Ollama generation timed out after {self._max_retries + 1} attempt(s)."
+            ) from exc
+        except requests.exceptions.ConnectionError as exc:
+            raise ProviderConnectionError(f"Failed to connect to Ollama at {self._base_url}") from exc
+        except requests.exceptions.RequestException as exc:
+            raise ProviderAPIError(f"Ollama API error: {exc}") from exc
 
     def embed(
         self,
         text: str,
-        requirements: Optional[InferenceRequirements] = None,
+        requirements: InferenceRequirements | None = None,
     ) -> EmbeddingResponse:
         model_id = self._default_embed_model
         start_time = time.time()
@@ -129,9 +131,7 @@ class OllamaProvider(BaseProvider):
         
         try:
             logger.debug("Sending embedding request to Ollama: %s", model_id)
-            response = requests.post(url, json=payload, timeout=self._timeout)
-            response.raise_for_status()
-            data = response.json()
+            data = self._post_json(url, payload, "embedding")
             
             latency_ms = int((time.time() - start_time) * 1000)
             vector = data.get("embedding", [])
@@ -144,15 +144,34 @@ class OllamaProvider(BaseProvider):
                 latency_ms=latency_ms
             )
             
-        except requests.exceptions.Timeout as e:
-            logger.error("Ollama embedding request timed out: %s", e)
-            raise ProviderTimeoutError(f"Ollama request timed out: {e}") from e
-        except requests.exceptions.ConnectionError as e:
-            logger.error("Failed to connect to Ollama: %s", e)
-            raise ProviderConnectionError(f"Failed to connect to Ollama at {self._base_url}") from e
-        except requests.exceptions.RequestException as e:
-            logger.error("Ollama API error: %s", e)
-            raise ProviderAPIError(f"Ollama API error: {e}") from e
+        except requests.exceptions.Timeout as exc:
+            raise ProviderTimeoutError(
+                f"Ollama embedding timed out after {self._max_retries + 1} attempt(s)."
+            ) from exc
+        except requests.exceptions.ConnectionError as exc:
+            raise ProviderConnectionError(f"Failed to connect to Ollama at {self._base_url}") from exc
+        except requests.exceptions.RequestException as exc:
+            raise ProviderAPIError(f"Ollama API error: {exc}") from exc
+
+    def _post_json(self, url: str, payload: dict[str, Any], operation: str) -> dict[str, Any]:
+        """POST to Ollama with configurable retry and exponential backoff."""
+        for attempt in range(self._max_retries + 1):
+            timeout = self._timeout * (2**attempt)
+            try:
+                response = requests.post(url, json=payload, timeout=timeout)
+                response.raise_for_status()
+                return response.json()
+            except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as exc:
+                if attempt >= self._max_retries:
+                    raise
+                delay = self._retry_backoff_seconds * (2**attempt)
+                logger.warning(
+                    "Ollama %s attempt %d/%d failed (%s); retrying in %.1fs.",
+                    operation, attempt + 1, self._max_retries + 1, exc, delay,
+                )
+                if delay > 0:
+                    time.sleep(delay)
+        raise RuntimeError("Unreachable retry loop exit")
 
     def health_check(self) -> ProviderHealthStatus:
         url = f"{self._base_url}/api/tags"
@@ -161,8 +180,8 @@ class OllamaProvider(BaseProvider):
             if response.status_code == 200:
                 return ProviderHealthStatus.HEALTHY
             return ProviderHealthStatus.DEGRADED
-        except Exception as e:
-            logger.warning("Ollama health check failed: %s", e)
+        except Exception:
+            logger.exception("Ollama health check failed")
             return ProviderHealthStatus.UNAVAILABLE
 
     def shutdown(self) -> None:
@@ -172,6 +191,6 @@ class OllamaProvider(BaseProvider):
         self,
         input_tokens: int,
         output_tokens: int,
-        model_id: Optional[str] = None,
+        model_id: str | None = None,
     ) -> float:
         return 0.0

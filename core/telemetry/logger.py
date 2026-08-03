@@ -3,16 +3,15 @@ Core Logger implementation.
 Provides an AsyncLogger that queues log events and processes them in a background thread
 to guarantee <1ms overhead on application threads.
 """
-import time
 import queue
 import threading
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
-from .levels import LogLevel
-from .context import get_correlation_id, get_component_name, get_metadata
-from .masker import LogMasker
+from .context import get_component_name, get_correlation_id, get_metadata
 from .formatters import LogFormatter
+from .levels import LogLevel
+from .masker import LogMasker
 from .sinks import LogSink
 
 
@@ -23,7 +22,7 @@ class AsyncLogger:
     def __init__(self, 
                  level: LogLevel, 
                  masker: LogMasker, 
-                 outputs: List[Tuple[LogFormatter, LogSink]],
+                 outputs: list[tuple[LogFormatter, LogSink]],
                  max_queue_size: int = 10000):
         self.level = level
         self._masker = masker
@@ -52,7 +51,7 @@ class AsyncLogger:
     def fatal(self, message: str, **kwargs: Any) -> None:
         self._log(LogLevel.FATAL, message, kwargs)
 
-    def _log(self, level: LogLevel, message: str, kwargs: Dict[str, Any]) -> None:
+    def _log(self, level: LogLevel, message: str, kwargs: dict[str, Any]) -> None:
         """
         Constructs the log record and queues it.
         Execution must remain strictly <1ms.
@@ -99,9 +98,10 @@ class AsyncLogger:
                 self._queue.task_done()
             except queue.Empty:
                 continue
-            except Exception:
+            except Exception as e:  # noqa: BLE001
                 # Catch-all to prevent the dispatcher thread from ever crashing
-                pass
+                import sys
+                print(f"Logger thread error: {e}", file=sys.stderr)
 
     def shutdown(self) -> None:
         """

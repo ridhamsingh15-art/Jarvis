@@ -1,13 +1,15 @@
-from typing import List, Optional
 from dataclasses import replace
+from typing import Any
 
 from core.events import EventBus
 from core.models import Event, Timestamp
+
 from .enums import TaskStatus
-from .models import Task
 from .interfaces import TaskRepository
-from .validators import TaskValidator
+from .models import Task
 from .queue import TaskQueue
+from .validators import TaskValidator
+
 
 class TaskManager:
     """Orchestrates Task lifecycles, validation, queueing, and tracking."""
@@ -22,7 +24,7 @@ class TaskManager:
         TaskValidator.validate_transition(task.status, new_status)
             
         now = Timestamp()
-        kwargs = {
+        kwargs: dict[str, Any] = {
             "status": new_status,
             "updated_at": now
         }
@@ -51,14 +53,14 @@ class TaskManager:
     def get(self, task_id: str) -> Task:
         return self._repository.get(task_id)
         
-    def list(self) -> List[Task]:
+    def list(self) -> list[Task]:
         return self._repository.list()
         
-    def update(self, task_id: str, progress: Optional[float] = None, **kwargs) -> Task:
+    def update(self, task_id: str, progress: float | None = None, **kwargs) -> Task:
         """Updates specific safe fields like progress."""
         task = self.get(task_id)
         
-        updates = {"updated_at": Timestamp()}
+        updates: dict[str, Any] = {"updated_at": Timestamp()}
         if progress is not None:
             if not (0.0 <= progress <= 100.0):
                 raise ValueError("Progress must be between 0 and 100")
@@ -71,6 +73,10 @@ class TaskManager:
         self._repository.delete(task_id)
         
     # State transition wrappers
+    def transition_task(self, task_id: str, new_status: TaskStatus) -> Task:
+        """Public API to transition a task's status dynamically."""
+        return self._transition_status(self.get(task_id), new_status)
+        
     def ready(self, task_id: str) -> Task:
         return self._transition_status(self.get(task_id), TaskStatus.READY)
         

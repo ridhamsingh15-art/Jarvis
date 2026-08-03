@@ -1,11 +1,11 @@
 import threading
-import time
+
 from core.events import EventBus
 from core.models import Event
 
 from .health import HealthMonitor
 from .models import HeartbeatPayload
-from .enums import RuntimeState
+
 
 class HeartbeatService:
     """Daemon thread emitting system heartbeats at configured intervals."""
@@ -15,7 +15,7 @@ class HeartbeatService:
         self._health_monitor = health_monitor
         self._interval = interval_seconds
         
-        self._thread = None
+        self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
         self._kernel = None  # Reference injected later to get kernel state
 
@@ -42,13 +42,22 @@ class HeartbeatService:
                 uptime = self._kernel.uptime()
                 
                 # Check health
-                report = self._health_monitor.check_health()
+                reports = self._health_monitor.get_reports()
+                from .enums import HealthState
+                overall = HealthState.HEALTHY
+                for r in reports:
+                    if r.state == HealthState.UNHEALTHY:
+                        overall = HealthState.UNHEALTHY
+                        break
+                    elif r.state == HealthState.DEGRADED:
+                        overall = HealthState.DEGRADED
                 
                 payload = HeartbeatPayload(
-                    uptime_seconds=uptime,
-                    state=state,
-                    active_components=len(self._health_monitor._registry.list_components()),
-                    health_status=report.status
+                    component_id="runtime.kernel",
+                    status=overall,
+                    state=state.value,
+                    active_components=len(self._health_monitor._registry.get_all()),
+                    uptime_seconds=uptime
                 )
                 
                 event = Event(topic="runtime.heartbeat", payload=payload.to_dict(), source="runtime.heartbeat")

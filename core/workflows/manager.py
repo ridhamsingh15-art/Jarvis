@@ -1,15 +1,15 @@
-import time
-from typing import List, Optional
 from dataclasses import replace
+from typing import Any
 
 from core.events import EventBus
 from core.models import Event, Timestamp
+
 from .enums import WorkflowStatus
-from .models import Workflow
-from .interfaces import WorkflowRepository
-from .exceptions import WorkflowValidationError
-from .validator import WorkflowValidator
 from .graph import DependencyGraph
+from .interfaces import WorkflowRepository
+from .models import Workflow
+from .validator import WorkflowValidator
+
 
 class WorkflowManager:
     """Orchestrates Workflow lifecycles, validation, and graph mappings."""
@@ -25,7 +25,7 @@ class WorkflowManager:
         WorkflowValidator.validate_transition(workflow.status, new_status)
             
         now = Timestamp()
-        kwargs = {
+        kwargs: dict[str, Any] = {
             "status": new_status,
             "updated_at": now
         }
@@ -54,14 +54,14 @@ class WorkflowManager:
     def get(self, workflow_id: str) -> Workflow:
         return self._repository.get(workflow_id)
         
-    def list(self) -> List[Workflow]:
+    def list(self) -> list[Workflow]:
         return self._repository.list()
         
-    def update(self, workflow_id: str, progress: Optional[float] = None, **kwargs) -> Workflow:
+    def update(self, workflow_id: str, progress: float | None = None, **kwargs) -> Workflow:
         """Updates specific safe fields like progress."""
         workflow = self.get(workflow_id)
         
-        updates = {"updated_at": Timestamp()}
+        updates: dict[str, Any] = {"updated_at": Timestamp()}
         if progress is not None:
             if not (0.0 <= progress <= 100.0):
                 raise ValueError("Progress must be between 0 and 100")

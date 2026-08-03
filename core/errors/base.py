@@ -1,9 +1,10 @@
-import uuid
 import traceback
+import uuid
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any
 
-from core.telemetry.context import get_correlation_id, get_component_name
+from core.telemetry.context import get_component_name, get_correlation_id
+
 from .enums import ErrorCategory, ErrorSeverity
 
 
@@ -22,8 +23,8 @@ class JarvisError(Exception):
     def __init__(
         self, 
         message: str, 
-        root_cause: Optional[Exception] = None,
-        metadata: Optional[Dict[str, Any]] = None
+        root_cause: Exception | None = None,
+        metadata: dict[str, Any] | None = None
     ):
         super().__init__(message)
         
@@ -49,12 +50,12 @@ class JarvisError(Exception):
         # If the root cause is another Exception, capture its traceback if it has one
         if root_cause and not isinstance(root_cause, JarvisError):
             if getattr(root_cause, "__traceback__", None):
-                self.stack_trace += f"\nCaused by {type(root_cause).__name__}: {str(root_cause)}\n"
+                self.stack_trace += f"\nCaused by {type(root_cause).__name__}: {root_cause!s}\n"
                 self.stack_trace += "".join(traceback.format_tb(root_cause.__traceback__))
             else:
-                self.stack_trace += f"\nCaused by: {repr(root_cause)}"
+                self.stack_trace += f"\nCaused by: {root_cause!r}"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Deep serialization for integration with the Logging module.
         """

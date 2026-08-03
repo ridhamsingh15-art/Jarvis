@@ -1,13 +1,18 @@
-from typing import Set
+from typing import ClassVar
 
 from .enums import WorkflowStatus
-from .exceptions import InvalidWorkflowTransitionError, WorkflowValidationError, CyclicDependencyError
+from .exceptions import (
+    CyclicDependencyError,
+    InvalidWorkflowTransitionError,
+    WorkflowValidationError,
+)
 from .graph import DependencyGraph
+
 
 class WorkflowValidator:
     """Validates workflow definitions and state transitions."""
     
-    VALID_TRANSITIONS = {
+    VALID_TRANSITIONS: ClassVar[dict[WorkflowStatus, set[WorkflowStatus]]] = {
         WorkflowStatus.CREATED: {WorkflowStatus.READY},
         WorkflowStatus.READY: {WorkflowStatus.RUNNING, WorkflowStatus.CANCELLED},
         WorkflowStatus.RUNNING: {WorkflowStatus.PAUSED, WorkflowStatus.COMPLETED, WorkflowStatus.FAILED, WorkflowStatus.CANCELLED},
@@ -26,7 +31,7 @@ class WorkflowValidator:
             )
             
     @classmethod
-    def validate_graph(cls, graph: DependencyGraph, task_ids: Set[str]) -> None:
+    def validate_graph(cls, graph: DependencyGraph, task_ids: set[str]) -> None:
         """
         Validates the dependency graph.
         - Checks for cycles

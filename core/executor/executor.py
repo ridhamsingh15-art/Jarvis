@@ -1,8 +1,10 @@
-from typing import Dict, Any
+from typing import Any
+
+from core.task import TaskStatus
 
 from .action_registry import ActionRegistry
 from .models import ExecutionContext
-from .exceptions import ActionNotFoundError
+
 
 class ExecutionEngine:
     """Core translation layer binding Contexts to the Action Registry."""
@@ -10,7 +12,7 @@ class ExecutionEngine:
     def __init__(self, registry: ActionRegistry):
         self._registry = registry
         
-    def execute_context(self, context: ExecutionContext) -> Dict[str, Any]:
+    def execute_context(self, context: ExecutionContext) -> dict[str, Any]:
         """
         Locates the action in the registry and invokes it.
         Called entirely from within the isolated try/except block of a WorkerThread.
@@ -28,3 +30,20 @@ class ExecutionEngine:
             raise TypeError(f"Action '{action_name}' returned a non-dict payload.")
             
         return result
+
+    def execute(self, task: Any) -> Any:
+        """
+        Backward compatibility wrapper for Agent.
+        Executes a task directly in the current thread.
+        """
+        try:
+            task.start()
+            handler = self._registry.get(task.action)
+            result = handler(None, **task.args) if hasattr(task, 'args') else handler(None, **task.parameters)
+            task.complete(result)
+        except Exception as e:  # noqa: BLE001
+            # If task is still PENDING (start() failed or wasn't reached), force to RUNNING first
+            if task.status == TaskStatus.PENDING:
+                task.start()
+            task.fail(str(e))
+        return task

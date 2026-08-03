@@ -9,10 +9,10 @@ hardcoded in prompts.
 
 import logging
 import threading
-from typing import Any, Optional
+from typing import Any
 
 from core.action_definition import ActionDefinition
-from core.exceptions import ToolRegistrationError, ToolNotFoundError
+from core.exceptions import ToolNotFoundError, ToolRegistrationError
 from tools.base_tool import BaseTool
 
 logger = logging.getLogger(__name__)
@@ -74,7 +74,7 @@ class Registry:
         """Check if a tool is registered by name. Alias for has_tool."""
         return self.has_tool(name)
 
-    def get(self, name: str) -> Optional[BaseTool]:
+    def get(self, name: str) -> BaseTool | None:
         """Get the tool instance for execution.
 
         Args:
@@ -86,7 +86,7 @@ class Registry:
         with self._lock:
             return self._tools.get(name)
 
-    def get_executor(self, name: str) -> Optional[BaseTool]:
+    def get_executor(self, name: str) -> BaseTool | None:
         """Alias for get(name) to preserve backward compatibility."""
         return self.get(name)
 

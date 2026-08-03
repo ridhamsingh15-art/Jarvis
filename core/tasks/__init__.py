@@ -5,32 +5,37 @@ The smallest unit of work in JARVIS.
 Tasks describe work but NEVER execute it directly.
 """
 
-from .enums import TaskStatus, TaskPriority
-from .models import Task
-from .exceptions import TaskError, InvalidTaskTransitionError, TaskNotFoundError, TaskValidationError
-from .interfaces import TaskRepository
-from .repository import InMemoryTaskRepository
-from .queue import TaskQueue
-from .validators import TaskValidator
-from .manager import TaskManager
 from .cancellation import CancellationToken
+from .enums import TaskPriority, TaskStatus
+from .exceptions import (
+    InvalidTaskTransitionError,
+    TaskError,
+    TaskNotFoundError,
+    TaskValidationError,
+)
+from .interfaces import TaskRepository
+from .manager import TaskManager
+from .models import Task
+from .queue import TaskQueue
+from .repository import InMemoryTaskRepository
+from .validators import TaskValidator
 
 # Alias for backwards compatibility with Executor
 TaskDefinition = Task
 
 __all__ = [
-    "TaskStatus",
-    "TaskPriority",
+    "CancellationToken",
+    "InMemoryTaskRepository",
+    "InvalidTaskTransitionError",
     "Task",
     "TaskDefinition",
-    "CancellationToken",
     "TaskError",
-    "InvalidTaskTransitionError",
+    "TaskManager",
     "TaskNotFoundError",
-    "TaskValidationError",
-    "TaskRepository",
-    "InMemoryTaskRepository",
+    "TaskPriority",
     "TaskQueue",
-    "TaskValidator",
-    "TaskManager"
+    "TaskRepository",
+    "TaskStatus",
+    "TaskValidationError",
+    "TaskValidator"
 ]

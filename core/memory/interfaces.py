@@ -1,17 +1,18 @@
 import threading
-from typing import Protocol, runtime_checkable, List, Optional, Any, Dict
+from typing import Any, Protocol, runtime_checkable
 
 from .models import MemoryItem
+
 
 @runtime_checkable
 class StorageProvider(Protocol):
     """
     Abstracts physical persistence mechanisms (SQLite, Redis, VectorDB).
     """
-    def insert(self, collection: str, data: Dict[str, Any]) -> None:
+    def insert(self, collection: str, data: dict[str, Any]) -> None:
         ...
         
-    def query(self, collection: str, filters: Dict[str, Any], limit: int = 100) -> List[Dict[str, Any]]:
+    def query(self, collection: str, filters: dict[str, Any], limit: int = 100) -> list[dict[str, Any]]:
         ...
         
     def delete(self, collection: str, item_id: str) -> bool:
@@ -26,27 +27,27 @@ class InMemoryStorageProvider(StorageProvider):
     Provides immediate out-of-the-box compatibility without external databases.
     """
     def __init__(self):
-        self._collections: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        self._collections: dict[str, dict[str, dict[str, Any]]] = {}
         self._lock = threading.RLock()
         
-    def _get_collection(self, name: str) -> Dict[str, Dict[str, Any]]:
+    def _get_collection(self, name: str) -> dict[str, dict[str, Any]]:
         if name not in self._collections:
             self._collections[name] = {}
         return self._collections[name]
 
-    def insert(self, collection: str, data: Dict[str, Any]) -> None:
+    def insert(self, collection: str, data: dict[str, Any]) -> None:
         with self._lock:
             col = self._get_collection(collection)
             item_id = data.get("id")
             if item_id:
                 # Store the ID value safely
                 if isinstance(item_id, dict):
-                    item_id_val = item_id.get("value")
+                    item_id_val = str(item_id.get("value", ""))
                 else:
                     item_id_val = str(item_id)
                 col[item_id_val] = data
 
-    def query(self, collection: str, filters: Dict[str, Any], limit: int = 100) -> List[Dict[str, Any]]:
+    def query(self, collection: str, filters: dict[str, Any], limit: int = 100) -> list[dict[str, Any]]:
         with self._lock:
             col = self._get_collection(collection)
             results = []
@@ -82,9 +83,9 @@ class MemoryRepository(Protocol):
     """
     def save(self, item: MemoryItem) -> None:
         ...
-    def get(self, item_id: str) -> Optional[MemoryItem]:
+    def get(self, item_id: str) -> MemoryItem | None:
         ...
-    def find(self, filters: Dict[str, Any], limit: int = 100) -> List[MemoryItem]:
+    def find(self, filters: dict[str, Any], limit: int = 100) -> list[MemoryItem]:
         ...
     def remove(self, item_id: str) -> bool:
         ...

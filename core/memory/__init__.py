@@ -6,21 +6,31 @@ and Semantic memory capabilities.
 """
 
 from .enums import MemoryType
-from .exceptions import MemoryError, MemoryNotFoundError, StorageProviderError
-from .models import MemoryItem, WorkingMemoryItem, EpisodicEvent, SemanticFact
-from .interfaces import StorageProvider, InMemoryStorageProvider, MemoryRepository
-from .working import WorkingMemoryManager, WorkingMemoryRepository
 from .episodic import EpisodicMemoryManager, EpisodicMemoryRepository
-from .semantic import SemanticMemoryManager, SemanticMemoryRepository
+from .exceptions import MemoryError, MemoryNotFoundError, StorageProviderError
+from .interfaces import InMemoryStorageProvider, MemoryRepository, StorageProvider
 from .manager import MemoryManager
+from .models import EpisodicEvent, MemoryItem, SemanticFact, WorkingMemoryItem
+from .semantic import SemanticMemoryManager, SemanticMemoryRepository
+from .working import WorkingMemoryManager, WorkingMemoryRepository
 
 __all__ = [
+    "EpisodicEvent",
+    "EpisodicMemoryManager",
+    "EpisodicMemoryRepository",
+    "InMemoryStorageProvider",
+    "MemoryError",
+    "MemoryItem",
+    "MemoryManager",
+    "MemoryNotFoundError",
+    "MemoryRepository",
     "MemoryType",
-    "MemoryError", "MemoryNotFoundError", "StorageProviderError",
-    "MemoryItem", "WorkingMemoryItem", "EpisodicEvent", "SemanticFact",
-    "StorageProvider", "InMemoryStorageProvider", "MemoryRepository",
-    "WorkingMemoryManager", "WorkingMemoryRepository",
-    "EpisodicMemoryManager", "EpisodicMemoryRepository",
-    "SemanticMemoryManager", "SemanticMemoryRepository",
-    "MemoryManager"
+    "SemanticFact",
+    "SemanticMemoryManager",
+    "SemanticMemoryRepository",
+    "StorageProvider",
+    "StorageProviderError",
+    "WorkingMemoryItem",
+    "WorkingMemoryManager",
+    "WorkingMemoryRepository"
 ]

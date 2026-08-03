@@ -1,27 +1,31 @@
 import threading
-from typing import Optional, Dict, Any, List
+from typing import Any
 
-from core.models import Identifier, Timestamp, Event
 from core.events import EventBus
+from core.models import Event, Identifier, Timestamp
+
 from .enums import MemoryType
+from .interfaces import MemoryItem, MemoryRepository, StorageProvider
 from .models import EpisodicEvent
-from .interfaces import StorageProvider, MemoryRepository
+
 
 class EpisodicMemoryRepository(MemoryRepository):
     def __init__(self, provider: StorageProvider):
         self._provider = provider
         self._collection = "episodic_memory"
         
-    def save(self, item: EpisodicEvent) -> None:
+    def save(self, item: Any) -> None:
+        if not isinstance(item, EpisodicEvent):
+            raise TypeError("Expected EpisodicEvent")
         self._provider.insert(self._collection, item.to_dict())
         
-    def get(self, item_id: str) -> Optional[EpisodicEvent]:
+    def get(self, item_id: str) -> EpisodicEvent | None:
         results = self._provider.query(self._collection, {"id": {"value": item_id}}, limit=1)
         if results:
             return EpisodicEvent.from_dict(results[0])
         return None
         
-    def find(self, filters: Dict[str, Any], limit: int = 100) -> List[EpisodicEvent]:
+    def find(self, filters: dict[str, Any], limit: int = 100) -> list[MemoryItem]:
         results = self._provider.query(self._collection, filters, limit=limit)
         return [EpisodicEvent.from_dict(r) for r in results]
         
@@ -36,7 +40,7 @@ class EpisodicMemoryManager:
         self._event_bus = event_bus
         self._lock = threading.Lock()
         
-    def record_episode(self, event_type: str, payload: Dict[str, Any], source: str = "system") -> EpisodicEvent:
+    def record_episode(self, event_type: str, payload: dict[str, Any], source: str = "system") -> EpisodicEvent:
         with self._lock:
             event = EpisodicEvent(
                 id=Identifier(),
@@ -54,12 +58,11 @@ class EpisodicMemoryManager:
             ))
             return event
             
-    def retrieve_episodes(self, filters: Optional[Dict[str, Any]] = None, limit: int = 100) -> List[EpisodicEvent]:
+    def retrieve_episodes(self, filters: dict[str, Any] | None = None, limit: int = 100) -> list[EpisodicEvent]:
+        from typing import cast
+        return cast(list[EpisodicEvent], self._repo.find(filters or {}, limit=limit))
+        
+    def search_episodes(self, event_type: str, limit: int = 100) -> list[EpisodicEvent]:
+        from typing import cast
         with self._lock:
-            f = filters or {}
-            # The StorageProvider returns dicts, repo returns objects
-            return self._repo.find(f, limit=limit)
-            
-    def search_episodes(self, event_type: str, limit: int = 100) -> List[EpisodicEvent]:
-        with self._lock:
-            return self._repo.find({"event_type": event_type}, limit=limit)
+            return cast(list[EpisodicEvent], self._repo.find({"event_type": event_type}, limit=limit))

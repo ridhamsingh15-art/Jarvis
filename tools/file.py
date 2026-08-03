@@ -11,6 +11,7 @@ import os
 import shutil
 from pathlib import Path
 
+from core.action_definition import ActionDefinition
 from core.exceptions import ExecutionError
 from tools.base_tool import BaseTool
 
@@ -123,6 +124,16 @@ class FileTool(BaseTool):
         from core.action_definition import ActionDefinition
         
         return {
+            "create_file": ActionDefinition(
+                name="create_file",
+                description="Creates an empty file, including parent directories.",
+                required_args=["path"],
+            ),
+            "write_file": ActionDefinition(
+                name="write_file",
+                description="Writes text to a file, replacing existing contents.",
+                required_args=["path", "content"],
+            ),
             "list_directory": ActionDefinition(
                 name="list_directory",
                 description="Lists contents of a directory.",
@@ -173,7 +184,10 @@ class FileTool(BaseTool):
         Raises:
             ExecutionError: If the action fails.
         """
-        dispatch: dict[str, callable] = {
+        from collections.abc import Callable
+        dispatch: dict[str, Callable] = {
+            "create_file": self._create_file,
+            "write_file": self._write_file,
             "list_directory": self._list_directory,
             "create_folder": self._create_folder,
             "rename": self._rename,
@@ -189,6 +203,38 @@ class FileTool(BaseTool):
             raise ExecutionError(f"Unknown file action: '{action}'")
 
         return handler(args)
+
+    @staticmethod
+    def _create_file(args: dict) -> str:
+        """Create an empty file without overwriting an existing one."""
+        path = _resolve_path(args.get("path", ""))
+        _validate_path(path)
+
+        if path.exists():
+            raise ExecutionError(f"Already exists: '{path}'")
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch(exist_ok=False)
+        logger.info("Created file: %s", path)
+        return f"Created file: {path}"
+
+    @staticmethod
+    def _write_file(args: dict) -> str:
+        """Write text to an existing or new file after safety validation."""
+        path = _resolve_path(args.get("path", ""))
+        content = args.get("content")
+        if not isinstance(content, str):
+            raise ExecutionError("Argument 'content' must be a string")
+
+        _validate_path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            path.write_text(content, encoding="utf-8")
+        except OSError as exc:
+            raise ExecutionError(f"Failed to write '{path}': {exc}") from exc
+
+        logger.info("Wrote file: %s", path)
+        return f"Wrote {len(content)} character(s) to: {path}"
 
     @staticmethod
     def _list_directory(args: dict) -> str:

@@ -2,7 +2,7 @@
 Schema definitions for the Configuration module.
 """
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Optional, Type
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -17,7 +17,7 @@ class ConfigField:
         is_secret: Whether this field contains sensitive information that should be masked. Defaults to False.
         description: Optional description of what this field configures.
     """
-    type_: Type
+    type_: type
     default: Any = None
     required: bool = True
     is_secret: bool = False
@@ -29,7 +29,7 @@ class ConfigSchema:
     Represents the full configuration schema.
     """
     
-    def __init__(self, fields: Dict[str, ConfigField]):
+    def __init__(self, fields: dict[str, ConfigField]):
         """
         Initialize the configuration schema.
         
@@ -38,7 +38,7 @@ class ConfigSchema:
         """
         self.fields = fields
 
-    def get_field(self, key: str) -> Optional[ConfigField]:
+    def get_field(self, key: str) -> ConfigField | None:
         """
         Get the field definition for a given key.
         

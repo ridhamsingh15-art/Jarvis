@@ -1,9 +1,9 @@
 import pytest
 
-from providers.provider_factory import ProviderFactory
-from providers.ollama_provider import OllamaProvider
 from providers.gemini_provider import GeminiProvider
+from providers.ollama_provider import OllamaProvider
 from providers.provider_exceptions import ProviderConfigurationError
+from providers.provider_factory import ProviderFactory
 
 
 def test_create_ollama_provider():

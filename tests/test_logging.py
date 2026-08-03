@@ -1,17 +1,21 @@
 import os
-import json
-import time
-import pytest
 import threading
 
-from core.config import ConfigSchema, ConfigField, ConfigManager, DefaultConfigProvider
+import pytest
+
+from core.config import ConfigField, ConfigManager, ConfigSchema, DefaultConfigProvider
 from core.telemetry import (
-    LogLevel, 
-    set_correlation_id, set_component_name, add_metadata, clear_context,
-    JsonFormatter, TextFormatter,
+    JsonFormatter,
+    LogLevel,
     LogMasker,
-    create_logger
+    TextFormatter,
+    add_metadata,
+    clear_context,
+    create_logger,
+    set_component_name,
+    set_correlation_id,
 )
+
 
 @pytest.fixture
 def sample_config(tmp_path):

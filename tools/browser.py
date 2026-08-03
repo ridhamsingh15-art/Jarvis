@@ -10,6 +10,7 @@ import logging
 import webbrowser
 from urllib.parse import quote_plus
 
+from core.action_definition import ActionDefinition
 from core.exceptions import ExecutionError
 from tools.base_tool import BaseTool
 
@@ -90,7 +91,8 @@ class BrowserTool(BaseTool):
         Raises:
             ExecutionError: If the action fails or args are missing.
         """
-        dispatch: dict[str, callable] = {
+        from collections.abc import Callable
+        dispatch: dict[str, Callable] = {
             "open_url": self._open_url,
             "open_site": self._open_site,
             "search_google": self._search_google,

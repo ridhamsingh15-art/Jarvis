@@ -5,10 +5,11 @@ The canonical communication backbone ensuring all subsystems remain decoupled,
 communicating safely via strongly typed events.
 """
 
-from .interfaces import EventHandler, AsyncEventHandler
 from .bus import EventBus
+from .interfaces import AsyncEventHandler, EventHandler
 
 __all__ = [
-    "EventHandler", "AsyncEventHandler",
-    "EventBus"
+    "AsyncEventHandler",
+    "EventBus",
+    "EventHandler"
 ]

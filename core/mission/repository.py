@@ -1,15 +1,15 @@
 import threading
-from typing import Dict, List
 
-from .models import Mission
-from .interfaces import MissionRepository
 from .exceptions import MissionNotFoundError
+from .interfaces import MissionRepository
+from .models import Mission
+
 
 class InMemoryMissionRepository(MissionRepository):
     """Thread-safe in-memory storage for Missions."""
     
     def __init__(self):
-        self._store: Dict[str, Mission] = {}
+        self._store: dict[str, Mission] = {}
         self._lock = threading.Lock()
         
     def save(self, mission: Mission) -> Mission:
@@ -23,7 +23,7 @@ class InMemoryMissionRepository(MissionRepository):
                 raise MissionNotFoundError(f"Mission '{mission_id}' not found.")
             return self._store[mission_id]
             
-    def list(self) -> List[Mission]:
+    def list(self) -> list[Mission]:
         with self._lock:
             return list(self._store.values())
             

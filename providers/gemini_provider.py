@@ -5,18 +5,13 @@ Google Gemini provider implementation via REST API.
 import logging
 import os
 import time
-from typing import Any, Dict, Optional
+from typing import Any
+
 import requests
 
+from config.providers import PROVIDER_CONFIG
 from providers.base_provider import BaseProvider
 from providers.capabilities import Capability
-from providers.provider_models import (
-    EmbeddingResponse,
-    InferenceRequirements,
-    ModelResponse,
-    ProviderHealthStatus,
-    TokenUsage,
-)
 from providers.provider_exceptions import (
     ProviderAPIError,
     ProviderAuthenticationError,
@@ -24,7 +19,13 @@ from providers.provider_exceptions import (
     ProviderConnectionError,
     ProviderTimeoutError,
 )
-from config.providers import PROVIDER_CONFIG
+from providers.provider_models import (
+    EmbeddingResponse,
+    InferenceRequirements,
+    ModelResponse,
+    ProviderHealthStatus,
+    TokenUsage,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ logger = logging.getLogger(__name__)
 class GeminiProvider(BaseProvider):
     """Google Gemini AI provider implementation."""
 
-    def __init__(self, config: Optional[Dict[str, Any]] = None):
+    def __init__(self, config: dict[str, Any] | None = None):
         self._config = config or PROVIDER_CONFIG.get("gemini", {})
         self._api_key = self._config.get("api_key") or os.environ.get("GEMINI_API_KEY")
         self._default_model = self._config.get("default_model", "gemini-1.5-pro-latest")
@@ -73,7 +74,7 @@ class GeminiProvider(BaseProvider):
         self,
         system_prompt: str,
         user_prompt: str,
-        requirements: Optional[InferenceRequirements] = None,
+        requirements: InferenceRequirements | None = None,
     ) -> ModelResponse:
         if not self._is_initialized:
             self.initialize()
@@ -147,7 +148,7 @@ class GeminiProvider(BaseProvider):
     def embed(
         self,
         text: str,
-        requirements: Optional[InferenceRequirements] = None,
+        requirements: InferenceRequirements | None = None,
     ) -> EmbeddingResponse:
         if not self._is_initialized:
             self.initialize()
@@ -208,8 +209,8 @@ class GeminiProvider(BaseProvider):
             elif response.status_code in (401, 403):
                 return ProviderHealthStatus.UNAVAILABLE
             return ProviderHealthStatus.DEGRADED
-        except Exception as e:
-            logger.warning("Gemini health check failed: %s", e)
+        except Exception:
+            logger.exception("Gemini health check failed")
             return ProviderHealthStatus.DEGRADED
 
     def shutdown(self) -> None:
@@ -220,7 +221,7 @@ class GeminiProvider(BaseProvider):
         self,
         input_tokens: int,
         output_tokens: int,
-        model_id: Optional[str] = None,
+        model_id: str | None = None,
     ) -> float:
         model = model_id or self._default_model
         if "pro" in model.lower():

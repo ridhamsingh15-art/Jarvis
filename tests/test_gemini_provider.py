@@ -1,12 +1,11 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 import pytest
-import requests
 
 from providers.gemini_provider import GeminiProvider
 from providers.provider_exceptions import (
-    ProviderConfigurationError,
     ProviderAuthenticationError,
-    ProviderAPIError
+    ProviderConfigurationError,
 )
 from providers.provider_models import ProviderHealthStatus
 

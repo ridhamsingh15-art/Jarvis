@@ -3,7 +3,6 @@ Public interface for the Model Router subsystem.
 """
 
 from abc import ABC, abstractmethod
-from typing import Optional
 
 from providers.provider_models import (
     EmbeddingResponse,
@@ -25,7 +24,7 @@ class ModelGateway(ABC):
         self,
         system_prompt: str,
         user_prompt: str,
-        requirements: Optional[InferenceRequirements] = None,
+        requirements: InferenceRequirements | None = None,
     ) -> ModelResponse:
         """Generate text from an optimal AI provider.
         
@@ -48,7 +47,7 @@ class ModelGateway(ABC):
     def embed(
         self,
         text: str,
-        requirements: Optional[InferenceRequirements] = None,
+        requirements: InferenceRequirements | None = None,
     ) -> EmbeddingResponse:
         """Generate a vector embedding for the given text.
         

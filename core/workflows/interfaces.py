@@ -1,5 +1,7 @@
-from typing import List, Protocol
+from typing import Protocol
+
 from .models import Workflow
+
 
 class WorkflowRepository(Protocol):
     """Interface for Workflow storage mechanisms."""
@@ -12,7 +14,7 @@ class WorkflowRepository(Protocol):
         """Retrieves a workflow by ID. Raises WorkflowNotFoundError if missing."""
         ...
         
-    def list(self) -> List[Workflow]:
+    def list(self) -> list[Workflow]:
         """Returns a list of all stored workflows."""
         ...
         

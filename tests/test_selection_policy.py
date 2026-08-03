@@ -39,7 +39,7 @@ class TestWeightedScorePolicy(unittest.TestCase):
         for _ in range(3):
             self.health.mark_failure("ollama")
             
-        req = InferenceRequirements(prefer_local=True)
+        InferenceRequirements(prefer_local=True)
         # prefer_local gives +50, but DEGRADED gives -50, so score is 0. 
         # remote has score 0. Stable sort might leave them in original order.
         # Let's test a clear penalty scenario: prefer_provider gives +100

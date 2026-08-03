@@ -1,4 +1,5 @@
-from enum import Enum, IntEnum
+from enum import Enum
+
 
 class ScheduleStatus(str, Enum):
     """Canonical lifecycle state of a scheduled job."""

@@ -1,8 +1,8 @@
 import threading
 from collections import deque
-from typing import Optional
 
 from .models import Task
+
 
 class TaskQueue:
     """A thread-safe FIFO task queue. Never executes tasks itself."""
@@ -15,13 +15,13 @@ class TaskQueue:
         with self._lock:
             self._queue.append(task)
             
-    def dequeue(self) -> Optional[Task]:
+    def dequeue(self) -> Task | None:
         with self._lock:
             if self._queue:
                 return self._queue.popleft()
             return None
             
-    def peek(self) -> Optional[Task]:
+    def peek(self) -> Task | None:
         with self._lock:
             if self._queue:
                 return self._queue[0]

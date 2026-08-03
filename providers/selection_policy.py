@@ -3,7 +3,6 @@ Routing policies for selecting the best provider.
 """
 
 from abc import ABC, abstractmethod
-from typing import List
 
 from providers.base_provider import BaseProvider
 from providers.health_monitor import HealthMonitor
@@ -16,9 +15,9 @@ class SelectionPolicy(ABC):
     @abstractmethod
     def rank_providers(
         self,
-        candidates: List[BaseProvider],
+        candidates: list[BaseProvider],
         requirements: InferenceRequirements,
-    ) -> List[BaseProvider]:
+    ) -> list[BaseProvider]:
         """Rank candidates from best to worst.
         
         Args:
@@ -43,9 +42,9 @@ class WeightedScorePolicy(SelectionPolicy):
 
     def rank_providers(
         self,
-        candidates: List[BaseProvider],
+        candidates: list[BaseProvider],
         requirements: InferenceRequirements,
-    ) -> List[BaseProvider]:
+    ) -> list[BaseProvider]:
         """Rank providers using a simple weighted scoring algorithm."""
         if not candidates:
             return []

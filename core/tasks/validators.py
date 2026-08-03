@@ -1,11 +1,14 @@
+from typing import ClassVar
+
 from .enums import TaskStatus
 from .exceptions import InvalidTaskTransitionError, TaskValidationError
+
 
 class TaskValidator:
     """Validates task definitions, configurations, and state transitions."""
     
-    VALID_TRANSITIONS = {
-        TaskStatus.CREATED: {TaskStatus.READY, TaskStatus.BLOCKED},
+    VALID_TRANSITIONS: ClassVar[dict[TaskStatus, set[TaskStatus]]] = {
+        TaskStatus.CREATED: {TaskStatus.READY, TaskStatus.BLOCKED, TaskStatus.QUEUED},
         TaskStatus.BLOCKED: {TaskStatus.READY, TaskStatus.CANCELLED},
         TaskStatus.READY: {TaskStatus.QUEUED, TaskStatus.CANCELLED},
         TaskStatus.QUEUED: {TaskStatus.RUNNING, TaskStatus.CANCELLED},

@@ -3,7 +3,7 @@ Factory for instantiating AI providers.
 """
 
 import logging
-from typing import Dict, Type
+from typing import ClassVar
 
 from providers.base_provider import BaseProvider
 from providers.gemini_provider import GeminiProvider
@@ -16,13 +16,13 @@ logger = logging.getLogger(__name__)
 class ProviderFactory:
     """Factory for creating provider instances."""
 
-    _providers: Dict[str, Type[BaseProvider]] = {
+    _providers: ClassVar[dict[str, type[BaseProvider]]] = {
         "ollama": OllamaProvider,
         "gemini": GeminiProvider,
     }
 
     @classmethod
-    def register_provider(cls, provider_id: str, provider_class: Type[BaseProvider]) -> None:
+    def register_provider(cls, provider_id: str, provider_class: type[BaseProvider]) -> None:
         """Register a new provider class."""
         if provider_id in cls._providers:
             logger.warning("Overwriting existing provider registration for %s", provider_id)

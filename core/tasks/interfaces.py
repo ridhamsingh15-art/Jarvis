@@ -1,5 +1,7 @@
-from typing import List, Protocol
+from typing import Protocol
+
 from .models import Task
+
 
 class TaskRepository(Protocol):
     """Interface for Task storage mechanisms."""
@@ -12,7 +14,7 @@ class TaskRepository(Protocol):
         """Retrieves a task by ID. Raises TaskNotFoundError if missing."""
         ...
         
-    def list(self) -> List[Task]:
+    def list(self) -> list[Task]:
         """Returns a list of all stored tasks."""
         ...
         

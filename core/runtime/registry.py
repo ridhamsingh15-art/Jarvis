@@ -1,35 +1,41 @@
+"""
+Component registry for JARVIS AIOS.
+"""
 import threading
-from typing import Dict, List, Optional
-from .interfaces import RuntimeComponent
-from .exceptions import ComponentRegistrationError, ComponentResolutionError
 
-class RuntimeRegistry:
-    """Thread-safe O(1) registry for Runtime components."""
-    
-    def __init__(self):
-        self._components: Dict[str, RuntimeComponent] = {}
-        self._lock = threading.Lock()
+from .exceptions import ComponentNotFoundError, ComponentRegistrationError
+from .interfaces import RuntimeComponent
+
+
+class ComponentRegistry:
+    """Thread-safe storage for active runtime components."""
+
+    def __init__(self) -> None:
+        self._components: dict[str, RuntimeComponent] = {}
+        self._lock = threading.RLock()
 
     def register(self, component: RuntimeComponent) -> None:
-        name = component.metadata().name
         with self._lock:
-            if name in self._components:
-                raise ComponentRegistrationError(f"Component '{name}' is already registered.")
-            self._components[name] = component
+            cid = component.metadata.id
+            if cid in self._components:
+                raise ComponentRegistrationError(
+                    f"Component with ID '{cid}' is already registered."
+                )
+            self._components[cid] = component
 
-    def unregister(self, name: str) -> bool:
+    def unregister(self, component_id: str) -> None:
         with self._lock:
-            if name in self._components:
-                del self._components[name]
-                return True
-        return False
+            if component_id not in self._components:
+                raise ComponentNotFoundError(f"Component '{component_id}' not found.")
+            del self._components[component_id]
 
-    def resolve(self, name: str) -> RuntimeComponent:
+    def get(self, component_id: str) -> RuntimeComponent:
         with self._lock:
-            if name not in self._components:
-                raise ComponentResolutionError(f"Component '{name}' not found.")
-            return self._components[name]
+            comp = self._components.get(component_id)
+            if not comp:
+                raise ComponentNotFoundError(f"Component '{component_id}' not found.")
+            return comp
 
-    def list_components(self) -> List[RuntimeComponent]:
+    def get_all(self) -> list[RuntimeComponent]:
         with self._lock:
             return list(self._components.values())

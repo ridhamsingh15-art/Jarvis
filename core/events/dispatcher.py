@@ -1,12 +1,12 @@
 import asyncio
 import inspect
-from typing import List, Callable
 
+from core.errors import InternalError
 from core.models import Event
 from core.telemetry import AsyncLogger
-from core.errors import InternalError
 
 from .registry import HandlerRegistry
+
 
 class EventDispatcher:
     """
@@ -33,7 +33,7 @@ class EventDispatcher:
                 else:
                     # Offload sync handler to thread pool
                     await asyncio.to_thread(sub.handler, event)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 self._handle_fault(e, sub.subscription_id, event)
 
     def dispatch_sync(self, event: Event) -> None:
@@ -53,7 +53,7 @@ class EventDispatcher:
                     self._run_async_sync(sub.handler, event)
                 else:
                     sub.handler(event)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 self._handle_fault(e, sub.subscription_id, event)
 
     def _run_async_sync(self, handler, event: Event) -> None:

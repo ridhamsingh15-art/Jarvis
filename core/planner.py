@@ -9,11 +9,10 @@ structured, validated intent.
 import logging
 
 from core.model_gateway import ModelGateway
-from core.parser import parse_json
 from core.normalizer import normalize
+from core.parser import parse_json
 from core.registry import Registry
 from core.task import Task
-from providers.provider_models import RouterError
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +26,10 @@ For a single action return a JSON object:
 
 For multiple actions return a JSON array:
 [{{"tool": "", "action": "", "args": {{}}}}]
+
+If the user is greeting you, asking a question, or making conversation
+(not requesting a specific tool action), respond with:
+{{"tool": "system", "action": "respond", "args": {{"message": "your response here"}}}}
 
 Available tools:
 

@@ -1,13 +1,15 @@
 """
 Factory for initializing the logging subsystem from the Configuration module.
 """
-from typing import List, Tuple
+
 from core.config import ConfigSnapshot
+
+from .formatters import JsonFormatter, LogFormatter, TextFormatter
 from .levels import LogLevel
-from .masker import LogMasker
-from .formatters import LogFormatter, JsonFormatter, TextFormatter
-from .sinks import LogSink, ConsoleSink, FileSink
 from .logger import AsyncLogger
+from .masker import LogMasker
+from .sinks import ConsoleSink, FileSink, LogSink
+
 
 def create_logger(config: ConfigSnapshot) -> AsyncLogger:
     """
@@ -24,7 +26,7 @@ def create_logger(config: ConfigSnapshot) -> AsyncLogger:
     masker = LogMasker(config)
     
     # 3. Setup outputs (Formatters + Sinks)
-    outputs: List[Tuple[LogFormatter, LogSink]] = []
+    outputs: list[tuple[LogFormatter, LogSink]] = []
     
     active_sinks = config.get("log_sinks", ["console"])
     

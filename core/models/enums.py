@@ -1,4 +1,5 @@
-from enum import Enum, auto
+from enum import Enum
+
 
 class ExecutionState(str, Enum):
     """Lifecycle state of a task, command, or execution unit."""

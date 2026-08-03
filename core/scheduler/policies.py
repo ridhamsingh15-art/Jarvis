@@ -1,5 +1,6 @@
 from typing import Protocol, runtime_checkable
 
+
 @runtime_checkable
 class BackoffPolicy(Protocol):
     def next_delay(self, attempt: int) -> float:

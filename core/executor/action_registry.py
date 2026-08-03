@@ -1,13 +1,14 @@
-from typing import Callable, Dict
 import threading
+from collections.abc import Callable
 
 from .exceptions import ActionNotFoundError
+
 
 class ActionRegistry:
     """Thread-safe registry mapping string identifiers to executable Callables."""
     
     def __init__(self):
-        self._registry: Dict[str, Callable] = {}
+        self._registry: dict[str, Callable] = {}
         self._lock = threading.Lock()
         
     def register(self, action_name: str, handler: Callable) -> None:

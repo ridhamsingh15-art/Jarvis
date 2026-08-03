@@ -1,25 +1,39 @@
 import time
+
 import pytest
+
 from core.bootstrap import Bootstrap
 from core.runtime import (
-    RuntimeKernel, RuntimeState, BaseComponent, RuntimeError,
-    ComponentRegistrationError, ComponentResolutionError, HealthReport
+    BaseComponent,
+    ComponentMetadata,
+    ComponentNotFoundError,
+    ComponentRegistrationError,
+    HealthReport,
+    HealthState,
+    RuntimeKernel,
+    RuntimeState,
 )
+
 
 class MockComponent(BaseComponent):
     def __init__(self, name: str, fail_health: bool = False):
-        super().__init__(name)
+        super().__init__(ComponentMetadata(id=name, name=name, version="1.0.0"))
         self.fail_health = fail_health
         
-    def health(self) -> HealthReport:
+    async def _do_start(self) -> None:
+        pass
+        
+    async def _do_stop(self) -> None:
+        pass
+        
+    async def health(self) -> HealthReport:
         if self.fail_health:
             return HealthReport(
-                is_healthy=False,
-                status="ERROR",
-                component_name=self._name,
+                component_id=self.metadata.id,
+                state=HealthState.DEGRADED,
                 details={"reason": "Simulated failure"}
             )
-        return super().health()
+        return await super().health()
 
 @pytest.fixture
 def runtime():
@@ -52,14 +66,14 @@ def test_component_registration_and_resolution(runtime):
     
     kernel.register_component(comp)
     
-    resolved = kernel._registry.resolve("MemorySys")
+    resolved = kernel._registry.get("MemorySys")
     assert resolved is comp
     
     with pytest.raises(ComponentRegistrationError):
         kernel.register_component(comp)
         
-    with pytest.raises(ComponentResolutionError):
-        kernel._registry.resolve("Missing")
+    with pytest.raises(ComponentNotFoundError):
+        kernel._registry.get("Missing")
 
 def test_health_aggregation(runtime):
     kernel = RuntimeKernel(runtime)
@@ -72,13 +86,12 @@ def test_health_aggregation(runtime):
     kernel.start()
     
     report = kernel.health_report()
-    assert report.is_healthy is False
-    assert report.status == "DEGRADED"
+    assert report.state == HealthState.DEGRADED
     
     # Details should contain sub-reports
     assert "components" in report.details
-    assert report.details["components"]["ServiceA"]["is_healthy"] is True
-    assert report.details["components"]["ServiceB"]["is_healthy"] is False
+    assert report.details["components"]["ServiceA"]["state"] == HealthState.HEALTHY
+    assert report.details["components"]["ServiceB"]["state"] == HealthState.DEGRADED
     
     kernel.stop()
 

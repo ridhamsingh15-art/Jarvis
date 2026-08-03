@@ -9,8 +9,9 @@ through the BaseTool interface.
 import logging
 import subprocess
 
+from core.action_definition import ActionDefinition
 from core.exceptions import ExecutionError
-from tools.base_tool import BaseTool
+from tools.base_tool import BaseTool  # type: ignore[import-not-found]
 
 logger = logging.getLogger(__name__)
 
@@ -71,7 +72,8 @@ class WindowsTool(BaseTool):
         Raises:
             ExecutionError: If the action or app is unknown.
         """
-        dispatch: dict[str, callable] = {
+        from collections.abc import Callable
+        dispatch: dict[str, Callable] = {
             "open_app": self._open_app,
         }
 

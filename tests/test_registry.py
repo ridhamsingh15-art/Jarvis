@@ -1,12 +1,11 @@
 """Unit tests for the Registry."""
 
 import unittest
-from unittest.mock import MagicMock
 
+from core.action_definition import ActionDefinition
 from core.exceptions import ToolNotFoundError, ToolRegistrationError
 from core.registry import Registry
 from tools.base_tool import BaseTool
-from core.action_definition import ActionDefinition
 
 
 class MockTool(BaseTool):

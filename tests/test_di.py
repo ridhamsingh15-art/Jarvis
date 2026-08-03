@@ -1,13 +1,15 @@
-import pytest
 import threading
 
+import pytest
+
 from core.di import (
-    Container,
-    ServiceLifetime,
-    DependencyResolutionError,
     CircularDependencyError,
-    ContainerSealedError
+    Container,
+    ContainerSealedError,
+    DependencyResolutionError,
+    ServiceLifetime,
 )
+
 
 # Dummy interfaces and classes for testing
 class ILogger: pass
@@ -161,4 +163,4 @@ def test_thread_safe_singleton():
         
     # All threads should receive the exact same object despite the slow initialization gap
     assert SlowSingleton.instance_count == 1
-    assert len(set(id(r) for r in results)) == 1
+    assert len({id(r) for r in results}) == 1

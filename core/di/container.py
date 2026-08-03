@@ -1,8 +1,13 @@
 import threading
-from typing import Any, Callable, Dict, Optional, Type, Set
+from collections.abc import Callable
+from typing import Any
 
 from .enums import ServiceLifetime
-from .exceptions import DependencyResolutionError, CircularDependencyError, ContainerSealedError
+from .exceptions import (
+    CircularDependencyError,
+    ContainerSealedError,
+    DependencyResolutionError,
+)
 from .registration import ServiceRegistration
 from .resolver import DependencyResolver
 
@@ -13,18 +18,18 @@ class ServiceScope:
     """
     def __init__(self, container: "Container"):
         self.container = container
-        self._scoped_instances: Dict[Type, Any] = {}
+        self._scoped_instances: dict[type, Any] = {}
         self._lock = threading.Lock()
 
-    def resolve(self, interface: Type) -> Any:
+    def resolve(self, interface: type) -> Any:
         # Resolving via the container, passing self as the active scope
         return self.container.resolve(interface, scope=self)
 
-    def get_instance(self, interface: Type) -> Optional[Any]:
+    def get_instance(self, interface: type) -> Any | None:
         with self._lock:
             return self._scoped_instances.get(interface)
 
-    def set_instance(self, interface: Type, instance: Any) -> None:
+    def set_instance(self, interface: type, instance: Any) -> None:
         with self._lock:
             self._scoped_instances[interface] = instance
 
@@ -42,7 +47,7 @@ class Container:
     Thread-safe, strict validation, sealed post-bootstrap.
     """
     def __init__(self):
-        self._registrations: Dict[Type, ServiceRegistration] = {}
+        self._registrations: dict[type, ServiceRegistration] = {}
         self._is_sealed: bool = False
         self._singleton_lock = threading.Lock()
 
@@ -50,7 +55,7 @@ class Container:
         if self._is_sealed:
             raise ContainerSealedError("Cannot mutate a sealed container.")
 
-    def register_singleton(self, interface: Type, implementation: Type) -> None:
+    def register_singleton(self, interface: type, implementation: type) -> None:
         self._assert_not_sealed()
         self._registrations[interface] = ServiceRegistration(
             interface=interface, 
@@ -58,7 +63,7 @@ class Container:
             implementation_type=implementation
         )
 
-    def register_scoped(self, interface: Type, implementation: Type) -> None:
+    def register_scoped(self, interface: type, implementation: type) -> None:
         self._assert_not_sealed()
         self._registrations[interface] = ServiceRegistration(
             interface=interface, 
@@ -66,7 +71,7 @@ class Container:
             implementation_type=implementation
         )
 
-    def register_transient(self, interface: Type, implementation: Type) -> None:
+    def register_transient(self, interface: type, implementation: type) -> None:
         self._assert_not_sealed()
         self._registrations[interface] = ServiceRegistration(
             interface=interface, 
@@ -74,7 +79,7 @@ class Container:
             implementation_type=implementation
         )
 
-    def register_factory(self, interface: Type, factory: Callable[..., Any], lifetime: ServiceLifetime = ServiceLifetime.TRANSIENT) -> None:
+    def register_factory(self, interface: type, factory: Callable[..., Any], lifetime: ServiceLifetime = ServiceLifetime.TRANSIENT) -> None:
         self._assert_not_sealed()
         self._registrations[interface] = ServiceRegistration(
             interface=interface, 
@@ -82,7 +87,7 @@ class Container:
             factory=factory
         )
 
-    def register_instance(self, interface: Type, instance: Any) -> None:
+    def register_instance(self, interface: type, instance: Any) -> None:
         self._assert_not_sealed()
         self._registrations[interface] = ServiceRegistration(
             interface=interface, 
@@ -96,7 +101,7 @@ class Container:
         Traverses the dependency graph of all registered services.
         Detects missing dependencies and circular loops.
         """
-        for interface in self._registrations.keys():
+        for interface in self._registrations:
             self._validate_graph(interface, set())
 
     def seal(self) -> None:
@@ -111,7 +116,7 @@ class Container:
         """Creates a new bounded scope for SCOPED lifetimes."""
         return ServiceScope(self)
 
-    def _validate_graph(self, interface: Type, visited: Set[Type]) -> None:
+    def _validate_graph(self, interface: type, visited: set[type]) -> None:
         if interface in visited:
             cycle = " -> ".join([i.__name__ for i in visited] + [interface.__name__])
             raise CircularDependencyError(f"Circular dependency detected: {cycle}")
@@ -128,7 +133,7 @@ class Container:
         deps = DependencyResolver.get_dependencies(target)
         
         visited.add(interface)
-        for param_name, param_type in deps.items():
+        for param_type in deps.values():
             if param_type not in self._registrations:
                 raise DependencyResolutionError(
                     f"Missing registration for '{param_type.__name__}' required by '{interface.__name__}'"
@@ -136,13 +141,13 @@ class Container:
             self._validate_graph(param_type, visited)
         visited.remove(interface)
 
-    def try_resolve(self, interface: Type, scope: Optional[ServiceScope] = None) -> Optional[Any]:
+    def try_resolve(self, interface: type, scope: ServiceScope | None = None) -> Any | None:
         try:
             return self.resolve(interface, scope)
         except DependencyResolutionError:
             return None
 
-    def resolve(self, interface: Type, scope: Optional[ServiceScope] = None) -> Any:
+    def resolve(self, interface: type, scope: ServiceScope | None = None) -> Any:
         """
         Resolves a service by its interface.
         """
@@ -168,6 +173,8 @@ class Container:
         
         if not target and registration.instance is not None:
             return registration.instance # Should be hit by fast path, but safety net
+            
+        assert target is not None, "Cannot instantiate service without implementation or factory"
 
         deps = DependencyResolver.get_dependencies(target)
         kwargs = {}
@@ -184,6 +191,7 @@ class Container:
                 
         # Scoped instantiation
         if registration.lifetime == ServiceLifetime.SCOPED:
+            assert scope is not None, "Cannot instantiate SCOPED service without scope"
             instance = target(**kwargs)
             scope.set_instance(interface, instance)
             return instance

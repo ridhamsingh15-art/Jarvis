@@ -135,9 +135,10 @@ class ChatView(QWidget):
             elif task.status == TaskStatus.FAILED:
                 self._chat.append_message("error", task.error)
             else:
+                status_display = task.status.value if hasattr(task.status, 'value') else str(task.status)
                 self._chat.append_message(
                     "system",
-                    f"{task.tool}.{task.action} — {task.status.value}",
+                    f"{task.tool}.{task.action} — {status_display}",
                 )
         else:
             # Multiple tasks → show task cards

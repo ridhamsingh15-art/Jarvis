@@ -65,7 +65,7 @@ class Executor:
             logger.error("Execution failed: %s", exc)
         except Exception as exc:
             task.fail(f"Unexpected error: {exc}")
-            logger.error(
+            logger.error(  # noqa: G201
                 "Unexpected error in %s.%s: %s",
                 task.tool,
                 task.action,

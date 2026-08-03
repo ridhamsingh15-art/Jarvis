@@ -1,0 +1,37 @@
+from enum import StrEnum
+
+
+class AgentRole(StrEnum):
+    COORDINATOR = "COORDINATOR"
+    PLANNER = "PLANNER"
+    RESEARCH = "RESEARCH"
+    CODING = "CODING"
+    REVIEW = "REVIEW"
+    TESTING = "TESTING"
+    MEMORY = "MEMORY"
+    CUSTOM = "CUSTOM"
+
+class TaskState(StrEnum):
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+
+class VoteType(StrEnum):
+    APPROVE = "APPROVE"
+    REJECT = "REJECT"
+    ABSTAIN = "ABSTAIN"
+
+class CollaborationState(StrEnum):
+    INITIALIZED = "INITIALIZED"
+    ACTIVE = "ACTIVE"
+    RESOLVING_CONFLICT = "RESOLVING_CONFLICT"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+class ConsensusStrategy(StrEnum):
+    MAJORITY = "MAJORITY"
+    WEIGHTED = "WEIGHTED"
+    UNANIMOUS = "UNANIMOUS"
+    COORDINATOR_OVERRIDE = "COORDINATOR_OVERRIDE"

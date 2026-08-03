@@ -1,9 +1,9 @@
 from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional
-import time
 
-from core.models import Identifier, Timestamp, Metadata, JarvisModel
-from .enums import MissionStatus, MissionPriority
+from core.models import Identifier, JarvisModel, Metadata, Timestamp
+
+from .enums import MissionPriority, MissionStatus
+
 
 @dataclass(frozen=True, slots=True)
 class Mission(JarvisModel):
@@ -18,11 +18,11 @@ class Mission(JarvisModel):
     
     created_at: Timestamp = field(default_factory=Timestamp)
     updated_at: Timestamp = field(default_factory=Timestamp)
-    started_at: Optional[Timestamp] = None
-    completed_at: Optional[Timestamp] = None
+    started_at: Timestamp | None = None
+    completed_at: Timestamp | None = None
     
     progress: float = 0.0 # 0 to 100
     
-    tags: List[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
     metadata: Metadata = field(default_factory=Metadata)
-    parent_mission_id: Optional[Identifier] = None
+    parent_mission_id: Identifier | None = None

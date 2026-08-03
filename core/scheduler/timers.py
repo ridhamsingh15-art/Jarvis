@@ -1,8 +1,9 @@
 import threading
 import time
-from typing import Callable, Optional
+from collections.abc import Callable
 
 from .queue import SchedulerQueue
+
 
 class TimerLoop:
     """Daemon thread that sleeps optimally until the next scheduled job is ready."""
@@ -11,7 +12,7 @@ class TimerLoop:
         self._queue = queue
         self._dispatch = dispatch_callback
         self._stop_event = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._wake_condition = threading.Condition() # Used to interrupt sleep if a sooner job arrives
 
     def start(self):

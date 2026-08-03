@@ -1,6 +1,6 @@
 import json
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any
 
 
 class LogFormatter(ABC):
@@ -9,7 +9,7 @@ class LogFormatter(ABC):
     Converts a structured log dictionary into a string.
     """
     @abstractmethod
-    def format(self, log_record: Dict[str, Any]) -> str:
+    def format(self, log_record: dict[str, Any]) -> str:
         pass
 
 
@@ -17,10 +17,10 @@ class JsonFormatter(LogFormatter):
     """
     Formats log records as JSON strings. Highly suitable for parsing and indexing.
     """
-    def format(self, log_record: Dict[str, Any]) -> str:
+    def format(self, log_record: dict[str, Any]) -> str:
         try:
             return json.dumps(log_record, default=str)
-        except Exception as e:
+        except (TypeError, ValueError) as e:
             # Fallback for un-serializable objects (fail-safe)
             return json.dumps({"error": "Failed to serialize log record", "reason": str(e)})
 
@@ -30,7 +30,7 @@ class TextFormatter(LogFormatter):
     Formats log records as human-readable text. Suitable for local console output.
     Format: [TIMESTAMP] [LEVEL] [COMPONENT] (CorrID: X) Message | Metadata
     """
-    def format(self, log_record: Dict[str, Any]) -> str:
+    def format(self, log_record: dict[str, Any]) -> str:
         timestamp = log_record.get("timestamp", "")
         level = log_record.get("level", "UNKNOWN")
         component = log_record.get("component", "System")

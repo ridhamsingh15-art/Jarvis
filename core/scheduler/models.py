@@ -1,10 +1,11 @@
 import itertools
-from dataclasses import dataclass, field
-from typing import Dict, Any, Optional
 import time
+from dataclasses import dataclass, field
+from typing import Any
 
-from core.models import JarvisModel, Identifier
-from .enums import ScheduleStatus, JobType
+from core.models import Identifier, JarvisModel
+
+from .enums import JobType, ScheduleStatus
 
 _job_sequence = itertools.count()
 
@@ -22,7 +23,7 @@ class ScheduledJob(JarvisModel):
     
     # Store trigger metadata to compute recurring jobs
     trigger_type: str = "IMMEDIATE"
-    trigger_metadata: Dict[str, Any] = field(default_factory=dict)
+    trigger_metadata: dict[str, Any] = field(default_factory=dict)
     
     created_at: float = field(default_factory=time.time)
     

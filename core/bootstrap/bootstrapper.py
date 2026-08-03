@@ -1,13 +1,21 @@
-from core.config import ConfigManager, ConfigSnapshot, EnvConfigProvider, ConfigSchema, ConfigField, DefaultConfigProvider
-from core.telemetry import AsyncLogger, create_logger
-from core.errors import ErrorHandler, InternalError
+from core.config import (
+    ConfigField,
+    ConfigManager,
+    ConfigSchema,
+    ConfigSnapshot,
+    DefaultConfigProvider,
+    EnvConfigProvider,
+)
 from core.di import Container
+from core.errors import ErrorHandler, InternalError
 from core.events import EventBus
 from core.models import Event
+from core.telemetry import AsyncLogger, create_logger
 
+from .lifecycle import LifecycleManager
 from .models import StartupResult
 from .runtime import Runtime
-from .lifecycle import LifecycleManager
+
 
 class Bootstrap:
     """
@@ -66,8 +74,8 @@ class Bootstrap:
             
             return StartupResult(success=True, runtime=runtime)
             
-        except Exception as e:
-            error_msg = f"Bootstrap failed: {str(e)}"
+        except Exception as e:  # noqa: BLE001
+            error_msg = f"Bootstrap failed: {e!s}"
             
             # Isolate via Error Model
             wrapped_error = InternalError(message=error_msg, root_cause=e)
@@ -79,7 +87,7 @@ class Bootstrap:
             if container:
                 try:
                     container.dispose()
-                except Exception:
+                except Exception:  # noqa: S110, BLE001
                     pass
                     
             return StartupResult(success=False, error_message=error_msg)

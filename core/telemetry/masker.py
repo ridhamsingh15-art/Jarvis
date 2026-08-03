@@ -2,7 +2,8 @@
 Provides robust secret masking capabilities for log payloads.
 Extracts secret keys from the ConfigSnapshot and redacts them deep in dictionaries.
 """
-from typing import Any, Dict, List, Set
+from typing import Any
+
 from core.config import ConfigSnapshot
 
 _MASK = "********"
@@ -12,7 +13,7 @@ class LogMasker:
     Masks sensitive information in log payloads based on configuration schema.
     """
     def __init__(self, config: ConfigSnapshot):
-        self._secret_keys: Set[str] = set()
+        self._secret_keys: set[str] = set()
         
         # Traverse the config schema to find fields marked as secrets
         if hasattr(config, "_schema"):

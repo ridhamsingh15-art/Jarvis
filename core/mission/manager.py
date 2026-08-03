@@ -1,19 +1,20 @@
-import time
-from typing import List, Optional
 from dataclasses import replace
+from typing import Any
 
 from core.events import EventBus
 from core.models import Event, Timestamp
+
 from .enums import MissionStatus
-from .models import Mission
-from .interfaces import MissionRepository
 from .exceptions import InvalidMissionTransitionError
+from .interfaces import MissionRepository
+from .models import Mission
+
 
 class MissionManager:
     """Orchestrates Mission lifecycles and business rules."""
     
     # Pre-defined valid transitions
-    VALID_TRANSITIONS = {
+    VALID_TRANSITIONS = {  # noqa: RUF012
         MissionStatus.CREATED: {MissionStatus.QUEUED},
         MissionStatus.QUEUED: {MissionStatus.PLANNING, MissionStatus.CANCELLED},
         MissionStatus.PLANNING: {MissionStatus.READY, MissionStatus.FAILED, MissionStatus.CANCELLED},
@@ -38,7 +39,7 @@ class MissionManager:
             
         # Create an updated mission instance (since models are frozen)
         now = Timestamp()
-        kwargs = {
+        kwargs: dict[str, Any] = {
             "status": new_status,
             "updated_at": now
         }
@@ -70,14 +71,14 @@ class MissionManager:
     def get(self, mission_id: str) -> Mission:
         return self._repository.get(mission_id)
         
-    def list(self) -> List[Mission]:
+    def list(self) -> list[Mission]:
         return self._repository.list()
         
-    def update(self, mission_id: str, progress: Optional[float] = None, **kwargs) -> Mission:
+    def update(self, mission_id: str, progress: float | None = None, **kwargs) -> Mission:
         """Updates specific safe fields like progress."""
         mission = self.get(mission_id)
         
-        updates = {"updated_at": Timestamp()}
+        updates: dict[str, Any] = {"updated_at": Timestamp()}
         if progress is not None:
             if not (0.0 <= progress <= 100.0):
                 raise ValueError("Progress must be between 0 and 100")

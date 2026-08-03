@@ -1,16 +1,17 @@
 import time
-from typing import Dict, Any
+from typing import Any
 
 from core.events import EventBus
-from core.models import Identifier, Event
-from core.tasks import TaskManager, TaskDefinition, TaskStatus
-from core.workflows import WorkflowManager, WorkflowDefinition
+from core.models import Event, Identifier
+from core.tasks import TaskManager
+from core.workflows import WorkflowManager
 
-from .models import ScheduledJob, JobType, ScheduleStatus
-from .triggers import Trigger
+from .exceptions import SchedulerError
+from .models import JobType, ScheduledJob
 from .queue import SchedulerQueue
 from .timers import TimerLoop
-from .exceptions import SchedulerError
+from .triggers import Trigger
+
 
 class SchedulerEngine:
     """Core logic mapping triggered jobs to their destination managers."""
@@ -23,9 +24,9 @@ class SchedulerEngine:
         self._timer = TimerLoop(self._queue, self._dispatch)
         
         # Store raw definitions waiting to be submitted
-        self._payload_store: Dict[str, Any] = {}
+        self._payload_store: dict[str, Any] = {}
         # Store recurring triggers
-        self._triggers: Dict[str, Trigger] = {}
+        self._triggers: dict[str, Trigger] = {}
 
     def start(self):
         self._timer.start()
@@ -43,17 +44,22 @@ class SchedulerEngine:
             
         t_type, t_meta = trigger.serialize()
         
+        if job_type == JobType.TASK:
+            payload_id = payload.task_id
+        else:
+            payload_id = payload.workflow_id
+            
         job = ScheduledJob(
             id=Identifier(),
             job_type=job_type,
-            payload_id=payload.id,
+            payload_id=payload_id,
             next_execution_time=fire_time,
             trigger_type=t_type,
             trigger_metadata=t_meta
         )
         
         # Store the payload so we can submit it when time arrives
-        self._payload_store[payload.id.value] = payload
+        self._payload_store[payload_id.value] = payload
         self._triggers[job.id.value] = trigger
         
         self._queue.enqueue(job)
@@ -76,10 +82,13 @@ class SchedulerEngine:
             return # Payload deleted or invalid
             
         if job.job_type == JobType.TASK:
-            self._task_manager.submit_task(payload)
+            self._task_manager.create(payload)
+            self._task_manager.ready(payload.task_id.value)
+            self._task_manager.queue(payload.task_id.value)
         elif job.job_type == JobType.WORKFLOW:
-            self._workflow_manager.submit_workflow(payload)
-            self._workflow_manager.start_workflow(payload.id.value)
+            self._workflow_manager.create(payload)
+            self._workflow_manager.ready(payload.workflow_id.value)
+            self._workflow_manager.resume(payload.workflow_id.value)
             
         self._event_bus.publish(Event(topic="task.released", payload=job.to_dict(), source="scheduler"))
         

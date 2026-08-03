@@ -1,12 +1,11 @@
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 import pytest
 import requests
 
 from providers.ollama_provider import OllamaProvider
 from providers.provider_exceptions import (
     ProviderTimeoutError,
-    ProviderConnectionError,
-    ProviderAPIError
 )
 from providers.provider_models import ProviderHealthStatus
 
@@ -47,6 +46,29 @@ def test_generate_timeout(mock_post, ollama_provider):
     mock_post.side_effect = requests.exceptions.Timeout("Timeout")
     with pytest.raises(ProviderTimeoutError):
         ollama_provider.generate("System", "User")
+    assert mock_post.call_count == 4
+
+
+@patch("providers.ollama_provider.time.sleep")
+@patch("requests.post")
+def test_generate_retries_with_exponential_timeout(mock_post, mock_sleep):
+    provider = OllamaProvider({
+        "timeout_seconds": 5,
+        "max_retries": 2,
+        "retry_backoff_seconds": 0.25,
+    })
+    mock_post.side_effect = [
+        requests.exceptions.Timeout("slow"),
+        requests.exceptions.Timeout("slow"),
+        MagicMock(
+            raise_for_status=MagicMock(),
+            json=MagicMock(return_value={"response": "done"}),
+        ),
+    ]
+
+    assert provider.generate("System", "User").text == "done"
+    assert [call.kwargs["timeout"] for call in mock_post.call_args_list] == [5.0, 10.0, 20.0]
+    assert [call.args[0] for call in mock_sleep.call_args_list] == [0.25, 0.5]
 
 
 @patch("requests.post")

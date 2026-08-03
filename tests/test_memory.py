@@ -1,11 +1,16 @@
-import pytest
 import time
-from core.models import Event
+
+import pytest
+
 from core.events import EventBus
 from core.memory import (
-    MemoryManager, InMemoryStorageProvider, MemoryNotFoundError,
-    MemoryType, EpisodicEvent, SemanticFact
+    InMemoryStorageProvider,
+    MemoryManager,
+    MemoryNotFoundError,
+    MemoryType,
 )
+from core.models import Event
+
 
 @pytest.fixture
 def manager():
@@ -17,11 +22,13 @@ def manager():
     bus = EventBus(logger=MockLogger())
     provider = InMemoryStorageProvider()
     mm = MemoryManager(provider, bus)
-    mm.start()
-    return mm, bus
+    import asyncio
+    asyncio.run(mm.start())
+    yield mm, bus
+    asyncio.run(mm.stop())
 
 def test_working_memory_crud(manager):
-    mm, bus = manager
+    mm, _bus = manager
     
     # Store
     mm.store_context("current_task", "extract_data")
@@ -32,7 +39,7 @@ def test_working_memory_crud(manager):
     assert mm.get_context("current_task") is None
 
 def test_working_memory_ttl_eviction(manager):
-    mm, bus = manager
+    mm, _bus = manager
     
     # Store with TTL
     mm.store_context("temp_key", "value", ttl_seconds=0.1)
@@ -47,7 +54,7 @@ def test_working_memory_ttl_eviction(manager):
     assert mm.get_context("temp_key") is None
 
 def test_episodic_memory(manager):
-    mm, bus = manager
+    mm, _bus = manager
     
     # Record manually
     ep1 = mm.record_episode("user.message", {"content": "Hello Jarvis"})
@@ -71,7 +78,7 @@ def test_automated_episodic_recording(manager):
     assert eps[0].source == "system.task"
 
 def test_semantic_memory(manager):
-    mm, bus = manager
+    mm, _bus = manager
     
     # Store Fact
     fact = mm.store_fact("Python", "IS_A", "ProgrammingLanguage")
@@ -94,13 +101,15 @@ def test_semantic_memory(manager):
     assert len(mm.query_facts("Python")) == 0
 
 def test_semantic_update_not_found(manager):
-    mm, bus = manager
+    mm, _bus = manager
     with pytest.raises(MemoryNotFoundError):
         mm.update_fact("invalid-id", relationship="NEW")
         
 def test_runtime_health(manager):
-    mm, bus = manager
-    report = mm.health()
-    assert report.is_healthy is True
-    assert report.status == "RUNNING"
+    mm, _bus = manager
+    import asyncio
+
+    from core.runtime.enums import HealthState
+    report = asyncio.run(mm.health())
+    assert report.state == HealthState.HEALTHY
     assert report.details["provider"] == "InMemoryStorageProvider"

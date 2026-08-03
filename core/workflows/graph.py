@@ -1,17 +1,17 @@
-from typing import Dict, List, Set
-from collections import defaultdict, deque
 import threading
+from collections import defaultdict, deque
 
 from .exceptions import CyclicDependencyError
+
 
 class DependencyGraph:
     """Thread-safe DAG implementation for tracking Task dependencies within a Workflow."""
     
     def __init__(self):
         self._lock = threading.Lock()
-        self._nodes: Set[str] = set()
-        self._adj: Dict[str, Set[str]] = defaultdict(set) # task -> tasks it depends on (outgoing edges to prerequisites)
-        self._rev_adj: Dict[str, Set[str]] = defaultdict(set) # prerequisite -> tasks depending on it
+        self._nodes: set[str] = set()
+        self._adj: dict[str, set[str]] = defaultdict(set) # task -> tasks it depends on (outgoing edges to prerequisites)
+        self._rev_adj: dict[str, set[str]] = defaultdict(set) # prerequisite -> tasks depending on it
         
     def add_task(self, task_id: str) -> None:
         with self._lock:
@@ -70,7 +70,7 @@ class DependencyGraph:
                         
             return visited_count != len(self._nodes)
             
-    def topological_sort(self) -> List[str]:
+    def topological_sort(self) -> list[str]:
         """Returns a valid execution order. Raises CyclicDependencyError if graph has a cycle."""
         with self._lock:
             in_degree = {node: 0 for node in self._nodes}
@@ -83,7 +83,7 @@ class DependencyGraph:
             # Sort queue strings just to make output deterministic for tests if there's a tie
             while queue:
                 # To ensure determinism, we sort the available queue items
-                available = sorted(list(queue))
+                available = sorted(queue)
                 queue.clear()
                 
                 for current in available:

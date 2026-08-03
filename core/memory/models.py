@@ -1,9 +1,10 @@
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional
-import time
+from typing import Any
 
-from core.models import JarvisModel, Identifier, Timestamp
+from core.models import Identifier, JarvisModel, Timestamp
+
 from .enums import MemoryType
+
 
 @dataclass(frozen=True, slots=True)
 class MemoryItem(JarvisModel):
@@ -17,14 +18,14 @@ class WorkingMemoryItem(MemoryItem):
     """Temporary scratchpad memory with optional TTL."""
     key: str = ""
     value: Any = None
-    ttl_seconds: Optional[float] = None
-    expires_at: Optional[float] = None
+    ttl_seconds: float | None = None
+    expires_at: float | None = None
 
 @dataclass(frozen=True, slots=True)
 class EpisodicEvent(MemoryItem):
     """Immutable chronological log of a system or user event."""
     event_type: str = "UNKNOWN"
-    payload: Dict[str, Any] = field(default_factory=dict)
+    payload: dict[str, Any] = field(default_factory=dict)
     source: str = "system"
 
 @dataclass(frozen=True, slots=True)
@@ -33,4 +34,4 @@ class SemanticFact(MemoryItem):
     entity: str = ""
     relationship: str = ""
     target: str = ""
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)

@@ -1,5 +1,7 @@
-from typing import List, Protocol
+from typing import Protocol
+
 from .models import Mission
+
 
 class MissionRepository(Protocol):
     """Interface for Mission storage mechanisms."""
@@ -12,7 +14,7 @@ class MissionRepository(Protocol):
         """Retrieves a mission by ID. Raises MissionNotFoundError if missing."""
         ...
         
-    def list(self) -> List[Mission]:
+    def list(self) -> list[Mission]:
         """Returns a list of all stored missions."""
         ...
         

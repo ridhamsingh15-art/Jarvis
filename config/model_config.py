@@ -3,7 +3,7 @@ Configuration definition for the Model Router.
 """
 
 from dataclasses import dataclass, field
-from typing import Dict, Any, Optional
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -14,8 +14,8 @@ class ModelRouterConfig:
     """
     
     # Provider preferences
-    default_chat_provider: Optional[str] = None
-    default_reasoning_provider: Optional[str] = None
+    default_chat_provider: str | None = None
+    default_reasoning_provider: str | None = None
     prefer_local: bool = True
     
     # Fallback and routing mechanics
@@ -24,4 +24,4 @@ class ModelRouterConfig:
     request_timeout_seconds: int = 30
     
     # Future extensibility flags
-    future_extension_flags: Dict[str, Any] = field(default_factory=dict)
+    future_extension_flags: dict[str, Any] = field(default_factory=dict)

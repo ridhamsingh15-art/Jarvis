@@ -2,9 +2,7 @@
 Core implementation of the Model Router subsystem.
 """
 
-import copy
 import logging
-from typing import Optional
 
 from config.model_config import ModelRouterConfig
 from core.model_gateway import ModelGateway
@@ -55,7 +53,7 @@ class ModelRouter(ModelGateway):
         self,
         system_prompt: str,
         user_prompt: str,
-        requirements: Optional[InferenceRequirements] = None,
+        requirements: InferenceRequirements | None = None,
     ) -> ModelResponse:
         """Execute text generation with optimal provider routing."""
         
@@ -76,7 +74,7 @@ class ModelRouter(ModelGateway):
         chain = self._fallback_manager.create_chain(ranked_candidates)
         
         # 5. Execute with fallback
-        last_error = None
+        last_error: tuple[str, Exception] | None = None
         while True:
             try:
                 provider = chain.get_next()
@@ -116,7 +114,7 @@ class ModelRouter(ModelGateway):
                 )
                 self._health_monitor.mark_failure(provider.provider_id)
                 last_error = (provider.provider_id, exc)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 # Unexpected failure, but we still fallback
                 logger.warning(
                     "Provider %s failed unexpectedly: %s. Initiating fallback...",
@@ -129,7 +127,7 @@ class ModelRouter(ModelGateway):
     def embed(
         self,
         text: str,
-        requirements: Optional[InferenceRequirements] = None,
+        requirements: InferenceRequirements | None = None,
     ) -> EmbeddingResponse:
         """Execute text embedding with optimal provider routing."""
         
@@ -144,7 +142,7 @@ class ModelRouter(ModelGateway):
         ranked_candidates = self._selection_policy.rank_providers(candidates, reqs)
         chain = self._fallback_manager.create_chain(ranked_candidates)
         
-        last_error = None
+        last_error: tuple[str, Exception] | None = None
         while True:
             try:
                 provider = chain.get_next()
@@ -165,14 +163,14 @@ class ModelRouter(ModelGateway):
                 logger.warning("Provider %s embed failed: %s", provider.provider_id, exc)
                 self._health_monitor.mark_failure(provider.provider_id)
                 last_error = (provider.provider_id, exc)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 logger.warning("Provider %s embed failed unexpectedly: %s", provider.provider_id, exc)
                 self._health_monitor.mark_failure(provider.provider_id)
                 last_error = (provider.provider_id, exc)
 
     def _merge_requirements(
         self, 
-        reqs: Optional[InferenceRequirements], 
+        reqs: InferenceRequirements | None, 
         default_capability: Capability
     ) -> InferenceRequirements:
         """Merge user requirements with defaults from config."""

@@ -3,7 +3,6 @@ Tests for the ModelRouter orchestration logic.
 """
 
 import unittest
-from unittest.mock import patch
 
 from config.model_config import ModelRouterConfig
 from core.model_router import ModelRouter

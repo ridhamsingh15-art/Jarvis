@@ -1,5 +1,6 @@
 import threading
 
+
 class CancellationToken:
     """Thread-safe cancellation token for cooperative task cancellation."""
     

@@ -1,15 +1,15 @@
 import threading
-from typing import Dict, List
 
-from .models import Workflow
-from .interfaces import WorkflowRepository
 from .exceptions import WorkflowNotFoundError
+from .interfaces import WorkflowRepository
+from .models import Workflow
+
 
 class InMemoryWorkflowRepository(WorkflowRepository):
     """Thread-safe in-memory storage for Workflows."""
     
     def __init__(self):
-        self._store: Dict[str, Workflow] = {}
+        self._store: dict[str, Workflow] = {}
         self._lock = threading.Lock()
         
     def save(self, workflow: Workflow) -> Workflow:
@@ -23,7 +23,7 @@ class InMemoryWorkflowRepository(WorkflowRepository):
                 raise WorkflowNotFoundError(f"Workflow '{workflow_id}' not found.")
             return self._store[workflow_id]
             
-    def list(self) -> List[Workflow]:
+    def list(self) -> list[Workflow]:
         with self._lock:
             return list(self._store.values())
             

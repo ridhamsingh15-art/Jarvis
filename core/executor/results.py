@@ -1,14 +1,15 @@
 import time
-from typing import Dict, Any, Optional
+from typing import Any
 
 from core.models import ExecutionResult
 from core.tasks import TaskDefinition
+
 
 class ExecutionResultBuilder:
     """Utility to safely construct ExecutionResult models capturing runtime limits."""
     
     @staticmethod
-    def success(task: TaskDefinition, output: Dict[str, Any], start_time: float) -> ExecutionResult:
+    def success(task: TaskDefinition, output: dict[str, Any], start_time: float) -> ExecutionResult:
         return ExecutionResult(
             success=True,
             output=output,

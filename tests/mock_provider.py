@@ -2,7 +2,6 @@
 Shared mock provider for unit tests.
 """
 
-from typing import Optional
 
 from providers.base_provider import BaseProvider
 from providers.capabilities import Capability
@@ -52,7 +51,7 @@ class MockProvider(BaseProvider):
         self,
         system_prompt: str,
         user_prompt: str,
-        requirements: Optional[InferenceRequirements] = None,
+        requirements: InferenceRequirements | None = None,
     ) -> ModelResponse:
         return ModelResponse(
             text="mock response",
@@ -62,7 +61,7 @@ class MockProvider(BaseProvider):
         )
 
     def embed(
-        self, text: str, requirements: Optional[InferenceRequirements] = None
+        self, text: str, requirements: InferenceRequirements | None = None
     ) -> EmbeddingResponse:
         return EmbeddingResponse(
             vector=[0.1, 0.2],
@@ -79,6 +78,6 @@ class MockProvider(BaseProvider):
         pass
 
     def estimate_cost(
-        self, input_tokens: int, output_tokens: int, model_id: Optional[str] = None
+        self, input_tokens: int, output_tokens: int, model_id: str | None = None
     ) -> float:
         return 0.0
