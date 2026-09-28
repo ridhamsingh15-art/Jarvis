@@ -16,12 +16,24 @@ from .planner_bridge import PlannerBridge
 from .probabilistic_reasoner import ProbabilisticReasoner
 from .simulation import ExecutionSimulator
 from .world_model import WorldModel
-
+from core.llm import LLMClient
+from core.registry import Registry
+from core.cognition.context import ShortTermContext
+from core.reasoning.execution_plan import ExecutionPlan
+from core.reasoning.loop import ReasoningLoop
 
 class ReasoningManager(RuntimeComponent):
-    def __init__(self, event_bus: EventBus):
+    def __init__(self, event_bus: EventBus, llm_client: LLMClient = None, registry: Registry = None):
         self._id = Identifier("manager.reasoning")
         self.event_bus = event_bus
+        self._llm = llm_client
+        self._registry = registry
+        
+        # New deliberation engine
+        if self._llm and self._registry:
+            self._loop = ReasoningLoop(self._llm, self._registry)
+        else:
+            self._loop = None
         
         self.graph = KnowledgeGraph()
         self.world = WorldModel(self.graph)
@@ -101,3 +113,11 @@ class ReasoningManager(RuntimeComponent):
 
     def explain(self, inference: Inference) -> str:
         return f"Concluded {inference.conclusion} based on {inference.evidence}"
+
+    def deliberate(self, user_input: str, context: ShortTermContext) -> ExecutionPlan:
+        """
+        Executes the reasoning loop to formulate a comprehensive ExecutionPlan.
+        """
+        if not self._loop:
+            raise RuntimeError("ReasoningManager was not initialized with LLM and Registry for deliberation.")
+        return self._loop.run(user_input, context)

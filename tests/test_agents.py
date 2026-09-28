@@ -35,8 +35,14 @@ def voting_engine():
     return VotingEngine()
 
 @pytest.fixture
-def coordinator(registry):
-    return MasterCoordinator(registry)
+def lifecycle():
+    mission_manager = MagicMock()
+    from core.agents.lifecycle import AgentLifecycleAdapter
+    return AgentLifecycleAdapter(mission_manager)
+
+@pytest.fixture
+def coordinator(registry, lifecycle):
+    return MasterCoordinator(registry, lifecycle)
 
 @pytest.fixture
 def manager(registry, coordinator, shared_memory, voting_engine):

@@ -24,6 +24,7 @@ class Registry:
     def __init__(self) -> None:
         self._tools: dict[str, BaseTool] = {}
         self._lock = threading.RLock()
+        self._cached_description: str | None = None
 
     def register(self, tool: BaseTool) -> None:
         """Register a tool instance.
@@ -47,6 +48,7 @@ class Registry:
                 raise ToolRegistrationError(f"Tool already registered: {tool.name}")
 
             self._tools[tool.name] = tool
+            self._cached_description = None
             logger.info("Registered tool: %s", tool.name)
 
     def unregister(self, name: str) -> None:
@@ -63,6 +65,7 @@ class Registry:
                 raise ToolNotFoundError(f"Cannot unregister. Tool '{name}' not found.")
 
             del self._tools[name]
+            self._cached_description = None
             logger.info("Unregistered tool: %s", name)
 
     def has_tool(self, name: str) -> bool:
@@ -139,6 +142,7 @@ class Registry:
         with self._lock:
             count = len(self._tools)
             self._tools.clear()
+            self._cached_description = None
             logger.info("Cleared %d tools from the registry.", count)
 
     def describe(self) -> str:
@@ -148,6 +152,9 @@ class Registry:
             Formatted string describing every tool and its actions.
         """
         with self._lock:
+            if self._cached_description is not None:
+                return self._cached_description
+                
             if not self._tools:
                 return "No tools available."
     
@@ -165,4 +172,5 @@ class Registry:
     
                 sections.append("\n".join(lines))
     
-            return "\n\n".join(sections)
+            self._cached_description = "\n\n".join(sections)
+            return self._cached_description

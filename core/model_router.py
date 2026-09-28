@@ -193,6 +193,8 @@ class ModelRouter(ModelGateway):
             prefer_local=reqs.prefer_local,
             prefer_provider=reqs.prefer_provider,
             task_complexity=reqs.task_complexity,
+            prefer_model=reqs.prefer_model,
+            role=reqs.role,
         )
 
     def _get_capable_candidates(self, required_capabilities: frozenset[Capability]) -> list:

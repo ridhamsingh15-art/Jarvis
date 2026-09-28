@@ -37,13 +37,14 @@ class ExecutionEngine:
         Executes a task directly in the current thread.
         """
         try:
-            task.start()
+            if getattr(task, "status", None) in (TaskStatus.PENDING, TaskStatus.RETRYING):
+                task.start()
             handler = self._registry.get(task.action)
             result = handler(None, **task.args) if hasattr(task, 'args') else handler(None, **task.parameters)
             task.complete(result)
         except Exception as e:  # noqa: BLE001
-            # If task is still PENDING (start() failed or wasn't reached), force to RUNNING first
-            if task.status == TaskStatus.PENDING:
+            # If task is still PENDING or RETRYING (start() failed or wasn't reached), force to RUNNING first
+            if getattr(task, "status", None) in (TaskStatus.PENDING, TaskStatus.RETRYING):
                 task.start()
             task.fail(str(e))
         return task

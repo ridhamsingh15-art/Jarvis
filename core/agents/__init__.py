@@ -37,6 +37,17 @@ from .review_agent import ReviewAgent
 from .shared_memory import ThreadSafeSharedMemory
 from .testing_agent import TestingAgent
 from .voting import VotingEngine
+from .lifecycle import AgentLifecycleAdapter
+from .content_agents import (
+    WriterAgent,
+    StoryboardAgent,
+    VisualDirectorAgent,
+    AnimationDirectorAgent,
+    VoiceDirectorAgent,
+    EditorAgent,
+    PublisherAgent,
+    AnalyticsAgent
+)
 
 __all__ = [
     "AgentCapability",
@@ -76,4 +87,13 @@ __all__ = [
     "VoteType",
     "VotingEngine",
     "VotingError",
+    "AgentLifecycleAdapter",
+    "WriterAgent",
+    "StoryboardAgent",
+    "VisualDirectorAgent",
+    "AnimationDirectorAgent",
+    "VoiceDirectorAgent",
+    "EditorAgent",
+    "PublisherAgent",
+    "AnalyticsAgent",
 ]

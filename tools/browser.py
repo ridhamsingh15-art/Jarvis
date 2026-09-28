@@ -7,6 +7,7 @@ the core framework — communicates only through the BaseTool interface.
 """
 
 import logging
+import re
 import webbrowser
 from urllib.parse import quote_plus
 
@@ -151,17 +152,33 @@ class BrowserTool(BaseTool):
         Raises:
             ExecutionError: If site is unknown or open fails.
         """
-        site_name = args.get("site", "").lower().strip()
-
-        if not site_name:
+        raw_site = args.get("site", "").strip()
+        if not raw_site:
             raise ExecutionError("Missing required argument: 'site'")
 
-        url = _KNOWN_SITES.get(site_name)
+        # Clean prefix and lowercase
+        site_name = raw_site.lower().strip()
+        clean_site = re.sub(r"^(?:open|go\s+to|visit|browse\s+to)\s+", "", site_name).strip()
+        clean_site = re.sub(r"^(https?:\/\/)?(www\.)?", "", clean_site).strip().rstrip("/")
+        # Extract base domain name if path exists
+        clean_site = clean_site.split("/")[0]
+
+        # 1. Exact match in known sites
+        url = _KNOWN_SITES.get(clean_site)
+
+        # 2. Match without domain extension (e.g. 'github.com' -> 'github')
+        if url is None and "." in clean_site:
+            base_name = clean_site.split(".")[0]
+            url = _KNOWN_SITES.get(base_name)
+
+        # 3. Direct domain fallback if valid domain format (e.g. huggingface.co)
+        if url is None and "." in clean_site and not clean_site.endswith("."):
+            url = f"https://{clean_site}"
 
         if url is None:
             known = ", ".join(_KNOWN_SITES.keys())
             raise ExecutionError(
-                f"Unknown site: '{site_name}'. "
+                f"Unknown site: '{raw_site}'. "
                 f"Known sites: {known}"
             )
 

@@ -26,7 +26,7 @@ def test_generate_success(mock_post, ollama_provider):
     mock_response = MagicMock()
     mock_response.json.return_value = {
         "model": "llama3",
-        "response": "Hello world",
+        "message": {"role": "assistant", "content": "Hello world"},
         "prompt_eval_count": 10,
         "eval_count": 5
     }
@@ -62,7 +62,7 @@ def test_generate_retries_with_exponential_timeout(mock_post, mock_sleep):
         requests.exceptions.Timeout("slow"),
         MagicMock(
             raise_for_status=MagicMock(),
-            json=MagicMock(return_value={"response": "done"}),
+            json=MagicMock(return_value={"message": {"role": "assistant", "content": "done"}}),
         ),
     ]
 

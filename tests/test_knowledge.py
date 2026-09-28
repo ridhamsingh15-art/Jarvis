@@ -1,122 +1,170 @@
+import math
 import os
 import tempfile
+import uuid
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
-from core.events.bus import EventBus
-from core.runtime.enums import ComponentState
-from knowledge import (
-    BinaryParserMock,
-    DefaultHybridRetriever,
-    DirectoryIndexer,
-    IngestionPipeline,
-    InMemoryKnowledgeRepository,
-    InMemoryVectorStore,
-    KnowledgeManager,
-    KnowledgeQuery,
-    MockEmbeddingProvider,
-    MockReranker,
-    RecursiveCharacterChunker,
-    TextParser,
+from core.knowledge.indexer.chunking import get_chunks
+from core.knowledge.indexer.embeddings import EmbeddingsEngine
+from core.knowledge.indexer.metadata import determine_file_type, extract_metadata
+from core.knowledge.indexer.registry import (
+    KnowledgeChunk,
+    KnowledgeDocument,
+    SQLiteKnowledgeRegistry,
 )
+from core.knowledge.indexer.scanner import KnowledgeScanner
 
 
 @pytest.fixture
-def temp_dir():
-    with tempfile.TemporaryDirectory() as td:
-        yield td
+def temp_db():
+    fd, path = tempfile.mkstemp(suffix=".db")
+    os.close(fd)
+    yield path
+    try:
+        os.remove(path)
+    except PermissionError:
+        pass
+
 
 @pytest.fixture
-def mock_files(temp_dir):
-    txt_path = os.path.join(temp_dir, "test1.txt")
-    with open(txt_path, "w") as f:
-        f.write("This is a mock text file. Artificial Intelligence is great.")
+def temp_workspace():
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Create some dummy files
+        p = Path(tmpdir)
+        (p / "test.txt").write_text("Hello world this is a test text.")
+        (p / "data.csv").write_text("id,name\n1,alice")
         
-    pdf_path = os.path.join(temp_dir, "test2.pdf")
-    with open(pdf_path, "wb") as f:
-        f.write(b"mock pdf content")
+        # Ignored dir
+        node_modules = p / "node_modules"
+        node_modules.mkdir()
+        (node_modules / "test.js").write_text("console.log('test')")
         
-    return temp_dir, txt_path, pdf_path
+        # Subdir
+        subdir = p / "projects"
+        subdir.mkdir()
+        (subdir / "main.py").write_text("print('hello')")
+        
+        yield tmpdir
 
-@pytest.fixture
-def manager():
-    logger = MagicMock()
-    event_bus = EventBus(logger)
+
+def test_sqlite_registry_lifecycle(temp_db):
+    registry = SQLiteKnowledgeRegistry(temp_db)
     
-    parsers = [TextParser(), BinaryParserMock()]
-    chunker = RecursiveCharacterChunker(chunk_size=50, chunk_overlap=10)
-    embedding = MockEmbeddingProvider()
-    vector_store = InMemoryVectorStore()
-    repository = InMemoryKnowledgeRepository()
-    
-    indexer = DirectoryIndexer(parsers)
-    ingestion = IngestionPipeline(parsers, chunker, embedding, vector_store, repository)
-    reranker = MockReranker()
-    retriever = DefaultHybridRetriever(vector_store, embedding, reranker)
-    
-    return KnowledgeManager(
-        indexer=indexer,
-        ingestion_pipeline=ingestion,
-        retriever=retriever,
-        event_bus=event_bus,
-        logger=logger
+    doc = KnowledgeDocument(
+        id=str(uuid.uuid4()),
+        path="/dummy/path.txt",
+        filename="path.txt",
+        extension=".txt",
+        file_type="text",
+        size_bytes=100,
+        last_modified=12345.0,
+        last_indexed=0.0,
+        metadata={"author": "test"}
     )
+    
+    # Insert
+    registry.upsert_document(doc)
+    retrieved = registry.get_document_by_path("/dummy/path.txt")
+    assert retrieved is not None
+    assert retrieved.filename == "path.txt"
+    assert retrieved.metadata["author"] == "test"
+    
+    # Update
+    doc.size_bytes = 200
+    registry.upsert_document(doc)
+    retrieved2 = registry.get_document_by_path("/dummy/path.txt")
+    assert retrieved2.size_bytes == 200
+    
+    # Save Chunks
+    chunk1 = KnowledgeChunk(id=str(uuid.uuid4()), document_id=doc.id, text="chunk1", embedding=[0.1, 0.2])
+    chunk2 = KnowledgeChunk(id=str(uuid.uuid4()), document_id=doc.id, text="chunk2", embedding=None)
+    registry.save_chunks([chunk1, chunk2])
+    
+    # Get embeddings
+    chunks_with_emb = registry.get_all_chunks_with_embeddings()
+    assert len(chunks_with_emb) == 1
+    assert chunks_with_emb[0][1].text == "chunk1"
+    
+    # Delete doc should cascade
+    registry.delete_document(doc.id)
+    assert registry.get_document_by_path("/dummy/path.txt") is None
+    assert len(registry.get_all_chunks_with_embeddings()) == 0
 
-@pytest.mark.asyncio
-async def test_manager_lifecycle(manager):
-    assert manager.state == ComponentState.INITIALIZED
-    await manager.start()
-    assert manager.state == ComponentState.RUNNING
-    await manager.stop()
-    assert manager.state == ComponentState.STOPPED
 
-def test_index_file_and_search(manager, mock_files):
-    _, txt_path, _ = mock_files
+def test_metadata_extraction(temp_workspace):
+    file_path = str(Path(temp_workspace) / "test.txt")
+    meta = extract_metadata(file_path)
+    assert "created_time" in meta
+    assert "permissions" in meta
     
-    doc_id = manager.index_file(txt_path)
-    assert doc_id is not None
-    
-    # Try indexing again (duplicate detection should return same ID without re-indexing)
-    doc_id_2 = manager.index_file(txt_path)
-    assert doc_id == doc_id_2
-    
-    query = KnowledgeQuery(query_text="Artificial Intelligence", top_k=2)
-    results = manager.search(query)
-    
-    assert len(results) > 0
-    assert "Artificial Intelligence" in results[0].chunk.content
+    assert determine_file_type(".txt") == "text"
+    assert determine_file_type(".py") == "code"
+    assert determine_file_type(".pdf") == "pdf"
 
-def test_index_folder(manager, mock_files):
-    folder_path, _, _ = mock_files
-    
-    doc_ids = manager.index_folder(folder_path)
-    assert len(doc_ids) == 2
-    
-    query = KnowledgeQuery(query_text="mock extracted content", top_k=2)
-    results = manager.search(query)
-    
-    assert len(results) > 0
-    # Should find the binary mock text
-    assert "Mock extracted content" in results[0].chunk.content
 
-def test_ask(manager, mock_files):
-    folder_path, _, _ = mock_files
-    manager.index_folder(folder_path)
+def test_scanner_ignores_directories(temp_workspace):
+    scanner = KnowledgeScanner([temp_workspace])
+    docs = list(scanner.scan())
     
-    answer = manager.ask("Artificial")
-    assert "Artificial" in answer
+    paths = [d.path for d in docs]
+    assert any("test.txt" in p for p in paths)
+    assert any("data.csv" in p for p in paths)
+    assert any("main.py" in p for p in paths)
+    assert not any("test.js" in p for p in paths)  # in node_modules
 
-def test_remove(manager, mock_files):
-    _, txt_path, _ = mock_files
+
+def test_chunking():
+    doc = KnowledgeDocument(
+        id=str(uuid.uuid4()),
+        path="dummy.txt",
+        filename="dummy.txt",
+        extension=".txt",
+        file_type="text",
+        size_bytes=100,
+        last_modified=0.0,
+        last_indexed=0.0,
+        metadata={}
+    )
     
-    doc_id = manager.index_file(txt_path)
-    assert doc_id is not None
+    # Test _split_text indirectly via get_chunks if we mocked _extract_text
+    # We will just write a temporary file
+    with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as tmp:
+        tmp.write(b"A" * 1500)
+        tmp_path = tmp.name
+        
+    try:
+        doc.path = tmp_path
+        chunks = get_chunks(doc)
+        # 1500 bytes -> 1000 size + overlap 200 -> 2 chunks
+        assert len(chunks) == 2
+        assert len(chunks[0].text) > 500
+    finally:
+        os.remove(tmp_path)
+
+
+def test_embeddings_engine():
+    mock_client = MagicMock()
+    mock_client.get_embeddings.return_value = [1.0, 0.0]
     
-    results = manager.search(KnowledgeQuery(query_text="Artificial"))
-    assert len(results) > 0
+    engine = EmbeddingsEngine(mock_client)
     
-    manager.remove(doc_id)
+    # Vector math
+    sim = engine.compute_similarity([1.0, 0.0], [1.0, 0.0])
+    assert math.isclose(sim, 1.0)
     
-    results2 = manager.search(KnowledgeQuery(query_text="Artificial"))
-    assert len(results2) == 0
+    sim2 = engine.compute_similarity([1.0, 0.0], [0.0, 1.0])
+    assert math.isclose(sim2, 0.0)
+    
+    # Search
+    doc = KnowledgeDocument(
+        id="d1", path="x", filename="x", extension="x", 
+        file_type="x", size_bytes=1, last_modified=1, last_indexed=1, metadata={}
+    )
+    chunk = KnowledgeChunk(id="c1", document_id="d1", text="hello", embedding=[1.0, 0.0])
+    
+    results = engine.search("hello", [(doc, chunk)])
+    assert len(results) == 1
+    assert results[0].score == 1.0

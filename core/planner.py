@@ -6,7 +6,10 @@ Owns the full chain: build prompt → call LLM → parse → normalize
 structured, validated intent.
 """
 
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING
 
 from core.model_gateway import ModelGateway
 from core.normalizer import normalize
@@ -14,9 +17,97 @@ from core.parser import parse_json
 from core.registry import Registry
 from core.task import Task
 
+if TYPE_CHECKING:
+    from core.identity.manager import IdentityManager
+
 logger = logging.getLogger(__name__)
 
-_SYSTEM_PROMPT_TEMPLATE = """You are Jarvis, an AI operating system.
+
+
+
+class Planner:
+    """Converts natural language into a list of Task objects.
+
+    Pipeline:
+        1. Build system prompt from Registry descriptions
+        2. Send to ModelGateway and get raw text
+        3. Parse JSON from raw text
+        4. Normalize aliases to canonical names
+        5. Create Task objects
+    """
+
+    def __init__(
+        self,
+        gateway: ModelGateway,
+        registry: Registry,
+        identity: IdentityManager | None = None,
+        model_selector: Any = None,
+    ) -> None:
+        self._gateway = gateway
+        self._registry = registry
+        self._identity = identity
+        from core.routing.model_selector import TaskModelSelector
+        self._model_selector = model_selector or TaskModelSelector()
+
+    def plan(
+        self,
+        user_input: str,
+        context: str = "",
+        requirements: Any = None,
+    ) -> list[Task]:
+        """Convert user input into a list of Task objects.
+
+        Args:
+            user_input: Natural language instruction from the user.
+            context: Optional conversation history for LLM context.
+            requirements: Optional explicit InferenceRequirements.
+
+        Returns:
+            List of Task objects ready for validation and execution.
+
+        Raises:
+            RouterError: If the model gateway fails to generate a response.
+            ParseError: If the LLM output cannot be parsed.
+        """
+        logger.info("Planning for: %s", user_input)
+
+        system_prompt = self._build_system_prompt(context)
+        reqs = requirements or self._model_selector.select_requirements(user_input)
+        
+        # Use Gateway for text generation with routed requirements
+        response = self._gateway.generate(system_prompt, user_input, requirements=reqs)
+        raw_response = response.text
+
+        logger.debug("Raw LLM response: %s", raw_response[:300])
+
+        parsed = parse_json(raw_response)
+        normalized = normalize(parsed)
+        tasks = self._create_tasks(normalized)
+
+        logger.info("Created %d task(s)", len(tasks))
+
+        return tasks
+
+    def _build_system_prompt(self, context: str = "") -> str:
+        """Build the system prompt dynamically from the Registry.
+
+        If an IdentityManager is available, delegates prompt construction
+        to the identity subsystem. Otherwise falls back to a minimal prompt.
+
+        Args:
+            context: Optional conversation history to include.
+
+        Returns:
+            Complete system prompt with tool descriptions and
+            context injected.
+        """
+        tool_descriptions = self._registry.describe()
+
+        if self._identity is not None:
+            return self._identity.build_planner_prompt(tool_descriptions, context)
+
+        # Fallback for when IdentityManager is not injected (e.g. tests)
+        return f"""You are JARVIS, an AI operating system.
 
 You must ONLY use the tools listed below.
 Return ONLY valid JSON — no explanation, no markdown, no code fences.
@@ -36,71 +127,6 @@ Available tools:
 {tool_descriptions}
 
 {context}"""
-
-
-class Planner:
-    """Converts natural language into a list of Task objects.
-
-    Pipeline:
-        1. Build system prompt from Registry descriptions
-        2. Send to ModelGateway and get raw text
-        3. Parse JSON from raw text
-        4. Normalize aliases to canonical names
-        5. Create Task objects
-    """
-
-    def __init__(self, gateway: ModelGateway, registry: Registry) -> None:
-        self._gateway = gateway
-        self._registry = registry
-
-    def plan(self, user_input: str, context: str = "") -> list[Task]:
-        """Convert user input into a list of Task objects.
-
-        Args:
-            user_input: Natural language instruction from the user.
-            context: Optional conversation history for LLM context.
-
-        Returns:
-            List of Task objects ready for validation and execution.
-
-        Raises:
-            RouterError: If the model gateway fails to generate a response.
-            ParseError: If the LLM output cannot be parsed.
-        """
-        logger.info("Planning for: %s", user_input)
-
-        system_prompt = self._build_system_prompt(context)
-        
-        # Use Gateway for text generation
-        response = self._gateway.generate(system_prompt, user_input)
-        raw_response = response.text
-
-        logger.debug("Raw LLM response: %s", raw_response[:300])
-
-        parsed = parse_json(raw_response)
-        normalized = normalize(parsed)
-        tasks = self._create_tasks(normalized)
-
-        logger.info("Created %d task(s)", len(tasks))
-
-        return tasks
-
-    def _build_system_prompt(self, context: str = "") -> str:
-        """Build the system prompt dynamically from the Registry.
-
-        Args:
-            context: Optional conversation history to include.
-
-        Returns:
-            Complete system prompt with tool descriptions and
-            context injected.
-        """
-        tool_descriptions = self._registry.describe()
-
-        return _SYSTEM_PROMPT_TEMPLATE.format(
-            tool_descriptions=tool_descriptions,
-            context=context,
-        )
 
     @staticmethod
     def _create_tasks(normalized: list[dict]) -> list[Task]:

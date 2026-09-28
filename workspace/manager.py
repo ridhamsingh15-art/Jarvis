@@ -7,17 +7,19 @@ from core.runtime.enums import ComponentState, HealthState
 from core.runtime.interfaces import RuntimeComponent
 from core.runtime.models import ComponentMetadata, HealthReport
 
-from .applications import AppManager
-from .browser import BrowserTracker
-from .desktop import DesktopLayout
 from .events import *
-from .filesystem import FileWatcher
-from .monitor import HardwareMonitor
-from .processes import ProcessTracker
-from .session import SessionContext
-from .snapshots import SnapshotManager
-from .windows import WindowTracker
-from .workspace import WorkspaceState
+from .stubs import (
+    AppManager,
+    BrowserTracker,
+    DesktopLayout,
+    FileWatcher,
+    HardwareMonitor,
+    ProcessTracker,
+    SessionContext,
+    SnapshotManager,
+    WindowTracker,
+    WorkspaceState,
+)
 
 
 class WorkspaceManager(RuntimeComponent):

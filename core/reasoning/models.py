@@ -1,4 +1,6 @@
 from dataclasses import dataclass, field
+from enum import Enum
+from typing import List, Optional
 
 from core.models import JarvisModel
 
@@ -37,3 +39,23 @@ class SimulationResult(JarvisModel):
     execution_time_ms: float
     resource_cost: dict[str, float]
     is_viable: bool
+
+class ReasoningState(Enum):
+    OBSERVE = "observe"
+    THINK = "think"
+    EVALUATE = "evaluate"
+    REVISE = "revise"
+    VERIFY = "verify"
+    FINALIZE = "finalize"
+
+@dataclass
+class CritiqueResult:
+    is_complete: bool
+    feedback: str
+    needs_clarification: bool = False
+    clarification_question: Optional[str] = None
+
+@dataclass
+class VerificationResult:
+    is_valid: bool
+    errors: List[str] = field(default_factory=list)

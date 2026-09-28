@@ -100,6 +100,10 @@ class SqliteMemory(BaseMemory):
         conn.row_factory = sqlite3.Row
         return conn
 
+    def get_connection(self) -> sqlite3.Connection:
+        """Returns a new sqlite3 Connection."""
+        return self._connect()
+
     def store(self, entry: MemoryEntry) -> None:
         """Persist a memory entry to SQLite.
 
@@ -209,6 +213,15 @@ class SqliteMemory(BaseMemory):
             return str(row["value"]) if row is not None else None
         except sqlite3.Error as exc:
             raise MemoryError(f"Failed to retrieve fact: {exc}") from exc
+
+    def get_all_facts(self) -> dict[str, str]:
+        """Return all stored user facts."""
+        try:
+            with self._connect() as conn:
+                rows = conn.execute("SELECT key, value FROM memory_facts").fetchall()
+            return {str(row["key"]): str(row["value"]) for row in rows}
+        except sqlite3.Error as exc:
+            raise MemoryError(f"Failed to retrieve facts: {exc}") from exc
 
     @staticmethod
     def _row_to_entry(row: sqlite3.Row) -> MemoryEntry:

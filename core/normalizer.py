@@ -15,7 +15,6 @@ _TOOL_ALIASES: dict[str, str] = {
     "app": "windows",
     "desktop": "windows",
     "program": "windows",
-    "system": "windows",
     # Browser aliases
     "web": "browser",
     "internet": "browser",
@@ -83,7 +82,6 @@ _ARG_ALIASES: dict[str, str] = {
     "search_query": "query",
     "search_term": "query",
     "search": "query",
-    "text": "query",
     "content": "content",
     "contents": "content",
     # File arg aliases

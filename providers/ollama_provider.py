@@ -33,13 +33,19 @@ class OllamaProvider(BaseProvider):
     def __init__(self, config: dict[str, Any] | None = None):
         self._config = config or PROVIDER_CONFIG.get("ollama", {})
         self._base_url = self._config.get("base_url", "http://localhost:11434")
-        self._default_model = self._config.get("default_model", "llama3")
+        self._default_model = self._config.get("default_model", "qwen3:8b")
         self._default_embed_model = self._config.get("default_embedding_model", "nomic-embed-text")
         self._timeout = float(self._config.get("timeout_seconds", 30))
         self._max_retries = int(self._config.get("max_retries", 3))
         self._retry_backoff_seconds = float(
             self._config.get("retry_backoff_seconds", 1.0)
         )
+        self._models = dict(self._config.get("models", {}))
+        self._models.setdefault("general", self._default_model)
+        self._models.setdefault("reasoning", "deepseek-r1:8b")
+        self._models.setdefault("coding", "qwen2.5-coder:7b")
+        self._models.setdefault("vision", "qwen2.5vl:7b")
+        self._models.setdefault("fast", "gemma4:e4b")
 
     @property
     def provider_id(self) -> str:
@@ -53,7 +59,11 @@ class OllamaProvider(BaseProvider):
     def capabilities(self) -> frozenset[Capability]:
         return frozenset([
             Capability.CHAT,
+            Capability.CODING,
+            Capability.REASONING,
+            Capability.VISION,
             Capability.EMBEDDINGS,
+            Capability.TOOL_USE,
         ])
 
     @property
@@ -63,29 +73,71 @@ class OllamaProvider(BaseProvider):
     def initialize(self) -> None:
         logger.info("Initializing %s provider at %s", self.display_name, self._base_url)
 
+    def _resolve_model(self, requirements: InferenceRequirements | None) -> str:
+        """Resolve the model tag to use based on requirements, roles, and capabilities."""
+        if not requirements:
+            return self._models.get("general", self._default_model)
+
+        # 1. Direct explicit model override
+        if getattr(requirements, "prefer_model", None):
+            return requirements.prefer_model
+
+        # 2. Semantic role requested directly
+        if getattr(requirements, "role", None):
+            role = str(requirements.role).lower()
+            if role in self._models:
+                return self._models[role]
+
+        # 3. Capability-based mapping
+        caps = requirements.capabilities or frozenset()
+        if Capability.CODING in caps:
+            return self._models.get("coding", self._default_model)
+        if Capability.REASONING in caps:
+            return self._models.get("reasoning", self._default_model)
+        if Capability.VISION in caps:
+            return self._models.get("vision", self._default_model)
+
+        # 4. Complexity / latency tier
+        if getattr(requirements, "task_complexity", None) in ("SIMPLE", 1, 2, 3):
+            return self._models.get("fast", self._models.get("general", self._default_model))
+
+        return self._models.get("general", self._default_model)
+
     def generate(
         self,
         system_prompt: str,
         user_prompt: str,
         requirements: InferenceRequirements | None = None,
     ) -> ModelResponse:
-        model_id = self._default_model
-        if requirements and requirements.prefer_provider == self.provider_id:
-            pass
-            
+        model_id = self._resolve_model(requirements)
         start_time = time.time()
         
-        url = f"{self._base_url}/api/generate"
+        url = f"{self._base_url}/api/chat"
         payload = {
             "model": model_id,
-            "system": system_prompt,
-            "prompt": user_prompt,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
             "stream": False
         }
         
         try:
             logger.debug("Sending generation request to Ollama: %s", model_id)
-            data = self._post_json(url, payload, "generation")
+            try:
+                data = self._post_json(url, payload, "generation")
+            except Exception as exc:
+                fallback_model = self._models.get("general", self._default_model)
+                if model_id != fallback_model:
+                    logger.warning(
+                        "Model %s failed: %s. Attempting fallback to general model %s",
+                        model_id, exc, fallback_model
+                    )
+                    payload["model"] = fallback_model
+                    model_id = fallback_model
+                    data = self._post_json(url, payload, "generation")
+                else:
+                    raise
             
             latency_ms = int((time.time() - start_time) * 1000)
             
@@ -97,8 +149,9 @@ class OllamaProvider(BaseProvider):
                 total_tokens=input_tokens + output_tokens
             )
             
+            message_content = data.get("message", {}).get("content", "")
             return ModelResponse(
-                text=data.get("response", ""),
+                text=message_content,
                 provider_id=self.provider_id,
                 model_id=model_id,
                 latency_ms=latency_ms,
@@ -183,6 +236,22 @@ class OllamaProvider(BaseProvider):
         except Exception:
             logger.exception("Ollama health check failed")
             return ProviderHealthStatus.UNAVAILABLE
+
+    def get_configured_models(self) -> dict[str, str]:
+        """Return configured semantic role mapping."""
+        return dict(self._models)
+
+    def list_installed_models(self) -> list[dict[str, Any]]:
+        """List models currently installed in Ollama via /api/tags."""
+        url = f"{self._base_url}/api/tags"
+        try:
+            resp = requests.get(url, timeout=5)
+            if resp.status_code == 200:
+                return resp.json().get("models", [])
+            return []
+        except Exception as exc:
+            logger.warning("Failed to query Ollama installed models: %s", exc)
+            return []
 
     def shutdown(self) -> None:
         logger.info("Shutting down %s provider", self.display_name)

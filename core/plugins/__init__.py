@@ -19,6 +19,7 @@ from .interfaces import (
 from .lifecycle import DefaultPluginLifecycle
 from .loader import DynamicPluginLoader
 from .manager import PluginManager
+from .manifest import ManifestBuilder, ManifestParser
 from .models import (
     LifecycleEvent,
     PluginDependency,
@@ -27,8 +28,10 @@ from .models import (
     PluginManifest,
     PluginMetadata,
 )
+from .permissions import PermissionGrant, PermissionManager, PermissionType
 from .registry import ThreadSafePluginRegistry
 from .sandbox import PolicySandbox
+from .sdk import PluginCapabilityAdapter, PluginContext, PluginEventAdapter, PluginLogger, PluginSDK
 from .validator import DefaultPluginValidator
 
 __all__ = [
@@ -37,21 +40,31 @@ __all__ = [
     "DynamicPluginLoader",
     "FileSystemPluginDiscoverer",
     "LifecycleEvent",
+    "ManifestBuilder",
+    "ManifestParser",
+    "PermissionGrant",
+    "PermissionManager",
+    "PermissionType",
     "PluginCapability",
+    "PluginCapabilityAdapter",
+    "PluginContext",
     "PluginDependency",
     "PluginDependencyError",
     "PluginDescriptor",
     "PluginDiscoverer",
     "PluginError",
+    "PluginEventAdapter",
     "PluginHealth",
     "PluginLifecycle",
     "PluginLifecycleError",
     "PluginLoadError",
     "PluginLoader",
+    "PluginLogger",
     "PluginManager",
     "PluginManifest",
     "PluginMetadata",
     "PluginRegistry",
+    "PluginSDK",
     "PluginSandbox",
     "PluginSecurityError",
     "PluginState",

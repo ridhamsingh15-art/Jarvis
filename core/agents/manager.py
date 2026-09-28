@@ -104,6 +104,12 @@ class AgentManager(RuntimeComponent):
         self._publish_event("agent.finished", {"task_id": result.task_id.value, "status": result.status.value})
         return result
 
+    async def execute_plan(self, plan: Any, parent_mission_id: Any, context: SharedContext) -> builtins.list[AgentResult]:
+        """Executes a full sequential plan via the Master Coordinator."""
+        self._logger.info(f"Executing multi-agent plan for mission: {parent_mission_id.value}")
+        results = await self._coordinator.execute_plan(plan, parent_mission_id, context)
+        return results
+
     async def execute(self, agents: builtins.list[IAgent], tasks: builtins.list[AgentTask], context: SharedContext) -> builtins.list[AgentResult]:
         """Executes jobs manually in parallel across specific agents."""
         for t in tasks:

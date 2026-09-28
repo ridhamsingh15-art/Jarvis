@@ -1,113 +1,45 @@
-from unittest.mock import MagicMock
-
+"""
+Tests for Production Voice Integration.
+"""
 import pytest
+from unittest.mock import Mock, patch
 
-from core.events.bus import EventBus
-from core.runtime.enums import ComponentState
-from core.voice import (
-    AudioFrame,
-    ConversationState,
-    DefaultMicrophoneProvider,
-    DefaultSpeakerProvider,
-    DefaultVADProvider,
-    OpenWakeWordProvider,
-    PiperTTSProvider,
-    VoiceManager,
-    WhisperSTTProvider,
-)
+from core.integrations.voice.manager import VoiceManager
+from core.integrations.voice.models import VoiceRequest, ProviderType
+from core.integrations.voice.exceptions import SynthesisFailedError, VoiceProviderOfflineError
 
-
-@pytest.fixture
-def mic():
-    return DefaultMicrophoneProvider()
-
-@pytest.fixture
-def speaker():
-    return DefaultSpeakerProvider()
-
-@pytest.fixture
-def vad():
-    return DefaultVADProvider(threshold=100)
-
-@pytest.fixture
-def wakeword():
-    return OpenWakeWordProvider()
-
-@pytest.fixture
-def stt():
-    return WhisperSTTProvider()
-
-@pytest.fixture
-def tts():
-    return PiperTTSProvider()
-
-@pytest.fixture
-def manager(mic, speaker, vad, wakeword, stt, tts):
-    logger = MagicMock()
-    event_bus = EventBus(logger)
-    return VoiceManager(
-        microphone=mic,
-        speaker=speaker,
-        vad=vad,
-        wakeword=wakeword,
-        stt=stt,
-        tts=tts,
-        event_bus=event_bus,
-        logger=logger
-    )
-
-@pytest.mark.asyncio
-async def test_manager_lifecycle(manager):
-    assert manager.state == ComponentState.INITIALIZED
-    await manager.start()
-    assert manager.state == ComponentState.RUNNING
+class TestVoiceManager:
     
-    manager.listen()
-    assert manager._conversation.session is not None
-    assert manager._conversation.session.state == ConversationState.WAITING_FOR_WAKEWORD
-    
-    manager.mute()
-    assert manager._conversation.session is None
-    
-    await manager.stop()
-    assert manager.state == ComponentState.STOPPED
-
-@pytest.mark.asyncio
-async def test_vad_speech_detection(vad):
-    silence = AudioFrame(data=b"\x00\x00\x00\x00")
-    speech = AudioFrame(data=b"\xff\x7f\x00\x00")  # High amplitude
-    
-    assert vad.is_speech(silence) is False
-    assert vad.is_speech(speech) is True
-
-@pytest.mark.asyncio
-async def test_wakeword_detection(wakeword):
-    frame1 = AudioFrame(data=b"random noise")
-    frame2 = AudioFrame(data=b"WAKEWORD sequence")
-    
-    assert wakeword.detect(frame1) is None
-    res = wakeword.detect(frame2)
-    assert res is not None
-    assert res.word == "jarvis"
-
-@pytest.mark.asyncio
-async def test_speak(manager):
-    await manager.start()
-    await manager.speak("hello world")
-    # By default mock speaker just awaits.
-    # If it completed, state should return to WAITING_FOR_WAKEWORD
-    # (Though we mock it, we test state transitions in manager)
-
-@pytest.mark.asyncio
-async def test_stt_transcription(stt):
-    res1 = await stt.transcribe(b"some audio")
-    assert res1.text == "hello jarvis"
-    
-    res2 = await stt.transcribe(b"some TEST_SPEECH audio")
-    assert res2.text == "this is a test"
-
-@pytest.mark.asyncio
-async def test_tts_synthesis(tts):
-    res = await tts.synthesize("test")
-    assert res.text == "test"
-    assert len(res.audio_data) > 0
+    @patch("core.integrations.voice.manager.ProviderHealthCheck.check_elevenlabs")
+    @patch("core.integrations.voice.elevenlabs.client.ElevenLabsClient.synthesize")
+    def test_elevenlabs_success(self, mock_synth, mock_health):
+        mock_health.return_value = True
+        mock_synth.return_value = Mock(audio_data=b"AUDIO", provider_used=ProviderType.ELEVENLABS)
+        
+        manager = VoiceManager()
+        req = VoiceRequest(text="Hello", provider=ProviderType.ELEVENLABS)
+        resp = manager.generate(req)
+        
+        assert resp.audio_data == b"AUDIO"
+        assert resp.provider_used == ProviderType.ELEVENLABS
+        mock_synth.assert_called_once()
+        
+    @patch("core.integrations.voice.manager.ProviderHealthCheck.check_elevenlabs")
+    @patch("core.integrations.voice.elevenlabs.client.ElevenLabsClient.synthesize")
+    @patch("core.integrations.voice.piper.client.PiperClient.synthesize")
+    def test_fallback_to_piper(self, mock_piper_synth, mock_eleven_synth, mock_eleven_health):
+        # Force ElevenLabs health check to fail
+        mock_eleven_health.side_effect = VoiceProviderOfflineError("Offline")
+        
+        # Mock Piper success
+        mock_piper_synth.return_value = Mock(audio_data=b"PIPER_AUDIO", provider_used=ProviderType.PIPER)
+        
+        manager = VoiceManager()
+        req = VoiceRequest(text="Hello", provider=ProviderType.ELEVENLABS, allow_fallback=True)
+        resp = manager.generate(req)
+        
+        assert resp.audio_data == b"PIPER_AUDIO"
+        assert resp.provider_used == ProviderType.PIPER
+        # verify elevenlabs synth was never called due to health check failing
+        mock_eleven_synth.assert_not_called()
+        mock_piper_synth.assert_called_once()

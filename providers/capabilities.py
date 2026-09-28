@@ -11,6 +11,7 @@ class Capability(Enum):
     These are used by the Provider Registry to filter candidates for a given request.
     """
     CHAT = "chat"
+    CODING = "coding"
     REASONING = "reasoning"
     VISION = "vision"
     AUDIO = "audio"

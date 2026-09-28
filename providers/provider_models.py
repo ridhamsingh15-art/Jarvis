@@ -37,6 +37,8 @@ class InferenceRequirements:
     prefer_local: bool = False
     prefer_provider: str | None = None
     task_complexity: str = "MODERATE"
+    prefer_model: str | None = None
+    role: str | None = None
 
 
 @dataclass(frozen=True)

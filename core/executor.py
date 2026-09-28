@@ -36,12 +36,14 @@ class Executor:
         tool_impl = self._registry.get_executor(task.tool)
 
         if tool_impl is None:
-            task.start()
+            if task.status in (TaskStatus.PENDING, TaskStatus.RETRYING):
+                task.start()
             task.fail(f"No executor found for tool: {task.tool}")
             logger.error("No executor for tool: %s", task.tool)
             return task
 
-        task.start()
+        if task.status in (TaskStatus.PENDING, TaskStatus.RETRYING):
+            task.start()
 
         logger.info(
             "Executing: tool=%s action=%s args=%s",

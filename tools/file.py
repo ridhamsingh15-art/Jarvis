@@ -126,8 +126,9 @@ class FileTool(BaseTool):
         return {
             "create_file": ActionDefinition(
                 name="create_file",
-                description="Creates an empty file, including parent directories.",
+                description="Creates a file, including parent directories. If text is provided, writes it.",
                 required_args=["path"],
+                optional_args=["text"],
             ),
             "write_file": ActionDefinition(
                 name="write_file",
@@ -169,6 +170,11 @@ class FileTool(BaseTool):
                 description="Opens a file with the default application.",
                 required_args=["path"]
             ),
+            "read_file": ActionDefinition(
+                name="read_file",
+                description="Reads and returns text content from a file.",
+                required_args=["path"]
+            ),
         }
 
     def execute(self, action: str, args: dict) -> str:
@@ -195,6 +201,7 @@ class FileTool(BaseTool):
             "copy": self._copy,
             "delete": self._delete,
             "open_file": self._open_file,
+            "read_file": self._read_file,
         }
 
         handler = dispatch.get(action)
@@ -206,7 +213,7 @@ class FileTool(BaseTool):
 
     @staticmethod
     def _create_file(args: dict) -> str:
-        """Create an empty file without overwriting an existing one."""
+        """Create a file without overwriting an existing one, optionally with text."""
         path = _resolve_path(args.get("path", ""))
         _validate_path(path)
 
@@ -214,7 +221,11 @@ class FileTool(BaseTool):
             raise ExecutionError(f"Already exists: '{path}'")
 
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.touch(exist_ok=False)
+        text = args.get("text")
+        if text is not None:
+            path.write_text(str(text), encoding="utf-8")
+        else:
+            path.touch(exist_ok=False)
         logger.info("Created file: %s", path)
         return f"Created file: {path}"
 
@@ -384,6 +395,19 @@ class FileTool(BaseTool):
         logger.info("Deleted: %s", path)
 
         return f"Deleted '{path.name}'"
+
+    @staticmethod
+    def _read_file(args: dict) -> str:
+        path = _resolve_path(args.get("path", ""))
+        _validate_path(path, must_exist=True)
+        if not path.is_file():
+            raise ExecutionError(f"Not a file: '{path}'")
+        try:
+            content = path.read_text(encoding="utf-8")
+            logger.info("Read file: %s (%d chars)", path, len(content))
+            return content
+        except OSError as exc:
+            raise ExecutionError(f"Failed to read '{path.name}': {exc}") from exc
 
     @staticmethod
     def _open_file(args: dict) -> str:
