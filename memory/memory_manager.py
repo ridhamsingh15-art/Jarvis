@@ -42,9 +42,7 @@ class MemoryManager:
         self._memory = memory
         self._context_limit = context_limit
 
-    def store_interaction(
-        self, user_input: str, tasks: list[Task]
-    ) -> None:
+    def store_interaction(self, user_input: str, tasks: list[Task]) -> None:
         """Store a complete interaction (user input + task results).
 
         Args:
@@ -63,8 +61,8 @@ class MemoryManager:
         try:
             self._memory.store(entry)
             logger.debug("Stored interaction: %s", entry.id)
-        except Exception as exc:
-            logger.warning("Failed to store interaction: %s", exc)
+        except Exception:
+            logger.exception("Failed to store interaction")
 
     def get_context(self) -> MemoryContext:
         """Retrieve recent conversation history as formatted context.
@@ -76,8 +74,8 @@ class MemoryManager:
         """
         try:
             entries = self._memory.get_recent(self._context_limit)
-        except Exception as exc:
-            logger.warning("Failed to retrieve context: %s", exc)
+        except Exception:
+            logger.exception("Failed to retrieve context")
             return MemoryContext()
 
         if not entries:
@@ -86,6 +84,24 @@ class MemoryManager:
         formatted = self._format_context(entries)
 
         return MemoryContext(entries=entries, formatted=formatted)
+
+    def remember_fact(self, key: str, value: str) -> None:
+        """Persist a concise user fact for direct recall in future turns."""
+        normalized_key = self._normalize_fact_key(key)
+        normalized_value = value.strip()
+        if not normalized_key or not normalized_value:
+            raise ValueError("A memory fact needs both a key and a value.")
+        self._memory.store_fact(normalized_key, normalized_value)
+
+    def recall_fact(self, key: str) -> str | None:
+        """Look up a previously saved user fact."""
+        normalized_key = self._normalize_fact_key(key)
+        return self._memory.get_fact(normalized_key) if normalized_key else None
+
+    @staticmethod
+    def _normalize_fact_key(key: str) -> str:
+        """Make equivalent user-memory labels map to the same storage key."""
+        return " ".join(key.lower().strip().split())
 
     @staticmethod
     def _serialize_tasks(tasks: list[Task]) -> list[dict[str, Any]]:
@@ -101,7 +117,9 @@ class MemoryManager:
             {
                 "tool": task.tool,
                 "action": task.action,
-                "status": task.status.value,
+                "status": task.status.value
+                if hasattr(task.status, "value")
+                else str(task.status),
                 "result": str(task.result) if task.result else "",
                 "error": task.error,
             }
@@ -119,12 +137,8 @@ class MemoryManager:
         Returns:
             Summary string like "User asked to open calculator → completed"
         """
-        completed = sum(
-            1 for t in tasks if t.status == TaskStatus.COMPLETED
-        )
-        failed = sum(
-            1 for t in tasks if t.status == TaskStatus.FAILED
-        )
+        completed = sum(1 for t in tasks if t.status == TaskStatus.COMPLETED)
+        failed = sum(1 for t in tasks if t.status == TaskStatus.FAILED)
 
         parts = []
 

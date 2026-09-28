@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from PySide6.QtCore import QObject, Signal
+from typing_extensions import Self
 
 
 @dataclass(frozen=True)
@@ -81,12 +82,14 @@ class ThemeManager(QObject):
     theme_changed = Signal(object)
 
     _instance: ThemeManager | None = None
+    _initialized: bool = False
 
-    def __new__(cls) -> ThemeManager:
+    def __new__(cls) -> Self:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
-        return cls._instance
+        from typing import cast
+        return cast(Self, cls._instance)
 
     def __init__(self) -> None:
         if self._initialized:

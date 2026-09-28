@@ -16,14 +16,19 @@ clear_messages()
 from __future__ import annotations
 
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 from PySide6.QtCore import (
-    Qt, Slot, QTimer, QPropertyAnimation, QEasingCurve,
+    QEasingCurve,
+    QPropertyAnimation,
+    Qt,
+    QTimer,
+    Slot,
 )
 from PySide6.QtWidgets import (
     QApplication,
     QFrame,
+    QGraphicsOpacityEffect,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -31,9 +36,7 @@ from PySide6.QtWidgets import (
     QTextEdit,
     QVBoxLayout,
     QWidget,
-    QGraphicsOpacityEffect,
 )
-
 
 # ── Role → display config ───────────────────────────────────
 
@@ -119,7 +122,7 @@ class ChatWidget(QWidget):
         role_label.setProperty("class", "bubbleRole")
         header.addWidget(role_label)
 
-        time_label = QLabel(datetime.now().strftime("%H:%M"))
+        time_label = QLabel(datetime.now(timezone.utc).strftime("%H:%M"))
         time_label.setProperty("class", "bubbleTime")
         header.addStretch()
         header.addWidget(time_label)
@@ -304,8 +307,10 @@ class ChatWidget(QWidget):
         """Remove all message bubbles from history."""
         while self._history_layout.count() > 1:
             item = self._history_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+            if item is not None:
+                widget = item.widget()
+                if widget is not None:
+                    widget.deleteLater()
 
     # ── Internal ─────────────────────────────────────────────
 

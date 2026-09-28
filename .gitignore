@@ -1,4 +1,26 @@
+# Virtual environments (including any accidentally nested ones)
 .venv/
+**/.venv/
+venv/
+**/venv/
+
+# Python cache
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Environment
 .env
+
+# CI / tooling artifacts
+mypy_errors.txt
+pytest_errors.txt
+ruff_errors.json
+test_report.txt
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Editor
+.vscode/

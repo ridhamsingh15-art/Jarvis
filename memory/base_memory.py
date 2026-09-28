@@ -49,6 +49,14 @@ class BaseMemory(ABC):
         """
 
     @abstractmethod
+    def store_fact(self, key: str, value: str) -> None:
+        """Store or replace a persistent user fact."""
+
+    @abstractmethod
+    def get_fact(self, key: str) -> str | None:
+        """Retrieve a persistent user fact by key."""
+
+    @abstractmethod
     def clear(self) -> None:
         """Delete all memory entries.
 

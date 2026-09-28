@@ -3,8 +3,12 @@ Task dataclass representing a single unit of work.
 
 A Task flows through the pipeline carrying its tool, action,
 arguments, execution status, result, and any error. State
-transitions are guarded to prevent illegal flows.
+transitions are guarded to prevent illegal flows, with an explicit
+controlled retry lifecycle:
+    PENDING -> RUNNING -> FAILED -> RETRYING -> RUNNING -> COMPLETED
 """
+
+from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
@@ -20,14 +24,16 @@ class TaskStatus(Enum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+    RETRYING = "retrying"
 
 
 # Valid state transitions: current_state -> set of allowed next states
 _TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
     TaskStatus.PENDING: {TaskStatus.RUNNING},
     TaskStatus.RUNNING: {TaskStatus.COMPLETED, TaskStatus.FAILED},
+    TaskStatus.FAILED: {TaskStatus.RETRYING},
+    TaskStatus.RETRYING: {TaskStatus.RUNNING, TaskStatus.FAILED},
     TaskStatus.COMPLETED: set(),
-    TaskStatus.FAILED: set(),
 }
 
 
@@ -42,6 +48,9 @@ class Task:
         status: Current lifecycle state.
         result: Output from successful execution.
         error: Error message from failed execution.
+        retry_count: Number of times this task has been retried.
+        max_retries: Maximum permitted retries for this task (default 3).
+        failure_history: Preserved error log from prior failed attempts.
     """
 
     tool: str
@@ -50,6 +59,22 @@ class Task:
     status: TaskStatus = TaskStatus.PENDING
     result: Any = None
     error: str = ""
+    retry_count: int = 0
+    max_retries: int = 3
+    failure_history: list[str] = field(default_factory=list)
+
+    def __post_init__(self) -> None:
+        """Normalize status to TaskStatus enum at construction boundary."""
+        if isinstance(self.status, str):
+            status_str: str = self.status
+            try:
+                self.status = TaskStatus(status_str)
+            except ValueError:
+                # Try matching by name (e.g. "COMPLETED" -> TaskStatus.COMPLETED)
+                try:
+                    self.status = TaskStatus[status_str.upper()]
+                except KeyError:
+                    self.status = TaskStatus.PENDING
 
     def _transition(self, target: TaskStatus) -> None:
         """Transition to a new state, enforcing valid transitions.
@@ -71,7 +96,7 @@ class Task:
         self.status = target
 
     def start(self) -> None:
-        """Mark this task as running. Only valid from PENDING."""
+        """Mark this task as running. Only valid from PENDING or RETRYING."""
         self._transition(TaskStatus.RUNNING)
 
     def complete(self, result: Any = None) -> None:
@@ -84,13 +109,38 @@ class Task:
         self.result = result
 
     def fail(self, error: str) -> None:
-        """Mark this task as failed. Only valid from RUNNING.
+        """Mark this task as failed. Only valid from RUNNING or RETRYING.
 
         Args:
             error: Human-readable error description.
         """
         self._transition(TaskStatus.FAILED)
         self.error = error
+
+    def retry(self) -> None:
+        """Controlled transition from FAILED to RETRYING.
+
+        Preserves active failure into failure_history, increments retry_count,
+        clears active error/result, and checks retry limits.
+
+        Raises:
+            InvalidStateError: If not in FAILED state, or if retry limit reached.
+        """
+        if self.status != TaskStatus.FAILED:
+            raise InvalidStateError(
+                f"Cannot retry task in {self.status.value} state. Only failed tasks can be retried."
+            )
+        if self.retry_count >= self.max_retries:
+            raise InvalidStateError(
+                f"Cannot retry task: retry limit reached ({self.retry_count}/{self.max_retries})"
+            )
+
+        if self.error:
+            self.failure_history.append(self.error)
+        self.error = ""
+        self.result = None
+        self.retry_count += 1
+        self._transition(TaskStatus.RETRYING)
 
     @property
     def is_terminal(self) -> bool:

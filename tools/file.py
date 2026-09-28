@@ -11,6 +11,7 @@ import os
 import shutil
 from pathlib import Path
 
+from core.action_definition import ActionDefinition
 from core.exceptions import ExecutionError
 from tools.base_tool import BaseTool
 
@@ -118,36 +119,61 @@ class FileTool(BaseTool):
         """Human-readable description for LLM prompts."""
         return "Manage files and directories on the local filesystem"
 
-    def get_actions(self) -> dict[str, str]:
-        """Return available actions and their descriptions."""
+    def get_actions(self) -> dict[str, ActionDefinition]:
+        """Return available actions and their structured definitions."""
+        from core.action_definition import ActionDefinition
+        
         return {
-            "list_directory": (
-                "Lists contents of a directory. "
-                "Requires 'path' argument."
+            "create_file": ActionDefinition(
+                name="create_file",
+                description="Creates a file, including parent directories. If text is provided, writes it.",
+                required_args=["path"],
+                optional_args=["text"],
             ),
-            "create_folder": (
-                "Creates a new folder (and parents if needed). "
-                "Requires 'path' argument."
+            "write_file": ActionDefinition(
+                name="write_file",
+                description="Writes text to a file, replacing existing contents.",
+                required_args=["path", "content"],
             ),
-            "rename": (
-                "Renames a file or folder. "
-                "Requires 'path' (current) and 'new_name' arguments."
+            "list_directory": ActionDefinition(
+                name="list_directory",
+                description="Lists contents of a directory.",
+                required_args=["path"]
             ),
-            "move": (
-                "Moves a file or folder to a new location. "
-                "Requires 'path' (source) and 'dest' arguments."
+            "create_folder": ActionDefinition(
+                name="create_folder",
+                description="Creates a new folder (and parents if needed).",
+                required_args=["path"]
             ),
-            "copy": (
-                "Copies a file or folder. "
-                "Requires 'path' (source) and 'dest' arguments."
+            "rename": ActionDefinition(
+                name="rename",
+                description="Renames a file or folder.",
+                required_args=["path", "new_name"]
             ),
-            "delete": (
-                "Deletes a file or empty folder. "
-                "Requires 'path' argument."
+            "move": ActionDefinition(
+                name="move",
+                description="Moves a file or folder to a new location.",
+                required_args=["path", "dest"]
             ),
-            "open_file": (
-                "Opens a file with the default application. "
-                "Requires 'path' argument."
+            "copy": ActionDefinition(
+                name="copy",
+                description="Copies a file or folder.",
+                required_args=["path", "dest"]
+            ),
+            "delete": ActionDefinition(
+                name="delete",
+                description="Deletes a file or empty folder.",
+                required_args=["path"]
+            ),
+            "open_file": ActionDefinition(
+                name="open_file",
+                description="Opens a file with the default application.",
+                required_args=["path"]
+            ),
+            "read_file": ActionDefinition(
+                name="read_file",
+                description="Reads and returns text content from a file.",
+                required_args=["path"]
             ),
         }
 
@@ -164,7 +190,10 @@ class FileTool(BaseTool):
         Raises:
             ExecutionError: If the action fails.
         """
-        dispatch: dict[str, callable] = {
+        from collections.abc import Callable
+        dispatch: dict[str, Callable] = {
+            "create_file": self._create_file,
+            "write_file": self._write_file,
             "list_directory": self._list_directory,
             "create_folder": self._create_folder,
             "rename": self._rename,
@@ -172,6 +201,7 @@ class FileTool(BaseTool):
             "copy": self._copy,
             "delete": self._delete,
             "open_file": self._open_file,
+            "read_file": self._read_file,
         }
 
         handler = dispatch.get(action)
@@ -180,6 +210,42 @@ class FileTool(BaseTool):
             raise ExecutionError(f"Unknown file action: '{action}'")
 
         return handler(args)
+
+    @staticmethod
+    def _create_file(args: dict) -> str:
+        """Create a file without overwriting an existing one, optionally with text."""
+        path = _resolve_path(args.get("path", ""))
+        _validate_path(path)
+
+        if path.exists():
+            raise ExecutionError(f"Already exists: '{path}'")
+
+        path.parent.mkdir(parents=True, exist_ok=True)
+        text = args.get("text")
+        if text is not None:
+            path.write_text(str(text), encoding="utf-8")
+        else:
+            path.touch(exist_ok=False)
+        logger.info("Created file: %s", path)
+        return f"Created file: {path}"
+
+    @staticmethod
+    def _write_file(args: dict) -> str:
+        """Write text to an existing or new file after safety validation."""
+        path = _resolve_path(args.get("path", ""))
+        content = args.get("content")
+        if not isinstance(content, str):
+            raise ExecutionError("Argument 'content' must be a string")
+
+        _validate_path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            path.write_text(content, encoding="utf-8")
+        except OSError as exc:
+            raise ExecutionError(f"Failed to write '{path}': {exc}") from exc
+
+        logger.info("Wrote file: %s", path)
+        return f"Wrote {len(content)} character(s) to: {path}"
 
     @staticmethod
     def _list_directory(args: dict) -> str:
@@ -329,6 +395,19 @@ class FileTool(BaseTool):
         logger.info("Deleted: %s", path)
 
         return f"Deleted '{path.name}'"
+
+    @staticmethod
+    def _read_file(args: dict) -> str:
+        path = _resolve_path(args.get("path", ""))
+        _validate_path(path, must_exist=True)
+        if not path.is_file():
+            raise ExecutionError(f"Not a file: '{path}'")
+        try:
+            content = path.read_text(encoding="utf-8")
+            logger.info("Read file: %s (%d chars)", path, len(content))
+            return content
+        except OSError as exc:
+            raise ExecutionError(f"Failed to read '{path.name}': {exc}") from exc
 
     @staticmethod
     def _open_file(args: dict) -> str:

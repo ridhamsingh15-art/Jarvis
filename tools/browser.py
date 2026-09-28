@@ -7,9 +7,11 @@ the core framework — communicates only through the BaseTool interface.
 """
 
 import logging
+import re
 import webbrowser
 from urllib.parse import quote_plus
 
+from core.action_definition import ActionDefinition
 from core.exceptions import ExecutionError
 from tools.base_tool import BaseTool
 
@@ -49,27 +51,31 @@ class BrowserTool(BaseTool):
         """Human-readable description for LLM prompts."""
         return "Open websites, URLs, and perform Google searches"
 
-    def get_actions(self) -> dict[str, str]:
-        """Return available actions and their descriptions.
+    def get_actions(self) -> dict[str, ActionDefinition]:
+        """Return available actions and their structured definitions.
 
         Returns:
-            Dict mapping action names to descriptions.
+            Dict mapping action names to ActionDefinition objects.
         """
+        from core.action_definition import ActionDefinition
+        
         site_list = ", ".join(_KNOWN_SITES.keys())
 
         return {
-            "open_url": (
-                "Opens a URL in the default browser. "
-                "Requires 'url' argument."
+            "open_url": ActionDefinition(
+                name="open_url",
+                description="Opens a URL in the default browser.",
+                required_args=["url"]
             ),
-            "open_site": (
-                "Opens a known website by name. "
-                "Requires 'site' argument. "
-                f"Known sites: {site_list}"
+            "open_site": ActionDefinition(
+                name="open_site",
+                description=f"Opens a known website by name. Known sites: {site_list}",
+                required_args=["site"]
             ),
-            "search_google": (
-                "Searches Google with a query. "
-                "Requires 'query' argument."
+            "search_google": ActionDefinition(
+                name="search_google",
+                description="Searches Google with a query.",
+                required_args=["query"]
             ),
         }
 
@@ -86,7 +92,8 @@ class BrowserTool(BaseTool):
         Raises:
             ExecutionError: If the action fails or args are missing.
         """
-        dispatch: dict[str, callable] = {
+        from collections.abc import Callable
+        dispatch: dict[str, Callable] = {
             "open_url": self._open_url,
             "open_site": self._open_site,
             "search_google": self._search_google,
@@ -145,17 +152,33 @@ class BrowserTool(BaseTool):
         Raises:
             ExecutionError: If site is unknown or open fails.
         """
-        site_name = args.get("site", "").lower().strip()
-
-        if not site_name:
+        raw_site = args.get("site", "").strip()
+        if not raw_site:
             raise ExecutionError("Missing required argument: 'site'")
 
-        url = _KNOWN_SITES.get(site_name)
+        # Clean prefix and lowercase
+        site_name = raw_site.lower().strip()
+        clean_site = re.sub(r"^(?:open|go\s+to|visit|browse\s+to)\s+", "", site_name).strip()
+        clean_site = re.sub(r"^(https?:\/\/)?(www\.)?", "", clean_site).strip().rstrip("/")
+        # Extract base domain name if path exists
+        clean_site = clean_site.split("/")[0]
+
+        # 1. Exact match in known sites
+        url = _KNOWN_SITES.get(clean_site)
+
+        # 2. Match without domain extension (e.g. 'github.com' -> 'github')
+        if url is None and "." in clean_site:
+            base_name = clean_site.split(".")[0]
+            url = _KNOWN_SITES.get(base_name)
+
+        # 3. Direct domain fallback if valid domain format (e.g. huggingface.co)
+        if url is None and "." in clean_site and not clean_site.endswith("."):
+            url = f"https://{clean_site}"
 
         if url is None:
             known = ", ".join(_KNOWN_SITES.keys())
             raise ExecutionError(
-                f"Unknown site: '{site_name}'. "
+                f"Unknown site: '{raw_site}'. "
                 f"Known sites: {known}"
             )
 

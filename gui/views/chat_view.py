@@ -40,7 +40,8 @@ logger = logging.getLogger(__name__)
 class _AgentWorker(QObject):
     """Runs Agent.run() on a background QThread."""
 
-    finished = Signal(list, float)   # tasks, duration_seconds
+    finished = Signal(list, float)  # tasks, duration_seconds
+    announcement = Signal(str)
     error = Signal(str)
 
     def __init__(self, agent: Agent, user_input: str) -> None:
@@ -52,7 +53,9 @@ class _AgentWorker(QObject):
     def run(self) -> None:
         try:
             start = time.monotonic()
-            results = self._agent.run(self._user_input)
+            results = self._agent.run(
+                self._user_input, on_action=self.announcement.emit
+            )
             duration = time.monotonic() - start
             self.finished.emit(results, duration)
         except Exception as exc:
@@ -73,9 +76,7 @@ class ChatView(QWidget):
     status_changed = Signal(str)
     response_time = Signal(float)
 
-    def __init__(
-        self, agent: Agent, parent: QWidget | None = None
-    ) -> None:
+    def __init__(self, agent: Agent, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self._agent = agent
         self._thread: QThread | None = None
@@ -135,9 +136,14 @@ class ChatView(QWidget):
             elif task.status == TaskStatus.FAILED:
                 self._chat.append_message("error", task.error)
             else:
+                status_display = (
+                    task.status.value
+                    if hasattr(task.status, "value")
+                    else str(task.status)
+                )
                 self._chat.append_message(
                     "system",
-                    f"{task.tool}.{task.action} — {task.status.value}",
+                    f"{task.tool}.{task.action} — {status_display}",
                 )
         else:
             # Multiple tasks → show task cards
@@ -149,6 +155,11 @@ class ChatView(QWidget):
         self.response_time.emit(duration)
         self._input.set_enabled(True)
         self._cleanup_worker()
+
+    @Slot(str)
+    def _on_announcement(self, message: str) -> None:
+        """Show a tool announcement emitted before execution begins."""
+        self._chat.append_message("assistant", message)
 
     @Slot(str)
     def _on_error(self, error_msg: str) -> None:
@@ -168,6 +179,7 @@ class ChatView(QWidget):
 
         self._thread.started.connect(self._worker.run)
         self._worker.finished.connect(self._on_results)
+        self._worker.announcement.connect(self._on_announcement)
         self._worker.error.connect(self._on_error)
         self._worker.finished.connect(self._thread.quit)
         self._worker.error.connect(self._thread.quit)

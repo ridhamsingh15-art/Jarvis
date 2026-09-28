@@ -1,0 +1,22 @@
+from enum import StrEnum
+
+
+class LearningState(StrEnum):
+    COLLECTING = "COLLECTING"
+    ANALYZING = "ANALYZING"
+    LEARNING = "LEARNING"
+    OPTIMIZING = "OPTIMIZING"
+    IDLE = "IDLE"
+
+class PatternType(StrEnum):
+    TASK_SEQUENCE = "TASK_SEQUENCE"
+    WORKFLOW = "WORKFLOW"
+    SKILL = "SKILL"
+    USER_BEHAVIOR = "USER_BEHAVIOR"
+
+class LearningDecision(StrEnum):
+    IGNORE = "IGNORE"
+    STORE = "STORE"
+    UPDATE_SKILL = "UPDATE_SKILL"
+    CREATE_SKILL = "CREATE_SKILL"
+    OPTIMIZE_SKILL = "OPTIMIZE_SKILL"

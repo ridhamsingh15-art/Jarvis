@@ -28,6 +28,14 @@ CREATE TABLE IF NOT EXISTS memory (
 )
 """
 
+_CREATE_FACTS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS memory_facts (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+)
+"""
+
 _INSERT_SQL = """
 INSERT INTO memory (id, timestamp, user_input, tasks_json, summary)
 VALUES (?, ?, ?, ?, ?)
@@ -49,6 +57,7 @@ LIMIT ?
 """
 
 _DELETE_ALL_SQL = "DELETE FROM memory"
+_DELETE_ALL_FACTS_SQL = "DELETE FROM memory_facts"
 
 
 class SqliteMemory(BaseMemory):
@@ -75,12 +84,11 @@ class SqliteMemory(BaseMemory):
 
             with self._connect() as conn:
                 conn.execute(_CREATE_TABLE_SQL)
+                conn.execute(_CREATE_FACTS_TABLE_SQL)
 
             logger.info("Memory database ready: %s", self._db_path)
         except sqlite3.Error as exc:
-            raise MemoryError(
-                f"Failed to initialize memory database: {exc}"
-            ) from exc
+            raise MemoryError(f"Failed to initialize memory database: {exc}") from exc
 
     def _connect(self) -> sqlite3.Connection:
         """Create a new database connection.
@@ -91,6 +99,10 @@ class SqliteMemory(BaseMemory):
         conn = sqlite3.connect(self._db_path)
         conn.row_factory = sqlite3.Row
         return conn
+
+    def get_connection(self) -> sqlite3.Connection:
+        """Returns a new sqlite3 Connection."""
+        return self._connect()
 
     def store(self, entry: MemoryEntry) -> None:
         """Persist a memory entry to SQLite.
@@ -105,19 +117,20 @@ class SqliteMemory(BaseMemory):
             tasks_json = json.dumps(entry.tasks, default=str)
 
             with self._connect() as conn:
-                conn.execute(_INSERT_SQL, (
-                    entry.id,
-                    entry.timestamp.isoformat(),
-                    entry.user_input,
-                    tasks_json,
-                    entry.summary,
-                ))
+                conn.execute(
+                    _INSERT_SQL,
+                    (
+                        entry.id,
+                        entry.timestamp.isoformat(),
+                        entry.user_input,
+                        tasks_json,
+                        entry.summary,
+                    ),
+                )
 
             logger.debug("Stored memory entry: %s", entry.id)
         except sqlite3.Error as exc:
-            raise MemoryError(
-                f"Failed to store memory entry: {exc}"
-            ) from exc
+            raise MemoryError(f"Failed to store memory entry: {exc}") from exc
 
     def get_recent(self, limit: int = 10) -> list[MemoryEntry]:
         """Retrieve the most recent memory entries.
@@ -151,9 +164,7 @@ class SqliteMemory(BaseMemory):
             pattern = f"%{query}%"
 
             with self._connect() as conn:
-                rows = conn.execute(
-                    _SEARCH_SQL, (pattern, pattern, limit)
-                ).fetchall()
+                rows = conn.execute(_SEARCH_SQL, (pattern, pattern, limit)).fetchall()
 
             return [self._row_to_entry(row) for row in rows]
         except sqlite3.Error as exc:
@@ -169,12 +180,48 @@ class SqliteMemory(BaseMemory):
         try:
             with self._connect() as conn:
                 conn.execute(_DELETE_ALL_SQL)
+                conn.execute(_DELETE_ALL_FACTS_SQL)
 
             logger.info("Memory cleared")
         except sqlite3.Error as exc:
-            raise MemoryError(
-                f"Failed to clear memory: {exc}"
-            ) from exc
+            raise MemoryError(f"Failed to clear memory: {exc}") from exc
+
+    def store_fact(self, key: str, value: str) -> None:
+        """Store or replace a user fact using a stable, normalized key."""
+        try:
+            with self._connect() as conn:
+                conn.execute(
+                    """
+                    INSERT INTO memory_facts (key, value, updated_at)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(key) DO UPDATE SET
+                        value = excluded.value,
+                        updated_at = excluded.updated_at
+                    """,
+                    (key, value, datetime.now(timezone.utc).isoformat()),
+                )
+        except sqlite3.Error as exc:
+            raise MemoryError(f"Failed to store fact: {exc}") from exc
+
+    def get_fact(self, key: str) -> str | None:
+        """Return a stored user fact, if present."""
+        try:
+            with self._connect() as conn:
+                row = conn.execute(
+                    "SELECT value FROM memory_facts WHERE key = ?", (key,)
+                ).fetchone()
+            return str(row["value"]) if row is not None else None
+        except sqlite3.Error as exc:
+            raise MemoryError(f"Failed to retrieve fact: {exc}") from exc
+
+    def get_all_facts(self) -> dict[str, str]:
+        """Return all stored user facts."""
+        try:
+            with self._connect() as conn:
+                rows = conn.execute("SELECT key, value FROM memory_facts").fetchall()
+            return {str(row["key"]): str(row["value"]) for row in rows}
+        except sqlite3.Error as exc:
+            raise MemoryError(f"Failed to retrieve facts: {exc}") from exc
 
     @staticmethod
     def _row_to_entry(row: sqlite3.Row) -> MemoryEntry:
