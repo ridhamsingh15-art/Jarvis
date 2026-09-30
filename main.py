@@ -22,6 +22,7 @@ from memory.sqlite_memory import SqliteMemory
 from tools.base_tool import BaseTool
 from tools.browser import BrowserTool
 from tools.file import FileTool
+from tools.shell import ShellTool
 from tools.windows import WindowsTool
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,7 @@ class InfraContext(NamedTuple):
     event_bus: Any        # EventBus
     llm_client: Any       # LLMClient
     identity: Any         # IdentityManager
+    execution_policy: Any # ExecutionPolicy
 
 
 class MemoryContext(NamedTuple):
@@ -55,6 +57,7 @@ class MemoryContext(NamedTuple):
     memory_manager: MemoryManager
     knowledge_manager: Any   # KnowledgeManager
     mission_manager: Any     # MissionManager
+    session_repo: Any        # SessionRepository
 
 
 class ContentContext(NamedTuple):
@@ -104,11 +107,13 @@ def _build_infra(config) -> InfraContext:
     windows_tool = WindowsTool()
     browser_tool = BrowserTool()
     file_tool = FileTool()
+    shell_tool = ShellTool(workspace_root=Path.cwd())
 
     registry = Registry()
     registry.register(windows_tool)
     registry.register(browser_tool)
     registry.register(file_tool)
+    registry.register(shell_tool)
 
     # Provider / model router
     logger.info("Selected provider: %s", config.provider)
@@ -148,6 +153,8 @@ def _build_infra(config) -> InfraContext:
                         return t.execute(a, kwargs)
                     return handler
                 action_registry.register(action_name, _make_handler(tool, action_name))
+                if tool_name == "shell" and action_name == "run":
+                    action_registry.register("shell_run", _make_handler(tool, action_name))
                 logger.debug("Bridged action: %s.%s", tool_name, action_name)
 
     action_count = sum(
@@ -175,6 +182,9 @@ def _build_infra(config) -> InfraContext:
 
     llm_client = LLMClient(config)
 
+    from core.execution_policy import ExecutionPolicy
+    execution_policy = ExecutionPolicy(allow_destructive_from_core=True)
+
     return InfraContext(
         registry=registry,
         gateway=gateway,
@@ -185,6 +195,7 @@ def _build_infra(config) -> InfraContext:
         event_bus=event_bus,
         llm_client=llm_client,
         identity=identity,
+        execution_policy=execution_policy,
     )
 
 
@@ -203,11 +214,15 @@ def _build_memory_stack(config, infra: InfraContext) -> MemoryContext:
     mission_repo = SqliteMissionRepository(sqlite_memory.get_connection)
     mission_manager = MissionManager(mission_repo, infra.event_bus)
 
+    from core.session import SessionRepository
+    session_repo = SessionRepository(db_path=config.memory_db_path, connection_factory=sqlite_memory.get_connection)
+
     return MemoryContext(
         sqlite_memory=sqlite_memory,
         memory_manager=memory_manager,
         knowledge_manager=knowledge_manager,
         mission_manager=mission_manager,
+        session_repo=session_repo,
     )
 
 
@@ -579,6 +594,8 @@ def build_agent() -> dict:
         publishing_engine=content.publishing_manager,
         analytics_engine=content.analytics_manager,
         llm_client=infra.llm_client,
+        execution_policy=infra.execution_policy,
+        session_repository=mem.session_repo,
     )
 
     return {
@@ -586,9 +603,11 @@ def build_agent() -> dict:
         "config": config,
         "registry": infra.registry,
         "memory": mem.sqlite_memory,
+        "session_repo": mem.session_repo,
         "model_name": config.model,
         "memory_backend": "SQLite",
         "tool_count": len(infra.registry.list_tools()),
+        "execution_policy": infra.execution_policy,
     }
 
 

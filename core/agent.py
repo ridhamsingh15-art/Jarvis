@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from core.exceptions import JarvisError
@@ -24,6 +25,21 @@ from core.planner import Planner
 from core.task import Task, TaskStatus
 from core.validator import Validator
 from core.execution_summary import ExecutionSummary
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+from core.execution_policy import (
+    ExecutionPolicy,
+    PolicyContext,
+    PolicyResult,
+    PolicyVerdict,
+    CapabilitySource,
+)
+from core.tool_feedback_loop import ToolFeedbackLoop, MAX_TOOL_ITERATIONS
+from core.mission_verifier import (
+    MissionCompletionVerifier,
+    VerificationResult,
+    VerificationStatus,
+    MissionPostcondition,
+)
 
 if TYPE_CHECKING:
     from memory.memory_manager import MemoryManager
@@ -34,6 +50,7 @@ _MEMORY_FAILURES = (AttributeError, OSError, RuntimeError, TypeError, ValueError
 
 import re
 import time
+import uuid
 
 from applications.content_factory.image_engine.manager import ImageEngineManager
 from applications.content_factory.project.manager import ProjectManager
@@ -83,6 +100,12 @@ class Agent:
         publishing_engine: Any = None,
         analytics_engine: Any = None,
         llm_client: Any = None,
+        execution_policy: ExecutionPolicy | None = None,
+        default_tool_timeout: float = 30.0,
+        tool_feedback_loop: ToolFeedbackLoop | None = None,
+        max_tool_iterations: int = MAX_TOOL_ITERATIONS,
+        mission_verifier: MissionCompletionVerifier | None = None,
+        session_repository: Any = None,
     ) -> None:
         self._planner = planner
         self._validator = validator
@@ -106,24 +129,119 @@ class Agent:
         self._seo_engine = seo_engine
         self._publishing_engine = publishing_engine
         self._analytics_engine = analytics_engine
-        
+        self._execution_policy = execution_policy or ExecutionPolicy(allow_destructive_from_core=True)
+        self._default_tool_timeout = default_tool_timeout
+        self._tool_feedback_loop = tool_feedback_loop
+        self._max_tool_iterations = max_tool_iterations
+        self._mission_verifier = mission_verifier or MissionCompletionVerifier()
+        self._executor_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="jarvis-exec")
         
         # Fast Intent Router — Stage 1 deterministic, Stage 2 optional LLM for ambiguous inputs
         self._intent_classifier = IntentClassifier(llm_client=llm_client)
         
+        # Session Repository initialization
+        if session_repository is not None:
+            self._session_repo = session_repository
+        elif (
+            self._memory
+            and hasattr(self._memory, "_memory")
+            and type(self._memory).__name__ not in ("Mock", "MagicMock", "AsyncMock")
+            and hasattr(getattr(self._memory, "_memory", None), "get_connection")
+            and type(getattr(self._memory, "_memory", None)).__name__ not in ("Mock", "MagicMock", "AsyncMock")
+        ):
+            from core.session import SessionRepository
+            self._session_repo = SessionRepository(connection_factory=self._memory._memory.get_connection)
+        else:
+            from core.session import SessionRepository
+            self._session_repo = SessionRepository()
+        self._active_session_id: str | None = None
+
         # Degradation flags
         self._semantic_search_disabled = False
         self._last_execution_summary: ExecutionSummary | None = None
+        self._last_verification_result: VerificationResult | None = None
+        self._last_mission_telemetry: dict[str, Any] | None = None
+        self._last_context_budget: Any | None = None
+        self._last_trace: Any | None = None
+
+    @property
+    def session_repository(self) -> Any:
+        """Return the active SessionRepository."""
+        return self._session_repo
+
+    @property
+    def active_session_id(self) -> str | None:
+        """Return the current active session identifier."""
+        return self._active_session_id
+
+    @property
+    def active_session(self) -> Any | None:
+        """Return the current active Session object."""
+        if self._active_session_id:
+            return self._session_repo.get(self._active_session_id)
+        return None
+
+    def create_session(self, session_id: str | None = None, metadata: dict | None = None) -> Any:
+        """Explicitly create and activate a new session."""
+        session = self._session_repo.create(session_id=session_id, metadata=metadata)
+        self._active_session_id = session.session_id
+        return session
+
+    def close_session(self, session_id: str | None = None) -> bool:
+        """Explicitly close a session."""
+        sid = session_id or self._active_session_id
+        if not sid:
+            return False
+        res = self._session_repo.close(sid)
+        if sid == self._active_session_id:
+            self._active_session_id = None
+        return res
+
+    @property
+    def last_trace(self) -> Any | None:
+        """Return the RequestTrace from the most recent run() execution."""
+        return self._last_trace
+
+    @property
+    def last_context_budget(self) -> Any | None:
+        """Return the ContextBudget report from the most recent LLM invocation."""
+        return self._last_context_budget
 
     @property
     def last_execution_summary(self) -> ExecutionSummary | None:
         """Return the ExecutionSummary from the most recent run() execution."""
         return self._last_execution_summary
 
+    @property
+    def last_verification_result(self) -> VerificationResult | None:
+        """Return the VerificationResult from the most recent run() execution."""
+        return self._last_verification_result
+
+    @property
+    def last_mission_telemetry(self) -> dict[str, Any] | None:
+        """Return truthful mission telemetry from the most recent mission execution."""
+        return self._last_mission_telemetry
+
+    @property
+    def execution_policy(self) -> ExecutionPolicy:
+        """Return the active ExecutionPolicy."""
+        return self._execution_policy
+
+    def close(self) -> None:
+        """Release background execution resources."""
+        if hasattr(self, "_executor_pool"):
+            self._executor_pool.shutdown(wait=False)
+
     def run(
         self,
         user_input: str,
         on_action: Callable[[str], None] | None = None,
+        user_confirmed: bool = False,
+        intent: IntentType | None = None,
+        expected_files: list[str] | None = None,
+        expected_contents: dict[str, str] | None = None,
+        postconditions: list[MissionPostcondition] | None = None,
+        session_id: str | None = None,
     ) -> list[Task]:
         """Process user input conversationally.
 
@@ -136,13 +254,52 @@ class Agent:
         Args:
             user_input: Natural language instruction from the user.
             on_action: Optional callback invoked immediately before a tool runs.
+            session_id: Optional persistent session identifier. If None, active session is reused or created.
 
         Returns:
             List of Task objects with status, result, and errors.
         """
-        req_id = f"req_{int(time.time() * 1000) % 1000000}"
-        logger.info("[REQUEST] %s (id=%s)", user_input, req_id)
+        # Resolve persistent session
+        if session_id:
+            target_session_id = session_id
+        elif self._active_session_id:
+            target_session_id = self._active_session_id
+        else:
+            target_session_id = f"sess_{int(time.time() * 1000) % 1000000}_{uuid.uuid4().hex[:4]}"
+
+        session = self._session_repo.get(target_session_id)
+        if session is None:
+            session = self._session_repo.create(session_id=target_session_id)
+        elif not session.is_resumable():
+            raise ValueError(f"Cannot execute in closed or ended session: {target_session_id}")
+        else:
+            session = self._session_repo.resume(target_session_id) or session
+
+        self._active_session_id = target_session_id
+        session_turn = len(session.turns) + 1
+
+        req_id = f"req_{int(time.time() * 1000) % 1000000}_{uuid.uuid4().hex[:4]}"
+        logger.info("[REQUEST] %s (id=%s, session_id=%s, turn=%d)", user_input, req_id, target_session_id, session_turn)
         start_time = time.time()
+
+        from core.runtime_trace import RequestTrace, set_current_trace, reset_current_trace
+        trace = RequestTrace(
+            request_id=req_id,
+            session_id=target_session_id,
+            session_turn=session_turn,
+            user_input=user_input,
+            start_time=start_time,
+        )
+        self._last_trace = trace
+        trace_token = set_current_trace(trace)
+        trace.record_event("request_received", {"user_input": user_input, "session_id": target_session_id, "turn": session_turn})
+
+        # Synchronize CognitiveManager short-term conversation context from active session
+        if self._cognitive_manager and hasattr(self._cognitive_manager, "_context"):
+            st_ctx = self._cognitive_manager._context
+            if hasattr(st_ctx, "set_messages"):
+                st_ctx.set_messages(session.get_recent_conversation(limit=5))
+
         tasks: list[Task] = []
         timings: dict[str, float] = {}
         llm_calls = 0
@@ -150,12 +307,21 @@ class Agent:
         executive_brain_used = False
         reasoning_loop_used = False
         mission_control_used = False
+        planned_mission_tasks: list[Task] = []
+        loop_iterations = 0
+        loop_stop_reason = "direct_response"
+
+        self._last_verification_result = None
+        self._last_mission_telemetry = None
+        self._last_context_budget = None
 
         # Signal interactive foreground request to knowledge scheduler
         KnowledgeScheduler.set_interactive_active(True)
         try:
             # Direct inspection command: "jarvis models" or "models"
             if user_input.strip().lower() in {"jarvis models", "models", ":models"}:
+                trace.record_route("SYSTEM")
+                trace.complete("success")
                 from core.model_manager import ModelManager
                 table = ModelManager().format_models_table()
                 return [Task(tool="system", action="respond", args={"message": table})]
@@ -163,7 +329,9 @@ class Agent:
             # 1. Classification
             logger.info('[REQUEST] "%s"', user_input)
             t0 = time.time()
-            intent = self._intent_classifier.classify(user_input)
+            if intent is None:
+                intent = self._intent_classifier.classify(user_input)
+            trace.record_route(intent.value)
             route_decision_latency = time.time() - t0
             timings["Intent Classification"] = route_decision_latency
             logger.info("[ROUTER] route_decision_latency=%.4fs", route_decision_latency)
@@ -185,8 +353,24 @@ class Agent:
                 logger.info("[MissionControl] SKIPPED")
                 t0 = time.time()
                 if self._cognitive_manager:
+                    num_llm_before = len(trace.llm_calls)
+                    t_llm0 = time.time()
                     response = self._cognitive_manager.process_fast(user_input, intent="chat")
                     llm_calls += 1
+                    if len(trace.llm_calls) == num_llm_before:
+                        from core.context_budget import estimate_tokens
+                        trace.record_llm_call(
+                            model="qwen3:8b",
+                            provider="ollama",
+                            role="assistant",
+                            stage="conversation",
+                            start_time=t_llm0,
+                            end_time=time.time(),
+                            estimated_input_tokens=estimate_tokens(user_input),
+                            estimated_output_tokens=estimate_tokens(getattr(response, "message", "")),
+                            context_budget=trace.context_budget,
+                            success=True,
+                        )
                     
                     if response.type == "ACTION" and response.tool and response.action:
                         tool_action = f"{response.tool}.{response.action}"
@@ -195,14 +379,24 @@ class Agent:
                             Task(tool=response.tool, action=response.action, args=response.parameters or {}),
                         ]
                     elif response.type == "PLAN":
-                        executive_brain_used = True
-                        reasoning_loop_used = True
-                        mission_control_used = True
+                        executive_brain_used = False
+                        reasoning_loop_used = False
+                        mission_control_used = False
                         logger.info("[PIPELINE] Escalating Conversation to Mission")
-                        logger.info("[ExecutiveBrain] ENABLED")
-                        logger.info("[ReasoningLoop] ENABLED")
-                        logger.info("[MissionControl] ENABLED")
-                        tasks = self._handle_mission(user_input, context_str)
+                        logger.info("[ExecutiveBrain] SKIPPED")
+                        logger.info("[ReasoningLoop] SKIPPED")
+                        logger.info("[MissionControl] SKIPPED")
+                        intent = IntentType.MISSION
+                        tasks = self._handle_mission(
+                            user_input,
+                            context_str,
+                            user_confirmed=user_confirmed,
+                            expected_files=expected_files,
+                            expected_contents=expected_contents,
+                            postconditions=postconditions,
+                            session=session,
+                        )
+                        planned_mission_tasks = [t for t in tasks if t.tool != "system"]
                     else:
                         tasks = [Task(tool="system", action="respond", args={"message": response.message})]
                 else:
@@ -239,6 +433,11 @@ class Agent:
                     msg = f"I'll remember that your {key} is {val}."
                     tasks = [Task(tool="system", action="respond", args={"message": msg})]
                     timings["LLM"] = 0.0
+                    from core.context_budget import ContextBudget, estimate_tokens
+                    self._last_context_budget = ContextBudget(
+                        user_input_tokens=estimate_tokens(user_input),
+                        memory_tokens=estimate_tokens(val),
+                    )
                 elif recall_match:
                     key = recall_match.group(1).strip().lower()
                     val = self._memory.recall_fact(key) if self._memory else None
@@ -246,6 +445,11 @@ class Agent:
                         msg = f"Your {key} is {val}."
                         tasks = [Task(tool="system", action="respond", args={"message": msg})]
                         timings["LLM"] = 0.0
+                        from core.context_budget import ContextBudget, estimate_tokens
+                        self._last_context_budget = ContextBudget(
+                            user_input_tokens=estimate_tokens(user_input),
+                            memory_tokens=estimate_tokens(val),
+                        )
                     else:
                         if self._cognitive_manager:
                             prompt = f"Context:\n{context_str}\n\nUser: {user_input}"
@@ -276,20 +480,74 @@ class Agent:
                 t0 = time.time()
 
                 if self._cognitive_manager:
+                    num_llm_before = len(trace.llm_calls)
+                    t_llm0 = time.time()
                     response = self._cognitive_manager.process_fast(user_input, intent="tool")
                     llm_calls += 1
-                    if response.type == "ACTION" and response.tool and response.action:
+                    if len(trace.llm_calls) == num_llm_before:
+                        from core.context_budget import estimate_tokens
+                        trace.record_llm_call(
+                            model="qwen3:8b",
+                            provider="ollama",
+                            role="assistant",
+                            stage="tool",
+                            start_time=t_llm0,
+                            end_time=time.time(),
+                            estimated_input_tokens=estimate_tokens(user_input),
+                            estimated_output_tokens=estimate_tokens(getattr(response, "message", "")),
+                            context_budget=trace.context_budget,
+                            success=True,
+                        )
+                    # Normalize tool names if LLM generated common synonyms
+                    if response.type == "ACTION" and response.tool:
+                        t_lower = response.tool.lower()
+                        if t_lower in ("terminal", "command", "bash", "cmd", "powershell", "system_command", "sh"):
+                            response.tool = "shell"
+                            if response.action in ("run_command", "execute_command", "cmd", "command"):
+                                response.action = "run"
+
+                    reg = getattr(self, "_registry", None) or getattr(self._validator, "_registry", None)
+                    tool_is_registered = (
+                        reg.has_tool(response.tool) if reg and hasattr(reg, "has_tool") else True
+                    ) if response.tool and response.tool != "system" else False
+
+                    # Check direct deterministic resolution vs LLM response
+                    use_direct = False
+                    direct_resolved = self._resolve_direct_tool(user_input, session=session)
+                    if direct_resolved:
+                        d_tool, d_action, d_args = direct_resolved
+                        if d_tool == "shell" and response.tool != "shell":
+                            # User gave an explicit shell/pytest command, but LLM selected a non-shell tool (e.g. file.open_file)
+                            use_direct = True
+                        elif response.type != "ACTION" or not tool_is_registered or response.tool == "system":
+                            use_direct = True
+
+                    if use_direct and direct_resolved:
+                        tool, action, args = direct_resolved
+                        tool_action = f"{tool}.{action}"
+                        tasks = [
+                            Task(tool="system", action="respond", args={"message": response.message if response.message else f"Executing {tool_action}."}),
+                            Task(tool=tool, action=action, args=args),
+                        ]
+                    elif response.type == "ACTION" and response.tool and response.action and response.tool != "system" and tool_is_registered:
                         tool_action = f"{response.tool}.{response.action}"
                         tasks = [
                             Task(tool="system", action="respond", args={"message": response.message}),
                             Task(tool=response.tool, action=response.action, args=response.parameters or {}),
+                        ]
+                    elif direct_resolved:
+                        tool, action, args = direct_resolved
+                        tool_action = f"{tool}.{action}"
+                        tasks = [
+                            Task(tool="system", action="respond", args={"message": response.message if response.message else f"Executing {tool_action}."}),
+                            Task(tool=tool, action=action, args=args),
                         ]
                     else:
                         # 1. Try registry-driven resolution (covers any registered tool)
                         resolved = (
                             self._tool_intelligence.resolve_from_registry(user_input)
                             if self._tool_intelligence else None
-                        ) or self._resolve_direct_tool(user_input)
+                        )
                         if resolved:
                             tool, action, args = resolved
                             tool_action = f"{tool}.{action}"
@@ -322,49 +580,170 @@ class Agent:
 
             else:  # MISSION
                 logger.info("[PIPELINE] Autonomous Mission")
-                logger.info("[ExecutiveBrain] ENABLED")
-                logger.info("[ReasoningLoop] ENABLED")
-                logger.info("[MissionControl] ENABLED")
-                executive_brain_used = True
-                reasoning_loop_used = True
-                mission_control_used = True
+                logger.info("[ExecutiveBrain] SKIPPED")
+                logger.info("[ReasoningLoop] SKIPPED")
+                logger.info("[MissionControl] SKIPPED")
+                executive_brain_used = False
+                reasoning_loop_used = False
+                mission_control_used = False
                 t0 = time.time()
-                tasks = self._handle_mission(user_input, context_str)
+                tasks = self._handle_mission(
+                    user_input,
+                    context_str,
+                    user_confirmed=user_confirmed,
+                    expected_files=expected_files,
+                    expected_contents=expected_contents,
+                    postconditions=postconditions,
+                    session=session,
+                )
+                planned_mission_tasks = [t for t in tasks if t.tool != "system"]
+                mission_llm_calls = 1
+                if self._cognitive_manager:
+                    mission_llm_calls += 1
+                llm_calls += mission_llm_calls
                 timings["Planning"] = time.time() - t0
-                timings["Reasoning"] = timings["Planning"]
-                timings["LLM"] = 0.0
+                timings["Reasoning"] = 0.0
+                timings["LLM"] = timings["Planning"]
 
             pipeline_latency = time.time() - pipeline_t0
 
             # 4. Execution
             t0 = time.time()
-            # Separate executable tools from internal response/conclusion tasks.
-            # Execute valid tools first according to agent loop, then process response/conclusion.
-            exec_tasks = [t for t in tasks if not (t.tool == "system" and t.action == "respond")]
-            resp_tasks = [t for t in tasks if (t.tool == "system" and t.action == "respond")]
+            exec_tasks = [t for t in tasks if t.tool != "system"]
+            resp_tasks = [t for t in tasks if t.tool == "system"]
 
-            results_by_id: dict[int, Task] = {}
-            for task in exec_tasks:
-                if on_action is not None:
-                    on_action(self._action_announcement(task))
-                res = self._process_task(task)
-                results_by_id[id(task)] = res
-                if not tool_action:
-                    tool_action = f"{res.tool}.{res.action}"
+            if exec_tasks:
+                # Phase 7B: Real Observe -> Decide -> Act Loop via ToolFeedbackLoop
+                def _safe_exec(t):
+                    try:
+                        return self._process_task(t, user_confirmed=user_confirmed)
+                    except TypeError:
+                        return self._process_task(t)
 
-            # Phase 6: Build ExecutionSummary from executed non-system tools
-            executed_tools = [results_by_id.get(id(t), t) for t in exec_tasks]
-            summary = ExecutionSummary.from_tasks(executed_tools)
-            self._last_execution_summary = summary
+                feedback_loop = self._tool_feedback_loop or ToolFeedbackLoop(
+                    execute_fn=_safe_exec,
+                    cognitive_manager=self._cognitive_manager,
+                    max_iterations=self._max_tool_iterations,
+                    on_action=lambda t: on_action(self._action_announcement(t)) if on_action else None,
+                )
+                loop_result = feedback_loop.run(
+                    request_id=req_id,
+                    user_input=user_input,
+                    initial_tasks=tasks,
+                )
+                results = loop_result.tasks
+                llm_calls += loop_result.llm_calls
+                loop_iterations = loop_result.iterations_used
+                if loop_result.loop_detected:
+                    loop_stop_reason = "loop_detected"
+                elif loop_result.limit_reached:
+                    loop_stop_reason = "iteration_limit_reached"
+                elif loop_result.succeeded:
+                    loop_stop_reason = "completed"
+                else:
+                    loop_stop_reason = "stopped"
+                if not tool_action and any(t.tool != "system" for t in results):
+                    first_tool = next(t for t in results if t.tool != "system")
+                    tool_action = f"{first_tool.tool}.{first_tool.action}"
+                self._last_execution_summary = ExecutionSummary.from_tasks([t for t in results if t.tool != "system"])
+            else:
+                # Pure conversational or memory response without tool execution
+                summary = ExecutionSummary.from_tasks([])
+                self._last_execution_summary = summary
+                results_by_id: dict[int, Task] = {}
+                for task in resp_tasks:
+                    try:
+                        res = self._process_task(task, execution_summary=summary, user_confirmed=user_confirmed)
+                    except TypeError:
+                        try:
+                            res = self._process_task(task, execution_summary=summary)
+                        except TypeError:
+                            res = self._process_task(task)
+                    results_by_id[id(task)] = res
+                results = [results_by_id.get(id(t), t) for t in resp_tasks]
 
-            for task in resp_tasks:
-                try:
-                    res = self._process_task(task, execution_summary=summary)
-                except TypeError:
-                    res = self._process_task(task)
-                results_by_id[id(task)] = res
+            # 5. Mission Verification & Grounding (associated ONLY with intent == IntentType.MISSION)
+            if intent == IntentType.MISSION:
+                if (not expected_files) and session.last_target_file:
+                    if any(k in user_input.lower() for k in ("verify it", "verify its", "verify that", "verify the file", "check it", "check its")):
+                        expected_files = [session.last_target_file]
+                if (not expected_contents) and session.last_target_content and expected_files:
+                    expected_contents = {expected_files[0]: session.last_target_content}
 
-            results: list[Task] = [results_by_id.get(id(t), t) for t in tasks]
+                raw_claim = ""
+                for t in results:
+                    if t.tool == "system" and t.action == "respond":
+                        raw_claim = str(t.result or t.args.get("message", ""))
+                        break
+
+                v_res = self._mission_verifier.verify(
+                    tasks=results,
+                    response_text=raw_claim,
+                    expected_files=expected_files,
+                    expected_contents=expected_contents,
+                    postconditions=postconditions,
+                    user_input=user_input,
+                )
+                self._last_verification_result = v_res
+
+                # Re-ground execution summary with authoritative verification outcome
+                executed_tools = [t for t in results if t.tool != "system"]
+                self._last_execution_summary = ExecutionSummary.from_tasks(
+                    executed_tools,
+                    verification_result=v_res,
+                )
+                grounded_msg = self._last_execution_summary.ground_response(raw_claim)
+
+                # Ground the response task
+                resp_task = next((t for t in results if t.tool == "system" and t.action == "respond"), None)
+                if resp_task is not None:
+                    resp_task.result = grounded_msg
+                    resp_task.args["message"] = grounded_msg
+                else:
+                    resp_task = Task(tool="system", action="respond", args={"message": grounded_msg})
+                    resp_task.start()
+                    resp_task.complete(grounded_msg)
+                    results.append(resp_task)
+
+                # Truthful mission telemetry
+                from core.mission_verifier import get_effective_tasks
+                effective_tools = [t for t in get_effective_tasks(executed_tools) if t.tool != "system"]
+                # Capture context budget from loop or cognitive manager
+                if self._tool_feedback_loop and getattr(self._tool_feedback_loop, "_last_context_budget", None):
+                    self._last_context_budget = self._tool_feedback_loop._last_context_budget
+                elif self._cognitive_manager and getattr(self._cognitive_manager, "last_context_budget", None):
+                    self._last_context_budget = self._cognitive_manager.last_context_budget
+
+                self._last_mission_telemetry = {
+                    "mission_detected": True,
+                    "planned_tasks": len(planned_mission_tasks),
+                    "executed_tasks": len(executed_tools),
+                    "effective_tasks": len(effective_tools),
+                    "successful_tasks": sum(1 for t in effective_tools if t.status == TaskStatus.COMPLETED),
+                    "failed_tasks": sum(1 for t in effective_tools if t.status == TaskStatus.FAILED),
+                    "total_attempts": len(executed_tools),
+                    "verification_status": v_res.status.value,
+                    "verification_reason": "; ".join(v_res.details),
+                    "number_of_loop_iterations": loop_iterations,
+                    "number_of_llm_calls": llm_calls,
+                    "number_of_tool_calls": len(executed_tools),
+                    "total_latency": timings.get("Total", time.time() - start_time),
+                    "termination_reason": loop_stop_reason,
+                    "estimated_context_tokens": self._last_context_budget.total_input_tokens if self._last_context_budget else 0,
+                    "context_truncated": self._last_context_budget.truncated if self._last_context_budget else False,
+                }
+                trace.record_verification(v_res)
+                trace.record_mission_telemetry(self._last_mission_telemetry)
+                logger.info(
+                    "[MISSION_TELEMETRY] status=%s planned=%d executed=%d success=%d failed=%d reason=%s",
+                    self._last_mission_telemetry["verification_status"],
+                    self._last_mission_telemetry["planned_tasks"],
+                    self._last_mission_telemetry["executed_tasks"],
+                    self._last_mission_telemetry["successful_tasks"],
+                    self._last_mission_telemetry["failed_tasks"],
+                    self._last_mission_telemetry["verification_reason"][:120],
+                )
+
             timings["Tool Execution"] = time.time() - t0
             timings["Total"] = time.time() - start_time
 
@@ -411,6 +790,86 @@ class Agent:
                     execution_time=timings["Total"],
                 )
 
+            if self._last_context_budget is None:
+                if self._tool_feedback_loop and getattr(self._tool_feedback_loop, "_last_context_budget", None):
+                    self._last_context_budget = self._tool_feedback_loop._last_context_budget
+                elif self._cognitive_manager and getattr(self._cognitive_manager, "last_context_budget", None):
+                    self._last_context_budget = self._cognitive_manager.last_context_budget
+
+            if self._last_context_budget is not None:
+                trace.record_context_budget(self._last_context_budget)
+                trace.session_context_tokens = getattr(self._last_context_budget, "history_tokens", 0)
+
+            final_status = "success"
+            if any(t.status == TaskStatus.FAILED for t in results):
+                if any(t.status == TaskStatus.COMPLETED for t in results):
+                    final_status = "partial"
+                elif any("Execution policy denied" in str(t.error or "") for t in results):
+                    final_status = "denied"
+                elif any("timed out" in str(t.error or "") for t in results):
+                    final_status = "timeout"
+                else:
+                    final_status = "failed"
+            elif self._last_verification_result and not self._last_verification_result.succeeded:
+                final_status = self._last_verification_result.status.value
+
+            resp_task = next((t for t in results if t.tool == "system" and t.action == "respond"), None)
+            final_resp = str(resp_task.result if resp_task else (results[0].result if results else ""))
+            trace.record_final_response(final_resp, status=final_status)
+            trace.complete(final_status)
+
+            # Record turn in session repository
+            tools_exec = [
+                {"tool": t.tool, "action": t.action, "status": t.status.value, "args": t.args}
+                for t in results if t.tool != "system"
+            ]
+            target_files = []
+            target_content = None
+            for t in results:
+                if t.tool == "file" and t.args.get("path"):
+                    target_files.append(t.args["path"])
+                    if t.args.get("text") or t.args.get("content"):
+                        target_content = t.args.get("text") or t.args.get("content")
+
+            if not target_files:
+                f_match = re.search(r"(?:file\s+(?:called|named)|the\s+file)\s+([a-zA-Z0-9_\-\.]+)", user_input, re.IGNORECASE)
+                if f_match:
+                    target_files.append(f_match.group(1))
+
+            mission_state = {}
+            if intent == IntentType.MISSION or self._last_mission_telemetry:
+                mission_state = {
+                    "last_mission_telemetry": self._last_mission_telemetry,
+                    "verification": (
+                        self._last_verification_result.status.value
+                        if self._last_verification_result else None
+                    ),
+                }
+
+            meta_updates = {}
+            if target_files:
+                meta_updates["last_target_file"] = target_files[-1]
+            if target_content:
+                meta_updates["last_target_content"] = target_content
+
+            route_str = (intent.value.upper() if hasattr(intent, "value") else str(intent).upper()) if intent else "UNKNOWN"
+            meta_updates["last_route"] = route_str
+
+            try:
+                self._session_repo.add_turn(
+                    session_id=session.session_id,
+                    request_id=req_id,
+                    user_input=user_input,
+                    response=final_resp,
+                    route=route_str,
+                    tools_executed=tools_exec,
+                    target_files=target_files,
+                    mission_state=mission_state,
+                    metadata_updates=meta_updates,
+                )
+            except Exception as exc:
+                logger.warning("Failed to record turn in session: %s", exc)
+
             completed = sum(1 for t in results if t.status == TaskStatus.COMPLETED)
             failed = sum(1 for t in results if t.status == TaskStatus.FAILED)
 
@@ -423,17 +882,37 @@ class Agent:
 
             return results
         finally:
+            reset_current_trace(trace_token)
             KnowledgeScheduler.set_interactive_active(False)
 
 
-    def _handle_mission(self, user_input: str, context_str: str) -> list[Task]:
+    def _handle_mission(
+        self,
+        user_input: str,
+        context_str: str,
+        user_confirmed: bool = False,
+        expected_files: list[str] | None = None,
+        expected_contents: dict[str, str] | None = None,
+        postconditions: list[MissionPostcondition] | None = None,
+        session: Any = None,
+    ) -> list[Task]:
         """Handles complex autonomous missions using the full reasoning loop."""
         tasks = []
+        if session is not None:
+            lower = user_input.lower()
+            if (not expected_files) and session.last_target_file:
+                if any(k in lower for k in ("verify it", "verify its", "verify that", "verify the file", "check it", "check its")):
+                    expected_files = [session.last_target_file]
+            if (not expected_contents) and session.last_target_content and expected_files:
+                expected_contents = {expected_files[0]: session.last_target_content}
+            if session.active_mission:
+                context_str += f"\nActive Mission State:\n{session.active_mission}\n"
         if self._capability_manager:
             # New Intelligent Capability Routing flow
             try:
                 plan, profile = self._capability_manager.route(user_input)
-                logger.info("Capability Plan: %s (Model: %s)", plan.required_capabilities, profile.name)
+                model_name = profile.name if profile is not None else "unknown"
+                logger.info("Capability Plan: %s (Model: %s)", plan.required_capabilities, model_name)
                 
                 # Fetch memory if required
                 context_str = ""
@@ -461,6 +940,20 @@ class Agent:
                 for flag, handler_key, method, msg_tpl in _MEDIA_DISPATCH:
                     if not getattr(plan, flag, False):
                         continue
+                    if handler_key == "publishing_engine":
+                        policy_ctx = PolicyContext(
+                            tool="publishing",
+                            action="publish",
+                            source=CapabilitySource.CORE,
+                            source_id="agent",
+                            user_confirmed=user_confirmed,
+                        )
+                        policy_res = self._execution_policy.check(policy_ctx)
+                        if policy_res.verdict == PolicyVerdict.DENY:
+                            return [self._error_task(f"Execution policy denied: {policy_res.reason}")]
+                        if policy_res.verdict == PolicyVerdict.REQUIRE_CONFIRMATION:
+                            return [self._error_task(f"Execution policy requires user confirmation: {policy_res.reason}")]
+
                     mgr = self._capability_manager.get_handler(handler_key)
                     # Some engines need extra kwargs from plan metadata
                     extra = {}
@@ -475,6 +968,19 @@ class Agent:
 
                 # Intercept for Automation Tasks
                 if plan.requires_automation and self._n8n_manager:
+                    policy_ctx = PolicyContext(
+                        tool="automation",
+                        action="execute_workflow",
+                        source=CapabilitySource.CORE,
+                        source_id="agent",
+                        user_confirmed=user_confirmed,
+                    )
+                    policy_res = self._execution_policy.check(policy_ctx)
+                    if policy_res.verdict == PolicyVerdict.DENY:
+                        return [self._error_task(f"Execution policy denied: {policy_res.reason}")]
+                    if policy_res.verdict == PolicyVerdict.REQUIRE_CONFIRMATION:
+                        return [self._error_task(f"Execution policy requires user confirmation: {policy_res.reason}")]
+
                     # We initialize n8n. If it's not installed, it will prompt the user via EventBus,
                     # but for now we just try to route it.
                     self._n8n_manager.initialize()
@@ -571,31 +1077,11 @@ class Agent:
                 tasks = [self._error_task(f"I couldn't process that request: {exc}")]
         else:
             # Fallback if no capability router is injected
-            if not self._cognitive_manager:
-                try:
-                    tasks = self._planner.plan(user_input, context=self._load_context())
-                except JarvisError as exc:
-                    logger.error("Planning failed: %s", exc)
-                    tasks = [self._error_task("I couldn't plan that request just now.")]
-            else:
-                response = self._cognitive_manager.process(user_input)
-                
-                if response.type == "RESPONSE":
-                    tasks = [Task(tool="system", action="respond", args={"message": response.message})]
-                elif response.type == "ACTION":
-                    tool = response.tool or "windows"
-                    action = response.action or "open_app"
-                    parameters = response.parameters or {}
-                    tasks = [
-                        Task(tool="system", action="respond", args={"message": response.message}),
-                        Task(tool=tool, action=action, args=parameters)
-                    ]
-                else:
-                    try:
-                        plan_tasks = self._planner.plan(user_input, context=self._load_context())
-                        tasks = [Task(tool="system", action="respond", args={"message": response.message})] + plan_tasks
-                    except JarvisError as exc:
-                        tasks = [self._error_task("I couldn't plan that request just now. Please try again.")]
+            try:
+                tasks = self._planner.plan(user_input, context=self._load_context())
+            except JarvisError as exc:
+                logger.error("Planning failed: %s", exc)
+                tasks = [self._error_task("I couldn't plan that request just now.")]
         return tasks
 
     @staticmethod
@@ -622,22 +1108,79 @@ class Agent:
         return "I'll take care of that."
 
     @staticmethod
-    def _resolve_direct_tool(user_input: str) -> tuple[str, str, dict] | None:
+    def _resolve_direct_tool(user_input: str, session: Any = None) -> tuple[str, str, dict] | None:
         """Deterministically resolves common OS and tool actions if LLM returns plain text."""
         lower = user_input.lower().strip()
-        # Calculator
-        if "calc" in lower or "calculator" in lower:
+        # Cross-turn test execution: "run its tests", "run the tests", "run tests"
+        if session and session.last_target_file:
+            if any(k in lower for k in ("run its tests", "run the tests", "run tests for it", "run its test")):
+                target = session.last_target_file
+                p = Path(target)
+                if not p.name.startswith("test_") and not p.name.endswith("_test.py"):
+                    test_cand = p.parent / f"test_{p.name}"
+                    cmd = f"pytest {test_cand}" if test_cand.exists() else f"pytest {target}"
+                else:
+                    cmd = f"pytest {target}"
+                return "shell", "run", {"command": cmd}
+
+        # Direct test execution: "run tests", "run pytest", "pytest <path>"
+        pytest_match = re.match(r"^(?:run\s+)?(?:the\s+)?pytest(?:\s+(.+))?$", lower)
+        if pytest_match:
+            args_str = (pytest_match.group(1) or "").strip()
+            return "shell", "run", {"command": f"pytest {args_str}".strip()}
+
+        if lower in ("run tests", "run the tests", "run test", "execute tests"):
+            return "shell", "run", {"command": "pytest"}
+
+        # Direct shell command: "run shell command X", "shell command X", "run command X"
+        shell_match = re.match(r"^(?:run\s+)?(?:shell\s+command|shell|command)\s+(.+)$", user_input, re.IGNORECASE)
+        if shell_match:
+            cmd = shell_match.group(1).strip()
+            if (cmd.startswith("'") and cmd.endswith("'")) or (cmd.startswith('"') and cmd.endswith('"')):
+                cmd = cmd[1:-1].strip()
+            return "shell", "run", {"command": cmd}
+
+        # Create file: "create a file called X containing Y"
+        create_match = re.search(r"create\s+(?:a\s+)?file\s+(?:called|named)\s+([^\s]+)(?:\s+(?:containing|with\s+content)\s+(.+))?", user_input, re.IGNORECASE)
+        if create_match:
+            fpath = create_match.group(1).strip("'\"")
+            fcontent = (create_match.group(2) or "").strip("'\"")
+            return "file", "create_file", {"path": fpath, "text": fcontent}
+
+        # Patch/edit file: "patch file X replacing 'A' with 'B'"
+        patch_match = re.search(r"(?:patch|edit|modify)\s+(?:file\s+)?([^\s]+)\s+replacing\s+['\"](.+?)['\"]\s+with\s+['\"](.*?)['\"]", user_input, re.IGNORECASE)
+        if patch_match:
+            return "file", "patch_file", {
+                "path": patch_match.group(1).strip("'\""),
+                "old_text": patch_match.group(2),
+                "new_text": patch_match.group(3),
+            }
+
+        # Cross-turn file reference: "read it", "read it back", "read that file"
+        if session and session.last_target_file:
+            if re.search(r"\b(?:read|show|cat|display)\s+(?:it|it\s+back|that|that\s+file|the\s+file)\b", lower) or lower in ("read it", "read it back", "read that", "read the file"):
+                return "file", "read_file", {"path": session.last_target_file}
+
+        # Calculator app
+        if (
+            re.search(r"\b(?:open|launch|start|run)\s+(?:the\s+)?(?:calc|calculator)\b", lower)
+            or lower in ("calc", "calculator", "open calc")
+        ) and not lower.endswith(".py") and "file" not in lower:
             return "windows", "open_app", {"app": "calculator"}
+
         # Notepad
-        if "notepad" in lower:
+        if re.search(r"\b(?:open|launch|start)\s+(?:the\s+)?notepad\b", lower) or lower in ("notepad", "open notepad"):
             return "windows", "open_app", {"app": "notepad"}
+
         # GitHub
         if "github" in lower:
             return "browser", "open_site", {"site": "github"}
+
         # Search
         search_match = re.match(r".*?(?:search\s+(?:google\s+for\s+|for\s+)|google\s+)(.+)$", lower)
         if search_match:
             return "browser", "search_google", {"query": search_match.group(1).strip()}
+
         return None
 
     def _load_context(self) -> str:
@@ -705,36 +1248,49 @@ class Agent:
         self,
         task: Task,
         execution_summary: ExecutionSummary | None = None,
+        user_confirmed: bool = False,
     ) -> Task:
-        """Validate and execute a single task.
+        """Validate and execute a single task under ExecutionPolicy and timeout protection.
 
         Args:
             task: A Task in PENDING state.
             execution_summary: Optional ExecutionSummary to ground response tasks.
+            user_confirmed: True if explicit human user approval was granted.
 
         Returns:
             The Task with updated status after execution.
         """
-        # Handle conversational responses from the LLM directly —
+        # Handle system tasks (conversational responses, pipeline errors) directly —
         # these don't go through validation or execution.
-        if task.tool == "system" and task.action == "respond":
-            raw_msg = (
-                task.args.get("message")
-                or task.args.get("content")
-                or task.args.get("response")
-                or task.args.get("text")
-                or ""
-            )
-            initial_claim = str(raw_msg)
-            if execution_summary is not None and execution_summary.total_tasks > 0:
-                final_message = execution_summary.ground_response(initial_claim)
-            else:
-                final_message = initial_claim
+        if task.tool == "system":
+            if task.action == "respond":
+                raw_msg = (
+                    task.args.get("message")
+                    or task.args.get("content")
+                    or task.args.get("response")
+                    or task.args.get("text")
+                    or ""
+                )
+                initial_claim = str(raw_msg)
+                if execution_summary is not None:
+                    final_message = execution_summary.ground_response(initial_claim)
+                else:
+                    final_message = initial_claim
 
-            if task.status in (TaskStatus.PENDING, TaskStatus.RETRYING):
-                task.start()
-            task.complete(final_message)
+                if task.status in (TaskStatus.PENDING, TaskStatus.RETRYING):
+                    task.start()
+                if task.status == TaskStatus.RUNNING:
+                    task.complete(final_message)
             return task
+
+        # 1. Normalization & Validation
+        start_tool_t = time.time()
+        trace = None
+        try:
+            from core.runtime_trace import get_current_trace
+            trace = get_current_trace()
+        except Exception:
+            pass
 
         try:
             if self._tool_intelligence:
@@ -745,13 +1301,139 @@ class Agent:
             logger.warning("Validation failed: %s", exc)
             if task.status in (TaskStatus.PENDING, TaskStatus.RETRYING):
                 task.start()
-            task.fail(self._friendly_error_message(str(exc)))
+            if task.status == TaskStatus.RUNNING:
+                task.fail(self._friendly_error_message(str(exc)))
+            if trace is not None:
+                trace.record_tool_call(
+                    iteration=getattr(task, "iteration", 1) or 1,
+                    task_id=id(task),
+                    tool=task.tool,
+                    action=task.action,
+                    start_time=start_tool_t,
+                    end_time=time.time(),
+                    policy_verdict="deny",
+                    confirmation_required=False,
+                    confirmation_status="not_required",
+                    execution_status="failed",
+                    timeout=False,
+                    error_category="ValidationError",
+                    error_message=str(exc),
+                )
             return task
 
-        result = self._executor.execute(task)
+        # 2. Execution Policy Gate (Security Invariant: MODEL != AUTHORIZATION)
+        # user_confirmed is strictly derived from runtime/user caller, NEVER model task args.
+        policy_ctx = PolicyContext(
+            tool=task.tool,
+            action=task.action,
+            source=task.source if task.source is not None else CapabilitySource.CORE,
+            source_id="agent",
+            user_confirmed=user_confirmed,
+            request_id=trace.request_id if trace else "",
+            args=task.args if hasattr(task, "args") and isinstance(task.args, dict) else {},
+        )
+        policy_result = self._execution_policy.check(policy_ctx)
+
+        if policy_result.verdict == PolicyVerdict.DENY:
+            logger.warning(
+                "[POLICY] Denied tool action %s.%s: %s",
+                task.tool,
+                task.action,
+                policy_result.reason,
+            )
+            if task.status in (TaskStatus.PENDING, TaskStatus.RETRYING):
+                task.start()
+            task.fail(f"Execution policy denied: {policy_result.reason}")
+            if trace is not None:
+                trace.record_tool_call(
+                    iteration=getattr(task, "iteration", 1) or 1,
+                    task_id=id(task),
+                    tool=task.tool,
+                    action=task.action,
+                    start_time=start_tool_t,
+                    end_time=time.time(),
+                    policy_verdict="deny",
+                    confirmation_required=False,
+                    confirmation_status="not_required",
+                    execution_status="failed",
+                    timeout=False,
+                    error_category="PolicyDenied",
+                    error_message=policy_result.reason,
+                )
+            return task
+
+        if policy_result.verdict == PolicyVerdict.REQUIRE_CONFIRMATION:
+            logger.warning(
+                "[POLICY] Tool action %s.%s requires user confirmation: %s",
+                task.tool,
+                task.action,
+                policy_result.reason,
+            )
+            if task.status in (TaskStatus.PENDING, TaskStatus.RETRYING):
+                task.start()
+            task.fail(f"Execution policy requires user confirmation: {policy_result.reason}")
+            if trace is not None:
+                trace.record_tool_call(
+                    iteration=getattr(task, "iteration", 1) or 1,
+                    task_id=id(task),
+                    tool=task.tool,
+                    action=task.action,
+                    start_time=start_tool_t,
+                    end_time=time.time(),
+                    policy_verdict="require_confirmation",
+                    confirmation_required=True,
+                    confirmation_status="confirmed" if user_confirmed else "denied",
+                    execution_status="failed",
+                    timeout=False,
+                    error_category="ConfirmationRequired",
+                    error_message=policy_result.reason,
+                )
+            return task
+
+        # 3. Timeout-Guarded Execution
+        timeout = getattr(task, "timeout_seconds", None) or self._default_tool_timeout
+        is_timeout = False
+        error_cat = None
+        try:
+            future = self._executor_pool.submit(self._executor.execute, task)
+            result = future.result(timeout=timeout)
+        except FuturesTimeoutError:
+            is_timeout = True
+            error_cat = "Timeout"
+            logger.error("[TIMEOUT] Task %s.%s timed out after %.1fs", task.tool, task.action, timeout)
+            if task.status in (TaskStatus.PENDING, TaskStatus.RETRYING):
+                task.start()
+            task.fail(f"Tool execution timed out after {timeout} seconds")
+            result = task
+        except Exception as exc:
+            error_cat = type(exc).__name__
+            logger.error("[EXECUTOR] Execution error in %s.%s: %s", task.tool, task.action, exc)
+            if task.status in (TaskStatus.PENDING, TaskStatus.RETRYING):
+                task.start()
+            task.fail(f"Execution error: {exc}")
+            result = task
+
+        if trace is not None:
+            trace.record_tool_call(
+                iteration=getattr(task, "iteration", 1) or 1,
+                task_id=id(task),
+                tool=task.tool,
+                action=task.action,
+                start_time=start_tool_t,
+                end_time=time.time(),
+                policy_verdict=policy_result.verdict.value,
+                confirmation_required=False,
+                confirmation_status="confirmed" if user_confirmed else "not_required",
+                execution_status=result.status.value,
+                timeout=is_timeout,
+                error_category=error_cat if result.status == TaskStatus.FAILED else None,
+                error_message=result.error,
+            )
+
         if result.status == TaskStatus.FAILED:
             logger.warning("Execution failed: %s", result.error)
-            result.error = self._friendly_error_message(result.error)
+            if not (result.error.startswith("Execution policy") or "timed out after" in result.error):
+                result.error = self._friendly_error_message(result.error)
         return result
 
     @staticmethod

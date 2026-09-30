@@ -117,10 +117,9 @@ class TestShellToolAllowlist:
 
 
 class TestShellToolTimeout:
-    @pytest.mark.skipif(sys.platform == "win32", reason="Timeout test unreliable on Windows CI")
     def test_timeout_enforced(self):
-        tool = ShellTool(timeout_seconds=0.1, workspace_root=".")
-        result = tool.run("python -c \"import time; time.sleep(5)\"")
+        tool = ShellTool(timeout_seconds=0.2, workspace_root=".")
+        result = tool.run(f'{sys.executable} -c "import time; time.sleep(5)"')
         assert result.timed_out
         assert not result.success
 

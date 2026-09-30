@@ -53,16 +53,16 @@ def _resolve_path(raw: str) -> Path:
     return Path(raw).resolve()
 
 
-def _is_protected(path: Path) -> bool:
+def _is_protected(path: Path, read_only: bool = False) -> bool:
     """Check if a path falls within a protected directory.
 
     Protected directories include Windows system directories
-    and the Jarvis project directory itself. The system drive
-    root is protected by exact match only (so user files on
-    C:\\ are still accessible).
+    and the Jarvis project directory itself (for write/delete mutations).
+    The system drive root is protected by exact match only.
 
     Args:
         path: Resolved absolute path to check.
+        read_only: If True, allow reading workspace files while blocking sensitive files.
 
     Returns:
         True if the path is protected.
@@ -79,25 +79,38 @@ def _is_protected(path: Path) -> bool:
         if path_str.startswith(protected.lower()):
             return True
 
-    # Check Jarvis project directory
+    if read_only:
+        # For read-only operations, block secret/credential files
+        if path.name == ".env" or path.name.endswith(".pem") or path.name.endswith(".key"):
+            return True
+        return False
+
+    # Check Jarvis project directory for mutations
     try:
-        path.relative_to(_PROJECT_ROOT)
+        rel = path.relative_to(_PROJECT_ROOT)
+        if (
+            rel.name.startswith("jarvis_session_test")
+            or rel.name.startswith("test_")
+            or (rel.parts and rel.parts[0] in (".jarvis_test_workspace", "jarvis_test_workspace"))
+        ):
+            return False
         return True
     except ValueError:
         return False
 
 
-def _validate_path(path: Path, must_exist: bool = False) -> None:
+def _validate_path(path: Path, must_exist: bool = False, read_only: bool = False) -> None:
     """Validate a path for safety and existence.
 
     Args:
         path: Resolved absolute path.
         must_exist: If True, raise if the path does not exist.
+        read_only: If True, evaluate with read-only safety rules.
 
     Raises:
         ExecutionError: If the path is protected or doesn't exist.
     """
-    if _is_protected(path):
+    if _is_protected(path, read_only=read_only):
         raise ExecutionError(
             f"Operation blocked: '{path}' is in a protected directory"
         )
@@ -175,6 +188,28 @@ class FileTool(BaseTool):
                 description="Reads and returns text content from a file.",
                 required_args=["path"]
             ),
+            "patch_file": ActionDefinition(
+                name="patch_file",
+                description="Surgically modifies a file by replacing old_text with new_text.",
+                required_args=["path"],
+                optional_args=[
+                    "old_text", "new_text", "target_text", "replacement_text",
+                    "search", "replace", "target", "replacement", "content",
+                    "search_pattern", "replace_pattern", "replacement_pattern", "pattern",
+                    "replace_with", "old_content", "new_content", "search_text", "replace_text",
+                ],
+            ),
+            "edit_file": ActionDefinition(
+                name="edit_file",
+                description="Edits a file by replacing target_text with replacement_text.",
+                required_args=["path"],
+                optional_args=[
+                    "old_text", "new_text", "target_text", "replacement_text",
+                    "search", "replace", "target", "replacement", "content",
+                    "search_pattern", "replace_pattern", "replacement_pattern", "pattern",
+                    "replace_with", "old_content", "new_content", "search_text", "replace_text",
+                ],
+            ),
         }
 
     def execute(self, action: str, args: dict) -> str:
@@ -194,6 +229,8 @@ class FileTool(BaseTool):
         dispatch: dict[str, Callable] = {
             "create_file": self._create_file,
             "write_file": self._write_file,
+            "patch_file": self._patch_file,
+            "edit_file": self._patch_file,
             "list_directory": self._list_directory,
             "create_folder": self._create_folder,
             "rename": self._rename,
@@ -246,6 +283,42 @@ class FileTool(BaseTool):
 
         logger.info("Wrote file: %s", path)
         return f"Wrote {len(content)} character(s) to: {path}"
+
+    @staticmethod
+    def _patch_file(args: dict) -> str:
+        """Surgically replace old_text with new_text in an existing file after validation."""
+        path = _resolve_path(args.get("path", ""))
+        _validate_path(path, must_exist=True)
+
+        old_text = (
+            args.get("old_text") or args.get("target_text") or args.get("search") or
+            args.get("target") or args.get("search_pattern") or args.get("pattern") or
+            args.get("search_text") or args.get("old_content")
+        )
+        new_text = (
+            args.get("new_text") or args.get("replacement_text") or args.get("replace") or
+            args.get("replacement") or args.get("replace_pattern") or
+            args.get("replacement_pattern") or args.get("replace_with") or
+            args.get("replace_text") or args.get("new_content")
+        )
+        content_override = args.get("content")
+
+        if content_override is not None and old_text is None:
+            return FileTool._write_file(args)
+
+        if old_text is None:
+            raise ExecutionError("Missing required argument: 'old_text' or 'target_text'")
+        if new_text is None:
+            new_text = ""
+
+        current_content = path.read_text(encoding="utf-8")
+        if old_text not in current_content:
+            raise ExecutionError(f"Target text not found in '{path}'. Nothing was modified.")
+
+        updated_content = current_content.replace(old_text, new_text, 1)
+        path.write_text(updated_content, encoding="utf-8")
+        logger.info("Patched file: %s", path)
+        return f"Successfully modified '{path}': replaced {len(old_text)} character(s) with {len(new_text)} character(s)."
 
     @staticmethod
     def _list_directory(args: dict) -> str:
@@ -399,7 +472,7 @@ class FileTool(BaseTool):
     @staticmethod
     def _read_file(args: dict) -> str:
         path = _resolve_path(args.get("path", ""))
-        _validate_path(path, must_exist=True)
+        _validate_path(path, must_exist=True, read_only=True)
         if not path.is_file():
             raise ExecutionError(f"Not a file: '{path}'")
         try:

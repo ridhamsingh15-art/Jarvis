@@ -24,3 +24,7 @@ test_report.txt
 
 # Editor
 .vscode/
+
+# Transient test workspaces and evaluation scratch scripts
+.jarvis_test_workspace/
+scratch/
