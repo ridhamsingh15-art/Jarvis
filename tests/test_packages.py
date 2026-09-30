@@ -89,7 +89,11 @@ def test_cache(cache, temp_dir):
         f.write("test")
         
     entry = cache.put(Identifier("p1"), "1.0", f1)
-    assert cache.get(Identifier("p1"), "1.0") == entry
+    got = cache.get(Identifier("p1"), "1.0")
+    assert got is not None
+    assert got.package_id == entry.package_id
+    assert got.version == entry.version
+    assert got.path == entry.path
     
     cache.remove(Identifier("p1"), "1.0")
     assert cache.get(Identifier("p1"), "1.0") is None

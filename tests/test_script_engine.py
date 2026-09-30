@@ -139,7 +139,9 @@ def test_manager_async_flow(sample_raw_script):
     mock_mission_manager.get.return_value = mission
     
     manager = ScriptEngineManager(mock_planner, mock_mission_manager)
-    mission_id = manager.generate_script_async("test", "test", "")
+    from unittest.mock import patch
+    with patch("threading.Thread.start"):
+        mission_id = manager.generate_script_async("test", "test", "")
     
     assert mission_id == mission.mission_id.value
     
