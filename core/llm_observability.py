@@ -233,6 +233,25 @@ class LLMObservability:
             self._records.append(record)
             self._stage_counts[stage] = self._stage_counts.get(stage, 0) + 1
             self._log_record(record)
+            try:
+                from core.runtime_trace import get_current_trace
+                trace = get_current_trace()
+                if trace is not None:
+                    trace.record_llm_call(
+                        model=record.model,
+                        provider=record.provider,
+                        role="assistant",
+                        stage=record.stage,
+                        start_time=record.start_time,
+                        end_time=record.start_time + (elapsed_ms / 1000.0),
+                        estimated_input_tokens=record.input_tokens or 0,
+                        estimated_output_tokens=record.output_tokens,
+                        success=record.success,
+                        error_category=record.error_type,
+                        error_message=record.error_message,
+                    )
+            except Exception:
+                pass
 
     # ------------------------------------------------------------------
     # Budget enforcement
