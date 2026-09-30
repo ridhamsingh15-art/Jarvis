@@ -9,6 +9,8 @@ This module does NOT contain any persona, identity, or guardrail logic.
 All identity concerns are delegated to the IdentityManager.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 import re
@@ -17,6 +19,7 @@ from typing import Any
 
 from core.cognition.context import ShortTermContext
 from core.cognition.dialogue import DialogueState
+from core.context_budget import ContextBudget, ContextBudgetManager, estimate_tokens
 from core.identity.manager import IdentityManager
 from core.model_router import ModelRouter
 from core.registry import Registry
@@ -59,7 +62,15 @@ class ConversationEngine:
         self._registry = registry
         self._identity = identity
         from core.routing.model_selector import TaskModelSelector
+        from core.context_budget import ContextBudget, ContextBudgetManager, estimate_tokens
         self._model_selector = model_selector or TaskModelSelector()
+        self._budget_manager = ContextBudgetManager()
+        self._last_budget: ContextBudget | None = None
+
+    @property
+    def last_context_budget(self) -> ContextBudget | None:
+        """Return the ContextBudget report from the most recent process() call."""
+        return self._last_budget
 
     def process(
         self,
@@ -97,8 +108,48 @@ class ConversationEngine:
         system_prompt = self._identity.build_system_prompt(state, context_package)
         user_prompt = self._build_user_prompt(user_input, context_package)
 
+        # Budget checking & Token estimation
+        from core.context_budget import estimate_tokens
+        est_sys = estimate_tokens(system_prompt)
+        est_user = estimate_tokens(user_prompt)
+        total_est = est_sys + est_user
+
+        self._last_budget = ContextBudget(
+            max_total_tokens=self._budget_manager.max_total_tokens,
+            reserved_output_tokens=self._budget_manager.reserved_output_tokens,
+            system_tokens=est_sys,
+            user_input_tokens=est_user,
+            history_tokens=estimate_tokens("\n".join(getattr(context_package, "recent_conversation", []))) if context_package else 0,
+            memory_tokens=sum(estimate_tokens(m) for m in getattr(context_package, "memory_facts", [])) if context_package else 0,
+            knowledge_tokens=sum(estimate_tokens(k) for k in getattr(context_package, "pki_knowledge", [])) if context_package else 0,
+            mission_tokens=sum(estimate_tokens(m) for m in getattr(context_package, "mission_status", [])) if context_package else 0,
+            tool_result_tokens=sum(estimate_tokens(t) for t in getattr(context_package, "tool_state", [])) if context_package else 0,
+        )
+        try:
+            from core.runtime_trace import get_current_trace
+            trace = get_current_trace()
+            if trace is not None:
+                trace.record_context_budget(self._last_budget)
+        except Exception:
+            pass
+
         # Determine optimal inference requirements for the task
         reqs = requirements or self._model_selector.select_requirements(user_input)
+        if hasattr(reqs, "min_context_length"):
+            req_ctx = reqs.min_context_length or 0
+            if total_est + 512 > req_ctx:
+                from providers.provider_models import InferenceRequirements
+                reqs = InferenceRequirements(
+                    capabilities=reqs.capabilities,
+                    max_latency_ms=reqs.max_latency_ms,
+                    max_cost_per_request=reqs.max_cost_per_request,
+                    min_context_length=total_est + 512,
+                    prefer_local=reqs.prefer_local,
+                    prefer_provider=reqs.prefer_provider,
+                    task_complexity=reqs.task_complexity,
+                    prefer_model=reqs.prefer_model,
+                    role=reqs.role,
+                )
 
         try:
             response = self._router.generate(system_prompt, user_prompt, requirements=reqs)

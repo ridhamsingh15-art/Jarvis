@@ -46,6 +46,11 @@ class CognitiveManager(BaseComponent):
     async def _do_stop(self) -> None:
         logger.info("CognitiveManager stopped.")
 
+    @property
+    def last_context_budget(self) -> Any | None:
+        """Return the ContextBudget from the most recent LLM invocation."""
+        return getattr(self._engine, "last_context_budget", None) or getattr(self._context_orchestrator, "last_context_budget", None)
+
     def process_fast(self, message: str, intent: str = "chat") -> ConversationResponse:
         """Process a user message conversationally without engaging the ExecutiveBrain.
 

@@ -34,6 +34,21 @@ class ShortTermContext:
             if len(self._messages) > self._max_history:
                 self._messages.pop(0)
 
+    def clear_messages(self) -> None:
+        """Clear all conversation messages."""
+        with self._lock:
+            self._messages.clear()
+
+    def set_messages(self, messages: list[dict[str, str]]) -> None:
+        """Replace conversation messages with recent turns."""
+        with self._lock:
+            self._messages = list(messages[-self._max_history:])
+
+    def get_recent(self, limit: int = 5) -> list[dict[str, str]]:
+        """Return the most recent conversation messages up to limit."""
+        with self._lock:
+            return list(self._messages[-limit:])
+
     def set_pending_slot(self, name: str, prompt: str) -> None:
         """Record a conversational value the assistant is waiting to receive."""
         with self._lock:

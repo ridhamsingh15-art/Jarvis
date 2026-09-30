@@ -49,8 +49,9 @@ class IntentClassifier:
     # ── TOOL: direct OS/app commands ───────────────────────────────────────────
     _TOOL_PATTERN = re.compile(
         r"^(?:please\s+|can\s+you\s+|could\s+you\s+|would\s+you\s+)?"
-        r"(?:open|launch|run|start|close|search|create|delete|execute)\s+.*"
-        r"|.*?\b(?:open|launch|start)\s+(?:the\s+)?(?:calculator|calc|notepad|browser|github|terminal|cmd|chrome|app)\b.*",
+        r"(?:open|launch|run|start|close|search|create|delete|execute|read|show|display|pytest)\s+.*"
+        r"|^(?:run\s+)?pytest$"
+        r"|.*?\b(?:open|launch|start|read|show)\s+(?:the\s+)?(?:calculator|calc|notepad|browser|github|terminal|cmd|chrome|app|file|it)\b.*",
         re.IGNORECASE,
     )
 
@@ -59,7 +60,10 @@ class IntentClassifier:
     _MISSION_SIGNALS = re.compile(
         r"""
         # Direct mission keywords
-        (?:plan\s+and\s+execute|autonomous\s+mission|start\s+mission)
+        (?:plan\s+and\s+execute|autonomous\s+mission|start\s+mission|\bmission\b)
+        |
+        # Actions requiring explicit verification
+        (?:.+?\s+and\s+verify\b|verify\s+(?:that|it|its|the|a|if)\b)
         |
         # "research/investigate/analyze/explore/study X and produce Y"
         (?:research|investigate|analyze|explore|study)\s+.+?
