@@ -55,6 +55,9 @@ class ModelSelector:
             candidates = [p for p in candidates if p.coding >= 8]
             
         if not candidates:
+            # Fallback to best available profile if strict filters eliminated all profiles
+            if self._profiles:
+                return max(self._profiles, key=lambda p: (p.reasoning, p.coding))
             raise ModelSelectionError(
                 f"No suitable model found for plan with complexity={plan.estimated_complexity} "
                 f"and capabilities={plan.required_capabilities}"

@@ -62,6 +62,8 @@ class Task:
     retry_count: int = 0
     max_retries: int = 3
     failure_history: list[str] = field(default_factory=list)
+    timeout_seconds: float | None = None
+    source: Any = None
 
     def __post_init__(self) -> None:
         """Normalize status to TaskStatus enum at construction boundary."""

@@ -60,6 +60,8 @@ class PayloadRepairer:
                 action=resolved_action,
                 args=task.args,
                 status=task.status,
+                timeout_seconds=getattr(task, "timeout_seconds", None),
+                source=getattr(task, "source", None),
             )
             return new_task, RepairMetrics(
                 tool_name_repaired=tool_repaired,
@@ -83,6 +85,8 @@ class PayloadRepairer:
             retry_count=getattr(task, "retry_count", 0),
             max_retries=getattr(task, "max_retries", 3),
             failure_history=list(getattr(task, "failure_history", [])),
+            timeout_seconds=getattr(task, "timeout_seconds", None),
+            source=getattr(task, "source", None),
         )
         
         metrics = RepairMetrics(
