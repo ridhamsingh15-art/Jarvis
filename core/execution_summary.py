@@ -32,6 +32,18 @@ _SUCCESS_CLAIM_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+# Pattern to detect when a model claims physical/OS action execution without executing any tool
+_ACTION_EXECUTION_CLAIM_PATTERN = re.compile(
+    r"\b("
+    r"(?:i(?:\s+have|\'ve)?\s+(?:successfully\s+)?(?:opened|launched|started|created|deleted|written|executed|closed|modified|removed)\b)"
+    r"|(?:(?:the\s+)?(?:calculator|calc|notepad|browser|chrome|file|folder|directory|app|application|window)\s+(?:has\s+been|was|is\s+now)\s+(?:opened|launched|created|deleted|written|closed|started))"
+    r"|(?:\b(?:opened|launched|created|deleted|written)\s+(?:the\s+)?(?:calculator|calc|notepad|browser|chrome|file|folder|directory|app|application|window)\b)"
+    r"|(?:\b(?:done|completed|finished)[\s—–:-]+(?:i\s+)?(?:opened|launched|created|deleted|written|executed)\b)"
+    r"|(?:\bsuccessfully\s+(?:opened|launched|created|deleted|written|executed)\b)"
+    r")\b",
+    re.IGNORECASE,
+)
+
 
 def _sanitize_output(val: Any, max_len: int = 300) -> str:
     """Sanitize and safely truncate tool outputs to prevent injection attacks."""
@@ -77,14 +89,17 @@ class ExecutionSummary:
     """Authoritative aggregation of execution facts for a set of tasks."""
 
     records: list[TaskExecutionRecord] = field(default_factory=list)
+    attempt_history: list[TaskExecutionRecord] = field(default_factory=list)
     completed: list[TaskExecutionRecord] = field(default_factory=list)
     failed: list[TaskExecutionRecord] = field(default_factory=list)
     skipped: list[TaskExecutionRecord] = field(default_factory=list)
     total_tasks: int = 0
+    total_attempts: int = 0
     all_succeeded: bool = False
     all_failed: bool = False
     is_partial: bool = False
     verification_passed: bool | None = None
+    verification_status: str | None = None
     verification_details: list[str] = field(default_factory=list)
 
     @classmethod
@@ -96,10 +111,11 @@ class ExecutionSummary:
         """Construct an ExecutionSummary from a list of executed tasks.
 
         Filters out internal system pseudo-tasks so only true OS/external
-        capabilities form the factual basis.
+        capabilities form the factual basis. Distinguishes attempt history
+        from the effective final execution state.
         """
         exec_tasks = [t for t in tasks if t.tool != "system"]
-        records = [
+        attempt_records = [
             TaskExecutionRecord(
                 task_id=id(t),
                 tool=t.tool,
@@ -112,6 +128,21 @@ class ExecutionSummary:
             for t in exec_tasks
         ]
 
+        from core.mission_verifier import get_effective_tasks
+        effective_tasks = get_effective_tasks(exec_tasks)
+        records = [
+            TaskExecutionRecord(
+                task_id=id(t),
+                tool=t.tool,
+                action=t.action,
+                status=t.status,
+                result=t.result,
+                error=t.error,
+                args=dict(t.args) if t.args else {},
+            )
+            for t in effective_tasks
+        ]
+
         completed = [r for r in records if r.succeeded]
         failed = [r for r in records if r.failed]
         skipped = [r for r in records if r.skipped]
@@ -122,21 +153,27 @@ class ExecutionSummary:
         is_partial = total > 1 and len(completed) > 0 and (len(failed) > 0 or len(skipped) > 0)
 
         v_passed = None
+        v_status = None
         v_details = []
         if verification_result is not None:
+            raw_st = getattr(verification_result, "status", None)
+            v_status = raw_st.value if hasattr(raw_st, "value") else (str(raw_st) if raw_st is not None else None)
             v_passed = getattr(verification_result, "succeeded", False)
             v_details = getattr(verification_result, "details", [])
 
         return cls(
             records=records,
+            attempt_history=attempt_records,
             completed=completed,
             failed=failed,
             skipped=skipped,
             total_tasks=total,
+            total_attempts=len(attempt_records),
             all_succeeded=all_succeeded,
             all_failed=all_failed,
             is_partial=is_partial,
             verification_passed=v_passed,
+            verification_status=v_status,
             verification_details=v_details,
         )
 
@@ -145,12 +182,25 @@ class ExecutionSummary:
 
         Enforces: EXECUTION FACTS > MODEL CLAIMS.
         """
-        # 1. No tool actions executed (pure conversational message)
+        # 1. No tool actions executed (pure conversational message or action claim with 0 tools)
         if self.total_tasks == 0:
+            if self.verification_passed is False or self.verification_status in ("failed", "not_verified", "timeout"):
+                details_str = "; ".join(self.verification_details) if self.verification_details else "Verification checks failed"
+                return f"Action was attempted, but mission verification failed: {details_str}."
+            if initial_claim and self._is_unexecuted_action_claim(initial_claim):
+                return (
+                    "No actions were executed. I cannot confirm completing this operation "
+                    "without executing the required tool."
+                )
             return initial_claim.strip() if initial_claim else "Done."
 
-        # 2. Check mission verification override if verification failed explicitly
-        if self.verification_passed is False:
+        # 2. Check mission verification override if verification failed or was partial
+        if self.verification_status == "partial":
+            details_str = "; ".join(self.verification_details) if self.verification_details else "partial postconditions met"
+            partial_base = self._build_partial_response(initial_claim) if (self.completed or self.failed) else "Mission was only partially verified."
+            return f"{partial_base}\nVerification: {details_str}"
+
+        if self.verification_passed is False or self.verification_status in ("failed", "not_verified", "timeout"):
             details_str = "; ".join(self.verification_details) if self.verification_details else "Verification checks failed"
             return f"Action was attempted, but mission verification failed: {details_str}."
 
@@ -272,3 +322,11 @@ class ExecutionSummary:
         if res:
             return f"{tool_action} ({res})"
         return tool_action
+
+    @staticmethod
+    def _is_unexecuted_action_claim(text: str) -> bool:
+        """Detect if text falsely claims an action was physically executed when 0 tools ran."""
+        if not text:
+            return False
+        return bool(_ACTION_EXECUTION_CLAIM_PATTERN.search(text))
+
