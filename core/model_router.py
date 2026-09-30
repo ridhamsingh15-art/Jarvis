@@ -3,6 +3,7 @@ Core implementation of the Model Router subsystem.
 """
 
 import logging
+import time
 
 from config.model_config import ModelRouterConfig
 from core.model_gateway import ModelGateway
@@ -86,12 +87,45 @@ class ModelRouter(ModelGateway):
                 logger.error(msg)
                 raise AllProvidersExhaustedError(msg) from e
 
+            start_llm = time.time()
             try:
                 logger.info("Routing request to provider: %s", provider.provider_id)
                 response = provider.generate(system_prompt, user_prompt, reqs)
+                end_llm = time.time()
                 
                 # Success
                 self._health_monitor.mark_success(provider.provider_id)
+
+                try:
+                    from core.runtime_trace import get_current_trace
+                    from core.context_budget import estimate_tokens
+                    trace = get_current_trace()
+                    if trace is not None:
+                        in_tok = (
+                            response.token_usage.get("prompt_tokens")
+                            if response.token_usage and isinstance(response.token_usage, dict)
+                            else estimate_tokens(system_prompt + " " + user_prompt)
+                        )
+                        out_tok = (
+                            response.token_usage.get("completion_tokens")
+                            if response.token_usage and isinstance(response.token_usage, dict)
+                            else estimate_tokens(response.text)
+                        )
+                        trace.record_llm_call(
+                            model=response.model_id or getattr(reqs, "prefer_model", "default") or "default",
+                            provider=response.provider_id or getattr(provider, "provider_id", "unknown"),
+                            role=getattr(reqs, "role", "assistant") or "assistant",
+                            stage=getattr(reqs, "stage", "router") if hasattr(reqs, "stage") else "router",
+                            start_time=start_llm,
+                            end_time=end_llm,
+                            estimated_input_tokens=in_tok,
+                            estimated_output_tokens=out_tok,
+                            context_budget=trace.context_budget,
+                            truncated=bool(trace.context_budget.get("truncated")) if trace.context_budget else False,
+                            success=True,
+                        )
+                except Exception:
+                    pass
                 
                 # Inject fallback count into response envelope
                 # Create a new instance because ModelResponse is frozen
@@ -107,6 +141,27 @@ class ModelRouter(ModelGateway):
                 
             except ProviderExecutionError as exc:
                 # Failure
+                end_llm = time.time()
+                try:
+                    from core.runtime_trace import get_current_trace
+                    from core.context_budget import estimate_tokens
+                    trace = get_current_trace()
+                    if trace is not None:
+                        trace.record_llm_call(
+                            model=getattr(reqs, "prefer_model", "default") or "default",
+                            provider=getattr(provider, "provider_id", "unknown"),
+                            role=getattr(reqs, "role", "assistant") or "assistant",
+                            stage="router",
+                            start_time=start_llm,
+                            end_time=end_llm,
+                            estimated_input_tokens=estimate_tokens(system_prompt + " " + user_prompt),
+                            context_budget=trace.context_budget,
+                            success=False,
+                            error_category=type(exc).__name__,
+                            error_message=str(exc),
+                        )
+                except Exception:
+                    pass
                 logger.warning(
                     "Provider %s failed: %s. Initiating fallback...",
                     provider.provider_id,

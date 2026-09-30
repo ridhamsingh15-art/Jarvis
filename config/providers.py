@@ -11,6 +11,8 @@ PROVIDER_CONFIG: dict[str, dict[str, Any]] = {
         "default_model": "qwen3:8b",
         "default_embedding_model": "nomic-embed-text",
         "timeout_seconds": 30,
+        "num_ctx": 4096,
+        "keep_alive": "5m",
         "models": {
             "general": "qwen3:8b",
             "reasoning": "deepseek-r1:8b",

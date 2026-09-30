@@ -40,6 +40,13 @@ class OllamaProvider(BaseProvider):
         self._retry_backoff_seconds = float(
             self._config.get("retry_backoff_seconds", 1.0)
         )
+        self._num_ctx = self._config.get("num_ctx")
+        if self._num_ctx is not None:
+            self._num_ctx = int(self._num_ctx)
+        self._num_predict = self._config.get("num_predict")
+        if self._num_predict is not None:
+            self._num_predict = int(self._num_predict)
+        self._keep_alive = self._config.get("keep_alive")
         self._models = dict(self._config.get("models", {}))
         self._models.setdefault("general", self._default_model)
         self._models.setdefault("reasoning", "deepseek-r1:8b")
@@ -113,7 +120,15 @@ class OllamaProvider(BaseProvider):
         start_time = time.time()
         
         url = f"{self._base_url}/api/chat"
-        payload = {
+        options: dict[str, Any] = {}
+        if self._num_ctx is not None:
+            options["num_ctx"] = self._num_ctx
+        if self._num_predict is not None:
+            options["num_predict"] = self._num_predict
+        if requirements and getattr(requirements, "min_context_length", None):
+            options["num_ctx"] = max(options.get("num_ctx", 0), requirements.min_context_length)
+
+        payload: dict[str, Any] = {
             "model": model_id,
             "messages": [
                 {"role": "system", "content": system_prompt},
@@ -121,6 +136,10 @@ class OllamaProvider(BaseProvider):
             ],
             "stream": False
         }
+        if options:
+            payload["options"] = options
+        if self._keep_alive is not None:
+            payload["keep_alive"] = self._keep_alive
         
         try:
             logger.debug("Sending generation request to Ollama: %s", model_id)
