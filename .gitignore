@@ -28,3 +28,11 @@ test_report.txt
 # Transient test workspaces and evaluation scratch scripts
 .jarvis_test_workspace/
 scratch/
+
+# Build and packaging artifacts
+build/
+dist/
+*.egg-info/
+
+# External tools and clones
+tools/toutatis/
