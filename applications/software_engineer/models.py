@@ -99,6 +99,10 @@ class CodeReviewReport:
 @dataclass(frozen=True, kw_only=True)
 class TestResult:
     """Output from the Test Engineer."""
+
+    # This domain model is imported into test modules; it is not a pytest test case.
+    __test__ = False
+
     passed: bool
     total_tests: int
     passed_tests: int

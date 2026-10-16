@@ -55,3 +55,9 @@ A failed test phase previously only logged a warning, then continued documentati
 ## Item 9 — truthful test telemetry
 
 `TestEngine.run_tests()` used a hard-coded `.venv/Scripts/python` path, had no timeout, and invented `10` tests / `85%` coverage irrespective of actual output. It now runs the current `sys.executable` with a 300-second timeout, parses pytest's terminal outcome summary (including errors/skips/xfails), returns zero/unknown coverage unless coverage is measured, and fails closed on unparseable output or missing test directory. Timeouts and launch errors become failed results without made-up test counts. The old `generate_tests()` no-op now raises `NotImplementedError` instead of silently implying work occurred. Verification: `pytest -q tests/test_test_engine.py tests/test_software_engineer.py` → **13 passed, 1 known collection warning**; Ruff on touched test-engine/model/test files → all checks passed.
+
+## Item 10 — pytest collection warning
+
+Marked the `TestResult` data model with `__test__ = False`, so pytest no longer tries to collect an imported value object as a test class. Added a small regression asserting the model opt-out. Verification: `pytest -q tests/test_software_engineer.py tests/test_test_engine.py` → **14 passed**, with no warning; focused Ruff → all checks passed.
+
+The mandatory full-suite run after items 7–9 initially used a repository-local `--basetemp`, causing three sandbox/path-guard test failures because temp files were placed under the protected repository root. Re-ran unchanged code with an explicit basetemp under `%TEMP%`: **939 passed, 1 warning in 32.53s** (exit 0). The only warning was the `TestResult` collection warning that item 10 is meant to remove.

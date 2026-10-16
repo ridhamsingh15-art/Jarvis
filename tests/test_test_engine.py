@@ -101,6 +101,12 @@ def test_generate_tests_does_not_silently_claim_success(workspace):
         engine.generate_tests(analysis, "sample.py")
 
 
+def test_test_result_model_is_not_collected_as_a_pytest_case():
+    from applications.software_engineer.models import TestResult as TestResultModel
+
+    assert TestResultModel.__test__ is False
+
+
 def test_run_tests_rejects_missing_tests_directory(tmp_path):
     result = SoftwareTestEngine(None, str(tmp_path)).run_tests()
 
