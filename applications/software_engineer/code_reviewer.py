@@ -5,7 +5,8 @@ Reviews generated code, detecting duplication, dead code, and architecture viola
 """
 import logging
 from typing import Any
-from .models import ImplementationResult, CodeReviewReport
+
+from .models import CodeReviewReport, ImplementationResult
 
 logger = logging.getLogger(__name__)
 
@@ -30,9 +31,11 @@ class CodeReviewer:
             )
             
         return CodeReviewReport(
-            approved=True,
-            comments=["Looks good to me."],
+            approved=False,
+            comments=[
+                "Automated code review is not implemented; refusing to approve unreviewed changes."
+            ],
             duplication_detected=[],
             dead_code_detected=[],
-            architecture_violations=[]
+            architecture_violations=[],
         )

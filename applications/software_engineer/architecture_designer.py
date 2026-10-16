@@ -5,7 +5,8 @@ Designs new components and produces implementation plans without writing the act
 """
 import logging
 from typing import Any
-from .models import RepositoryAnalysis, ArchitectureDesign, ComponentDesign
+
+from .models import ArchitectureDesign, RepositoryAnalysis
 
 logger = logging.getLogger(__name__)
 
@@ -19,24 +20,7 @@ class ArchitectureDesigner:
         """
         Produce a high-level architectural design for a given goal based on the repository analysis.
         """
-        logger.info(f"Designing architecture for goal: {goal}")
-        
-        # In a real implementation, this would prompt the LLM to analyze the dependencies
-        # and create a structured plan.
-        
-        # Stub implementation
-        components = [
-            ComponentDesign(
-                component_name="StubComponent",
-                purpose=f"Fulfills the goal: {goal}",
-                dependencies=[],
-                files_to_modify=[],
-                files_to_create=["stub_file.py"]
-            )
-        ]
-        
-        return ArchitectureDesign(
-            components=components,
-            architectural_patterns=["SOLID", "Dependency Injection"],
-            potential_conflicts=[]
+        logger.info("Architecture design requested for goal: %s", goal)
+        raise NotImplementedError(
+            "LLM-backed architecture design is not implemented; no synthetic design was returned."
         )
