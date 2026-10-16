@@ -8,7 +8,6 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Optional
 
 
 class EngineeringPhase(StrEnum):
@@ -73,7 +72,7 @@ class CodeDiff:
     """A change proposed or applied to a file."""
     file_path: str
     change_type: str  # 'create', 'modify', 'delete'
-    content: Optional[str] = None  # Full new content, or diff hunk
+    content: str | None = None  # Full new content, or diff hunk
     lines_added: int = 0
     lines_removed: int = 0
 
@@ -104,7 +103,7 @@ class TestResult:
     total_tests: int
     passed_tests: int
     failed_tests: int
-    coverage_percent: float = 0.0
+    coverage_percent: float | None = None
     failure_messages: list[str] = field(default_factory=list)
 
 
@@ -112,7 +111,7 @@ class TestResult:
 class DebugReport:
     """Output from the Debugger."""
     root_cause_analysis: str
-    proposed_fix: Optional[ImplementationResult] = None
+    proposed_fix: ImplementationResult | None = None
     confidence: float = 0.0
 
 
@@ -139,5 +138,5 @@ class EngineeringReport:
     success: bool
     phases_executed: list[EngineeringPhase]
     files_modified: list[str]
-    final_commit_hash: Optional[str] = None
+    final_commit_hash: str | None = None
     summary: str = ""
