@@ -37,6 +37,26 @@ async def test_cycle_detection():
     with pytest.raises(CycleError):
         builder.build()
 
+def test_build_rejects_unknown_dependency():
+    builder = WorkflowBuilder("missing_dependency")
+    node_id = builder.add_task("consumer")
+    builder.graph.state.dependencies[node_id] = {"does_not_exist"}
+
+    with pytest.raises(ValueError, match="unknown dependencies: does_not_exist"):
+        builder.build()
+
+
+def test_build_accepts_dependencies_that_reference_existing_nodes():
+    builder = WorkflowBuilder("valid_dependency")
+    prerequisite = builder.add_task("prerequisite")
+    dependent = builder.add_task("dependent", deps=[prerequisite])
+
+    graph = builder.build()
+
+    assert [node.id for node in graph.get_ready_nodes()] == [prerequisite]
+    assert graph.state.dependencies[dependent] == {prerequisite}
+
+
 @pytest.mark.asyncio
 async def test_failure_and_recovery(orchestrator):
     builder = WorkflowBuilder("test_fail")

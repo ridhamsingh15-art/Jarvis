@@ -24,6 +24,20 @@ class DependencyGraph:
         return ready
 
     def detect_cycles(self) -> None:
+        known_nodes = set(self.state.nodes)
+        orphaned_dependency_entries = set(self.state.dependencies) - known_nodes
+        if orphaned_dependency_entries:
+            names = ", ".join(sorted(orphaned_dependency_entries))
+            raise ValueError(f"Dependency entries reference unknown nodes: {names}")
+
+        for node_id, dependencies in self.state.dependencies.items():
+            missing = dependencies - known_nodes
+            if missing:
+                names = ", ".join(sorted(missing))
+                raise ValueError(
+                    f"Node '{node_id}' references unknown dependencies: {names}"
+                )
+
         visited = set()
         path = set()
 

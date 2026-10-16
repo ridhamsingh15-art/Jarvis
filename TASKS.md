@@ -4,7 +4,7 @@ Baseline: clean `feature/jarvis-control-center` HEAD, commit `9fd4956`. On 2026-
 
 - [x] **Timeout policy:** implement handler-specific timeout resolution in `ExecutionEngine` and apply the selected timeout to dispatched `ExecutionContext` tasks; pass `tests/test_codex_desktop.py::test_codex_timeout_exceeds_subprocess_timeout` plus default-timeout coverage.
 - [x] **Undefined names:** resolve all 29 Ruff `F821` findings under `core/` (currently missing `Any`, `ExecutionPlan`, and `TaskStatus` bindings); verify `ruff check core --select F821` and affected unit tests.
-- [ ] **Dependency integrity:** make `WorkflowBuilder.build()` reject dependencies that reference missing node IDs; add tests for missing and valid dependencies.
+- [x] **Dependency integrity:** make `WorkflowBuilder.build()` reject dependencies that reference missing node IDs; add tests for missing and valid dependencies.
 - [ ] **Workflow termination:** prevent `WorkflowScheduler.run_graph()` from spinning forever when upstream nodes fail and dependent nodes remain pending; add a dependent-failure regression test that completes within a bounded timeout.
 - [ ] **Retry validation:** reject `WorkflowNode.retries < 1` at construction; test zero and negative retry counts and preserve normal retries.
 - [ ] **Duplicate definitions:** remove the four Ruff `F811` redefinition findings in `core/cognition/conversation.py` and `tests/test_world_model.py`; run the focused tests and `ruff check . --select F811`.
