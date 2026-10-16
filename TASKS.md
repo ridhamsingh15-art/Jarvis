@@ -9,7 +9,7 @@
 
 ## Checklist
 - [x] **Bound identity prompt cache to the manager instance:** replace the class-level `lru_cache` on `IdentityManager.build_planner_prompt` with a bounded per-instance cache; add regression coverage for cache hits and eviction; run identity tests and targeted Ruff.
-- [ ] **Remove bare exception handlers from environment probing:** replace the two bare `except:` clauses in `scripts/evaluate_intelligence.py` with the expected subprocess/OS exception types; compile the script and run relevant evaluation tests.
+- [x] **Remove bare exception handlers from environment probing:** replace the two bare `except:` clauses in `scripts/evaluate_intelligence.py` with the expected subprocess/OS exception types; compile the script and run relevant evaluation tests.
 - [ ] **Make best-effort failures observable without leaking exception payloads:** replace production `except Exception: pass` sites reported by Ruff `S110` with safe debug diagnostics that log only exception type; verify `ruff check applications core scripts mission_control tools --select S110` and focused affected tests.
 - [ ] **Final regression gate:** run the complete test suite, full Ruff statistics, `git diff --check`, compile checks, and review the final staged diff; record actual outcomes in `NOTES.md`.
 

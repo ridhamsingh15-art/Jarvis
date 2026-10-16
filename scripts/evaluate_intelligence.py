@@ -445,11 +445,11 @@ def main():
 
     pv=sys.version.split()[0]
     try: ov=subprocess.check_output(["ollama","--version"],text=True,timeout=5).strip()
-    except: ov="unavailable"
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired): ov="unavailable"
     try:
         gi=subprocess.check_output(["nvidia-smi","--query-gpu=name,memory.total,memory.free,driver_version","--format=csv,noheader"],text=True,timeout=10).strip().split(",")
         gpu=gi[0].strip(); vt=gi[1].strip() if len(gi)>1 else "N/A"; vf=gi[2].strip() if len(gi)>2 else "N/A"; dr=gi[3].strip() if len(gi)>3 else "N/A"
-    except: gpu=vt=vf=dr="unavailable"
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired): gpu=vt=vf=dr="unavailable"
 
     env={"python":pv,"ollama":ov,"model":"N/A","gpu":gpu,"vram_total":vt,"vram_free":vf,"driver":dr}
     print(f"\n  Python: {pv}  Ollama: {ov}  GPU: {gpu} VRAM: {vt} free={vf}")

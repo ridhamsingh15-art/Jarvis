@@ -166,3 +166,8 @@ Replaced the application permission manager's unsafe stub (`check_permission` al
 ## Task 1 ? per-instance identity prompt cache
 
 Replaced the shared method-level `functools.lru_cache` with a bounded 16-entry LRU-style dictionary owned by each `IdentityManager`. This preserves prompt reuse and eviction behavior without the function-level cache retaining manager instances across their lifetimes. Added regressions for cache hits, capacity, and least-recently-used eviction. Verification: `pytest -q tests/test_identity.py` ? **22 passed in 0.16s**; Ruff on `core/identity/manager.py` and `tests/test_identity.py` ? all checks passed; `ruff check . --select B019` ? all checks passed (0 findings).
+
+
+## Task 2 ? explicit environment-probe exceptions
+
+Replaced both bare `except:` clauses in `scripts/evaluate_intelligence.py` with the expected `OSError`, `subprocess.CalledProcessError`, and `subprocess.TimeoutExpired` exception types. Missing tools and failed/timed-out probes still produce the existing `unavailable` fallback; unexpected programming errors are no longer silently hidden. Verification: `python -m py_compile scripts/evaluate_intelligence.py` passed; `ruff check scripts/evaluate_intelligence.py --select E722` passed with zero findings; `pytest -q tests/test_evaluation.py` ? **14 passed in 0.12s**; `git diff --check` passed.
