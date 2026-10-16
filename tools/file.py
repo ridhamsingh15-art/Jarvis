@@ -31,6 +31,45 @@ _PROTECTED_EXACT: tuple[str, ...] = (
 
 # The Jarvis project root (this file lives at tools/file.py)
 _PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent
+_SENSITIVE_READ_DIRS: frozenset[str] = frozenset({
+    ".ssh", ".aws", ".azure", ".gnupg", ".kube", ".docker",
+})
+_SENSITIVE_READ_FILES: frozenset[str] = frozenset({
+    "id_rsa", "id_dsa", "id_ecdsa", "id_ed25519",
+    "credentials", "credentials.json", "secrets", "secrets.json",
+    "service-account.json", "application_default_credentials.json",
+    ".netrc", ".npmrc", ".pypirc", ".git-credentials",
+    "token", "token.json", "access_token", "refresh_token",
+})
+_SENSITIVE_READ_SUFFIXES: frozenset[str] = frozenset({
+    ".pem", ".key", ".p12", ".pfx", ".ppk", ".jks", ".keystore", ".kdbx",
+})
+
+
+def _is_sensitive_read_path(path: Path) -> bool:
+    """Recognize common secret files and credential-store directories portably."""
+    parts = tuple(part.casefold() for part in path.parts)
+    name = path.name.casefold()
+    if name == ".env" or name.startswith((".env.", ".env-", ".env_")):
+        return True
+    if name in _SENSITIVE_READ_FILES or name.endswith(tuple(_SENSITIVE_READ_SUFFIXES)):
+        return True
+    if any(part in _SENSITIVE_READ_DIRS for part in parts):
+        return True
+    # Google Cloud ADC and Windows credential-manager files commonly live here.
+    for index, part in enumerate(parts[:-1]):
+        if part == ".config" and parts[index + 1] == "gcloud":
+            return True
+        if (
+            part == "appdata"
+            and index + 2 < len(parts)
+            and parts[index + 1:index + 3] in {
+                ("roaming", "microsoft"), ("local", "microsoft"),
+            }
+            and any(token in parts[index + 3:] for token in ("credentials", "vault"))
+        ):
+            return True
+    return False
 
 
 def _resolve_path(raw: str) -> Path:
@@ -80,21 +119,17 @@ def _is_protected(path: Path, read_only: bool = False) -> bool:
             return True
 
     if read_only:
-        # For read-only operations, block secret/credential files
-        if path.name == ".env" or path.name.endswith(".pem") or path.name.endswith(".key"):
-            return True
-        return False
+        # Read, list, open, copy, and move paths must not expose known credentials.
+        return _is_sensitive_read_path(path)
 
     # Check Jarvis project directory for mutations
     try:
         rel = path.relative_to(_PROJECT_ROOT)
-        if (
+        return not (
             rel.name.startswith("jarvis_session_test")
             or rel.name.startswith("test_")
             or (rel.parts and rel.parts[0] in (".jarvis_test_workspace", "jarvis_test_workspace"))
-        ):
-            return False
-        return True
+        )
     except ValueError:
         return False
 
@@ -331,7 +366,7 @@ class FileTool(BaseTool):
             Formatted listing of directory contents.
         """
         path = _resolve_path(args.get("path", ""))
-        _validate_path(path, must_exist=True)
+        _validate_path(path, must_exist=True, read_only=True)
 
         if not path.is_dir():
             raise ExecutionError(f"Not a directory: '{path}'")
@@ -388,7 +423,7 @@ class FileTool(BaseTool):
         if not new_name:
             raise ExecutionError("Missing required argument: 'new_name'")
 
-        _validate_path(path, must_exist=True)
+        _validate_path(path, must_exist=True, read_only=True)
 
         new_path = path.parent / new_name
         _validate_path(new_path)
@@ -414,7 +449,7 @@ class FileTool(BaseTool):
         source = _resolve_path(args.get("path", ""))
         dest = _resolve_path(args.get("dest", ""))
 
-        _validate_path(source, must_exist=True)
+        _validate_path(source, must_exist=True, read_only=True)
         _validate_path(dest)
 
         result_path = shutil.move(str(source), str(dest))
@@ -435,7 +470,7 @@ class FileTool(BaseTool):
         source = _resolve_path(args.get("path", ""))
         dest = _resolve_path(args.get("dest", ""))
 
-        _validate_path(source, must_exist=True)
+        _validate_path(source, must_exist=True, read_only=True)
         _validate_path(dest)
 
         if source.is_dir():
@@ -493,6 +528,7 @@ class FileTool(BaseTool):
             Success message.
         """
         path = _resolve_path(args.get("path", ""))
+        _validate_path(path, read_only=True)
 
         if not path.exists():
             raise ExecutionError(f"File does not exist: '{path}'")

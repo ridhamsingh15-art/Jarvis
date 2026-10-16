@@ -77,3 +77,7 @@ The coordinator previously handed any `ImplementationResult` to the review phase
 ## Item 14 — confirmation is an enforcement outcome
 
 `ExecutionPolicy.enforce()` previously raised only on DENY and silently returned for REQUIRE_CONFIRMATION, allowing callers that use `enforce()` as a gate to proceed before explicit approval. It now raises a dedicated `PolicyConfirmationRequired` (a `PolicyDeniedError` subtype) for pending confirmation, while continuing only for ALLOW. Verification: `pytest -q tests/test_execution_policy.py` → **21 passed**; Ruff import/unused-import checks on policy and tests → all checks passed. Existing unrelated SIM102 and silent trace-failure Ruff findings in `core/execution_policy.py` remain unmodified.
+
+## Item 15 — sensitive-file access and rename/copy/move bypasses
+
+`FileTool` previously protected only an exactly lower-case `.env`, `.pem`, and `.key` during direct reads. Added case-insensitive detection for `.env` variants, private-key and credential filenames, key/certificate/database suffixes, SSH/cloud credential directories, Google Cloud ADC, and Windows credential-store paths. Applied the guard to reading, opening, listing sensitive directories, and the source side of rename/copy/move so a secret cannot simply be renamed or copied to a benign filename before reading. Verification: `pytest -q tests/test_file_sensitive_paths.py tests/test_file_tool.py` → **16 passed**; Ruff on touched file code/tests → all checks passed.
