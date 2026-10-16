@@ -1,13 +1,11 @@
-"""
-Documentation Engineer Agent.
-
-Updates architecture docs, API docs, and developer guides.
-"""
+"""Documentation agent entry point."""
 import logging
 from typing import Any
+
 from .models import ImplementationResult, RepositoryAnalysis
 
 logger = logging.getLogger(__name__)
+
 
 class DocumentationEngine:
     def __init__(self, llm_client: Any, workspace_path: str):
@@ -15,6 +13,8 @@ class DocumentationEngine:
         self._workspace_path = workspace_path
 
     def document_changes(self, implementation: ImplementationResult, analysis: RepositoryAnalysis) -> None:
-        logger.info(f"Generating documentation for {len(implementation.diffs)} changes...")
-        # Stub
-        pass
+        """Refuse to imply documentation was updated until the writer is implemented."""
+        logger.info("Documentation requested for %d code changes", len(implementation.diffs))
+        raise NotImplementedError(
+            "Automated documentation updates are not implemented; no documentation was changed."
+        )
