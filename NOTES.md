@@ -69,3 +69,7 @@ The software-engineering architecture designer returned a synthetic `StubCompone
 ## Item 12 — honest maintenance-agent results
 
 `DependencyManager.add_dependency()` now validates simple package specifiers, updates only an existing in-workspace `requirements.txt`, is idempotent for an identical requirement, rejects conflicting pins and direct URLs, and returns false rather than success if it cannot update safely; it never installs packages. `DocumentationEngine.document_changes()` and `ReleaseManager.generate_release()` now explicitly raise `NotImplementedError` rather than silently skipping work or returning a fabricated release. `RefactoringEngine.refactor()` returns an unsuccessful result with no fake changes. Verification: focused maintenance-agent/component and coordinator tests → **16 passed**; Ruff on changed modules/tests → all checks passed.
+
+## Item 13 — coordinator validates implementation status
+
+The coordinator previously handed any `ImplementationResult` to the review phase even if `compile_success=False`, relying entirely on the reviewer to notice. It now raises exported `ImplementationFailureError` before adding file paths to the report or invoking review/testing/documentation/final checkpoint. Regression simulates a generator that lists a file it did not write and verifies no later phase is called and no false file is reported. Verification: focused SWE tests → **17 passed**; Ruff on changed coordinator, exception/export, and test files → all checks passed.

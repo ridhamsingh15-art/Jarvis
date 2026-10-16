@@ -114,6 +114,57 @@ class TestCoordinator:
 
     @patch("applications.software_engineer.coordinator.GitManager")
     @patch("applications.software_engineer.coordinator.QualityManager")
+    def test_execute_mission_stops_when_generation_fails(self, MockQuality, MockGit):
+        coordinator = SoftwareEngineeringCoordinator(
+            llm_client=Mock(),
+            workspace_path="/fake/path",
+            git_manager=MockGit.return_value,
+            quality_manager=MockQuality.return_value,
+        )
+        coordinator._planner.plan_phases = Mock(return_value=[
+            EngineeringPhase.ANALYSIS,
+            EngineeringPhase.DESIGN,
+            EngineeringPhase.GENERATION,
+            EngineeringPhase.REVIEW,
+            EngineeringPhase.TESTING,
+            EngineeringPhase.DOCUMENTATION,
+        ])
+        coordinator._analyzer.analyze = Mock(return_value=RepositoryAnalysis(
+            dependency_graph=DependencyGraph(modules=[], imports={}),
+            primary_language="Python",
+            detected_frameworks=[],
+            entry_points=[],
+            relevant_files=[],
+        ))
+        coordinator._designer.design = Mock(return_value=Mock())
+        coordinator._generator.generate = Mock(return_value=ImplementationResult(
+            diffs=[], files_touched=["not-written.py"], compile_success=False,
+            errors=["generator is unavailable"],
+        ))
+        coordinator._reviewer.review = Mock(return_value=CodeReviewReport(
+            approved=True, comments=[],
+        ))
+        coordinator._tester.run_tests = Mock(return_value=TestResult(
+            passed=True, total_tests=1, passed_tests=1, failed_tests=0,
+        ))
+        coordinator._documenter.document_changes = Mock()
+        MockGit.return_value.create_checkpoint.return_value = "checkpoint-hash"
+
+        report = coordinator.execute_mission(
+            EngineeringMissionContext(workspace_path="/fake/path", goal="Test goal")
+        )
+
+        assert report.success is False
+        assert "generator is unavailable" in report.summary
+        assert report.phases_executed[-1] == EngineeringPhase.GENERATION
+        assert report.files_modified == []
+        coordinator._reviewer.review.assert_not_called()
+        coordinator._tester.run_tests.assert_not_called()
+        coordinator._documenter.document_changes.assert_not_called()
+        assert MockGit.return_value.create_checkpoint.call_count == 1
+
+    @patch("applications.software_engineer.coordinator.GitManager")
+    @patch("applications.software_engineer.coordinator.QualityManager")
     def test_execute_mission_continues_after_passing_tests(self, MockQuality, MockGit):
         coordinator = SoftwareEngineeringCoordinator(
             llm_client=Mock(),

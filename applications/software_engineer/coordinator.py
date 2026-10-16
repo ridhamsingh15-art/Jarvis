@@ -10,7 +10,11 @@ from .architecture_designer import ArchitectureDesigner
 from .code_generator import CodeGenerator
 from .code_reviewer import CodeReviewer
 from .documentation_engine import DocumentationEngine
-from .exceptions import ReviewRejectionError, TestFailureError
+from .exceptions import (
+    ImplementationFailureError,
+    ReviewRejectionError,
+    TestFailureError,
+)
 from .git_manager import GitManager
 from .models import (
     EngineeringMissionContext,
@@ -77,6 +81,12 @@ class SoftwareEngineeringCoordinator:
                     self._quality.record_checkpoint()
                     
                     implementation = self._generator.generate(design)
+                    if not implementation.compile_success:
+                        details = "; ".join(error for error in implementation.errors if error.strip())
+                        raise ImplementationFailureError(
+                            "Code generation did not produce a successful implementation: "
+                            f"{details or 'no failure details were provided'}"
+                        )
                     files_modified.extend(implementation.files_touched)
                     
                 elif phase == EngineeringPhase.REVIEW:

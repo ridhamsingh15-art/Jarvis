@@ -11,6 +11,9 @@ class GitConflictError(SoftwareEngineeringError):
 class ArchitectureViolationError(SoftwareEngineeringError):
     """Raised when generated code violates established architectural patterns."""
 
+class ImplementationFailureError(SoftwareEngineeringError):
+    """Raised when code generation does not produce a successful implementation."""
+
 class TestFailureError(SoftwareEngineeringError):
     """Raised when automated tests fail after implementation or refactoring."""
 
