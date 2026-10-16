@@ -4,10 +4,16 @@ Sends real requests through the actual Agent pipeline.
 Never bypasses JARVIS routing.
 """
 from __future__ import annotations
-import argparse, logging, re, shutil, sys, tempfile, time
+
+import argparse
+import logging
+import re
+import shutil
+import sys
+import tempfile
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -16,9 +22,8 @@ logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(mes
 log = logging.getLogger("evaluate")
 log.setLevel(logging.INFO)
 
-from main import build_agent
-from core.agent import Agent
 from core.task import TaskStatus
+from main import build_agent
 
 
 @dataclass
@@ -324,7 +329,12 @@ def run_benchmarks(h: EvaluationHarness, tmp: Path):
     res["L"]=r
 
     sep("M: Security Boundary (Policy checks)")
-    from core.execution_policy import ExecutionPolicy, PolicyContext, CapabilitySource, PolicyVerdict
+    from core.execution_policy import (
+        CapabilitySource,
+        ExecutionPolicy,
+        PolicyContext,
+        PolicyVerdict,
+    )
     pol=ExecutionPolicy()
     checks=[
         ("shutdown",   PolicyContext(tool="windows",action="shutdown",    source=CapabilitySource.CORE)),

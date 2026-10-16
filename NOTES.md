@@ -109,3 +109,11 @@ Applied Ruff safe F401/I001 fixes under `applications/` only: **137 findings rem
 ## Item 22 — tests and remaining first-party modules safe lint cleanup
 
 Applied Ruff safe F401/I001 fixes under `tests/`, `agents/`, `gui/`, and `tools/`, excluding the third-party `tools/toutatis` subtree. **207 findings removed**. Verification: `git diff --check` passed; targeted Ruff F401/I001 across all included paths passed with zero findings; focused agent/bootstrap/file/shell/plugin/MCP/integration/voice/SWE/content-factory tests → **135 passed in 13.21s**. Some test files lost unused imports only; behavior was checked by the focused test run and will receive the required full-suite gate now.
+
+## Full-suite gate after items 20–22
+
+`pytest -q --basetemp %TEMP%\pytest-jarvis-full-after-import-cleanup` → **975 passed in 33.22s**, exit 0, no warning summary. Whole-repo Ruff at that gate: **532 findings** (down from 1,157 clean-HEAD baseline); F821/F811/PLW1510/RUF012 all clean. The first-party safe import subset (`core applications tests agents gui tools`, excluding the untracked third-party `tools/toutatis` tree) also now reports zero F401/I001 findings.
+
+## Item 23 — entrypoint and scripts safe lint cleanup
+
+Applied Ruff's safe F401/I001 fixes to `main.py`, tracked `scripts/`, and tracked `workspace/` helpers only. The pre-existing untracked `jarvis_test_workspace/` remains untouched; its 3 import-order/unused-import findings are still included in an unfiltered `ruff check .`. Verification: `git diff --check` passed; targeted F401/I001 passed; `compileall` passed for `main.py scripts workspace`; `python main.py --help` succeeded; startup/evaluation/phase regression tests → **152 passed in 6.47s**.

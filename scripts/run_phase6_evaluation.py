@@ -36,7 +36,8 @@ sys.path.insert(0, str(PROJECT_ROOT))
 os.environ["OLLAMA_MODELS"] = r"D:\Ollama\Models"
 
 from core.mission_verifier import MissionCompletionVerifier
-from core.task import Task as JT, TaskStatus
+from core.task import Task as JT
+from core.task import TaskStatus
 from main import build_agent
 
 

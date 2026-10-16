@@ -18,7 +18,6 @@ import tempfile
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -26,10 +25,10 @@ sys.path.insert(0, str(PROJECT_ROOT))
 os.environ["JARVIS_MODEL"] = "qwen3-coder:30b-a3b-q4_K_M"
 os.environ["JARVIS_TIMEOUT"] = "180"
 
-from main import build_agent
-from core.agent import Agent
-from core.task import TaskStatus, Task as JT
 from core.mission_verifier import MissionCompletionVerifier
+from core.task import Task as JT
+from core.task import TaskStatus
+from main import build_agent
 
 
 @dataclass

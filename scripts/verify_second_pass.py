@@ -16,9 +16,9 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
 
-from main import build_agent
 from core.agent import Agent
-from core.task import TaskStatus
+from main import build_agent
+
 
 def main():
     print("=" * 80)

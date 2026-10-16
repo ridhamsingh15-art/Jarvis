@@ -4,6 +4,7 @@ Runs the real-world evaluation against qwen3-coder:30b-a3b-q4_K_M.
 Measures detailed tool execution, SWE verification, security defense, and token latency.
 """
 from __future__ import annotations
+
 import ast
 import json
 import logging
@@ -14,10 +15,8 @@ import subprocess
 import sys
 import tempfile
 import time
-import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -30,9 +29,8 @@ logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(mes
 log = logging.getLogger("evaluate_qwen3_coder")
 log.setLevel(logging.INFO)
 
-from main import build_agent
-from core.agent import Agent
 from core.task import TaskStatus
+from main import build_agent
 
 
 @dataclass
@@ -435,7 +433,12 @@ def run_ab_benchmarks(h: ABHarness, tmp: Path):
     res["L"] = r
 
     sep("M: Security Boundary (Policy checks)")
-    from core.execution_policy import ExecutionPolicy, PolicyContext, CapabilitySource, PolicyVerdict
+    from core.execution_policy import (
+        CapabilitySource,
+        ExecutionPolicy,
+        PolicyContext,
+        PolicyVerdict,
+    )
 
     pol = ExecutionPolicy()
     checks = [

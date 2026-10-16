@@ -9,7 +9,7 @@ import argparse
 import logging
 import sys
 from pathlib import Path
-from typing import NamedTuple, Any
+from typing import Any, NamedTuple
 
 from config.config import load_config
 from core.agent import Agent
@@ -87,21 +87,22 @@ class CognitionContext(NamedTuple):
 
 def _build_infra(config) -> InfraContext:
     """Build core infrastructure: registry, router, executor, event bus."""
+    from unittest.mock import MagicMock
+
     from config.model_config import ModelRouterConfig
+    from core.events.bus import EventBus
     from core.executor.action_registry import ActionRegistry
     from core.executor.executor import ExecutionEngine
-    from core.model_router import ModelRouter
     from core.identity.manager import IdentityManager
     from core.llm import LLMClient
+    from core.model_router import ModelRouter
     from core.telemetry.levels import LogLevel
     from core.telemetry.logger import AsyncLogger
-    from core.events.bus import EventBus
     from providers.fallback_manager import FallbackManager
     from providers.health_monitor import HealthMonitor
     from providers.provider_factory import ProviderFactory
     from providers.provider_registry import ProviderRegistry
     from providers.selection_policy import WeightedScorePolicy
-    from unittest.mock import MagicMock
 
     # Tools
     windows_tool = WindowsTool()
@@ -228,6 +229,63 @@ def _build_memory_stack(config, infra: InfraContext) -> MemoryContext:
 
 def _build_content_factory(infra: InfraContext, mem: MemoryContext) -> ContentContext:
     """Build all Content Factory engines and integration managers."""
+    from applications.content_factory.analytics_engine.manager import (
+        AnalyticsEngineManager,
+    )
+    from applications.content_factory.analytics_engine.planner import AnalyticsPlanner
+    from applications.content_factory.analytics_engine.telemetry import (
+        AnalyticsEngineTelemetry,
+    )
+    from applications.content_factory.analytics_engine.tracker import AnalyticsTracker
+    from applications.content_factory.animation_engine.asset_pipeline import (
+        AnimationAssetPipeline,
+    )
+    from applications.content_factory.animation_engine.manager import (
+        AnimationEngineManager,
+    )
+    from applications.content_factory.animation_engine.planner import (
+        AnimationGenerationPlanner,
+    )
+    from applications.content_factory.animation_engine.quality import (
+        AnimationQualityEvaluator,
+    )
+    from applications.content_factory.animation_engine.renderer import AnimationRenderer
+    from applications.content_factory.animation_engine.scheduler import (
+        AnimationScheduler,
+    )
+    from applications.content_factory.animation_engine.telemetry import (
+        AnimationEngineTelemetry,
+    )
+    from applications.content_factory.animation_engine.validator import (
+        AnimationValidator,
+    )
+    from applications.content_factory.consistency_engine.asset_matcher import (
+        AssetMatcher,
+    )
+    from applications.content_factory.consistency_engine.character_library import (
+        CharacterLibrary,
+    )
+    from applications.content_factory.consistency_engine.environment_library import (
+        EnvironmentLibrary,
+    )
+    from applications.content_factory.consistency_engine.manager import (
+        ConsistencyEngineManager,
+    )
+    from applications.content_factory.consistency_engine.object_library import (
+        ObjectLibrary,
+    )
+    from applications.content_factory.consistency_engine.prompt_enricher import (
+        PromptEnricher,
+    )
+    from applications.content_factory.consistency_engine.registry import (
+        ConsistencyRegistry,
+    )
+    from applications.content_factory.consistency_engine.telemetry import (
+        ConsistencyTelemetry,
+    )
+    from applications.content_factory.consistency_engine.validator import (
+        ProfileValidator,
+    )
     from applications.content_factory.image_engine.asset_pipeline import AssetPipeline
     from applications.content_factory.image_engine.manager import ImageEngineManager
     from applications.content_factory.image_engine.planner import ImageGenerationPlanner
@@ -238,96 +296,91 @@ def _build_content_factory(infra: InfraContext, mem: MemoryContext) -> ContentCo
     from applications.content_factory.image_engine.validator import (
         ImageValidator as ImageEngineValidator,
     )
-
-    from applications.content_factory.consistency_engine.manager import ConsistencyEngineManager
-    from applications.content_factory.consistency_engine.registry import ConsistencyRegistry
-    from applications.content_factory.consistency_engine.character_library import CharacterLibrary
-    from applications.content_factory.consistency_engine.environment_library import EnvironmentLibrary
-    from applications.content_factory.consistency_engine.object_library import ObjectLibrary
-    from applications.content_factory.consistency_engine.asset_matcher import AssetMatcher
-    from applications.content_factory.consistency_engine.prompt_enricher import PromptEnricher
-    from applications.content_factory.consistency_engine.telemetry import ConsistencyTelemetry
-    from applications.content_factory.consistency_engine.validator import ProfileValidator
-
-    from applications.content_factory.animation_engine.manager import AnimationEngineManager
-    from applications.content_factory.animation_engine.planner import AnimationGenerationPlanner
-    from applications.content_factory.animation_engine.scheduler import AnimationScheduler
-    from applications.content_factory.animation_engine.asset_pipeline import AnimationAssetPipeline
-    from applications.content_factory.animation_engine.renderer import AnimationRenderer
-    from applications.content_factory.animation_engine.quality import AnimationQualityEvaluator
-    from applications.content_factory.animation_engine.validator import AnimationValidator
-    from applications.content_factory.animation_engine.telemetry import AnimationEngineTelemetry
-
-    from applications.content_factory.voice_engine.manager import VoiceEngineManager
-    from applications.content_factory.voice_engine.planner import VoiceGenerationPlanner
-    from applications.content_factory.voice_engine.scheduler import VoiceScheduler
-    from applications.content_factory.voice_engine.asset_pipeline import VoiceAssetPipeline
-    from applications.content_factory.voice_engine.renderer import VoiceRenderer
-    from applications.content_factory.voice_engine.quality import VoiceQualityEvaluator
-    from applications.content_factory.voice_engine.validator import VoiceValidator
-    from applications.content_factory.voice_engine.telemetry import VoiceEngineTelemetry
-
-    from applications.content_factory.video_engine.manager import VideoEngineManager
-    from applications.content_factory.video_engine.planner import VideoGenerationPlanner
-    from applications.content_factory.video_engine.timeline import TimelineBuilder
-    from applications.content_factory.video_engine.assembler import SceneSequencer
-    from applications.content_factory.video_engine.ffmpeg_adapter import FFmpegAdapter
-    from applications.content_factory.video_engine.renderer import VideoRenderer
-    from applications.content_factory.video_engine.validator import VideoValidator
-    from applications.content_factory.video_engine.telemetry import VideoEngineTelemetry
-
+    from applications.content_factory.music_engine.generator import MusicGenerator
     from applications.content_factory.music_engine.manager import MusicEngineManager
     from applications.content_factory.music_engine.planner import MusicGenerationPlanner
-    from applications.content_factory.music_engine.generator import MusicGenerator
     from applications.content_factory.music_engine.telemetry import MusicEngineTelemetry
-
-    from applications.content_factory.subtitle_engine.manager import SubtitleEngineManager
-    from applications.content_factory.subtitle_engine.planner import SubtitleGenerationPlanner
-    from applications.content_factory.subtitle_engine.generator import SubtitleGenerator
-    from applications.content_factory.subtitle_engine.telemetry import SubtitleEngineTelemetry
-
-    from applications.content_factory.thumbnail_engine.manager import ThumbnailEngineManager
-    from applications.content_factory.thumbnail_engine.planner import ThumbnailGenerationPlanner
-    from applications.content_factory.thumbnail_engine.generator import ThumbnailGenerator
-    from applications.content_factory.thumbnail_engine.telemetry import ThumbnailEngineTelemetry
-
-    from applications.content_factory.seo_engine.manager import SEOEngineManager
-    from applications.content_factory.seo_engine.planner import SEOGenerationPlanner
-    from applications.content_factory.seo_engine.generator import SEOGenerator
-    from applications.content_factory.seo_engine.telemetry import SEOEngineTelemetry
-
-    from applications.content_factory.publishing_engine.manager import PublishingEngineManager
-    from applications.content_factory.publishing_engine.planner import PublishingPlanner
-    from applications.content_factory.publishing_engine.adapter import PublishingAdapter
-    from applications.content_factory.publishing_engine.telemetry import PublishingEngineTelemetry
-
-    from applications.content_factory.analytics_engine.manager import AnalyticsEngineManager
-    from applications.content_factory.analytics_engine.planner import AnalyticsPlanner
-    from applications.content_factory.analytics_engine.tracker import AnalyticsTracker
-    from applications.content_factory.analytics_engine.telemetry import AnalyticsEngineTelemetry
-
     from applications.content_factory.project.asset_manager import AssetManager
     from applications.content_factory.project.manager import ProjectManager
     from applications.content_factory.project.registry import ProjectRegistry
     from applications.content_factory.project.storage import ProjectStorage
     from applications.content_factory.project.telemetry import ProjectManagerTelemetry
     from applications.content_factory.project.validator import ProjectValidator
+    from applications.content_factory.publishing_engine.adapter import PublishingAdapter
+    from applications.content_factory.publishing_engine.manager import (
+        PublishingEngineManager,
+    )
+    from applications.content_factory.publishing_engine.planner import PublishingPlanner
+    from applications.content_factory.publishing_engine.telemetry import (
+        PublishingEngineTelemetry,
+    )
     from applications.content_factory.script_engine.generator import ScriptGenerator
     from applications.content_factory.script_engine.manager import ScriptEngineManager
     from applications.content_factory.script_engine.planner import ScriptPlanner
-    from applications.content_factory.script_engine.telemetry import ScriptEngineTelemetry
-    from applications.content_factory.storyboard_engine.generator import StoryboardGenerator
-    from applications.content_factory.storyboard_engine.manager import StoryboardEngineManager
+    from applications.content_factory.script_engine.telemetry import (
+        ScriptEngineTelemetry,
+    )
+    from applications.content_factory.seo_engine.generator import SEOGenerator
+    from applications.content_factory.seo_engine.manager import SEOEngineManager
+    from applications.content_factory.seo_engine.planner import SEOGenerationPlanner
+    from applications.content_factory.seo_engine.telemetry import SEOEngineTelemetry
+    from applications.content_factory.storyboard_engine.generator import (
+        StoryboardGenerator,
+    )
+    from applications.content_factory.storyboard_engine.manager import (
+        StoryboardEngineManager,
+    )
     from applications.content_factory.storyboard_engine.planner import StoryboardPlanner
-    from applications.content_factory.storyboard_engine.telemetry import StoryboardEngineTelemetry
-
+    from applications.content_factory.storyboard_engine.telemetry import (
+        StoryboardEngineTelemetry,
+    )
+    from applications.content_factory.subtitle_engine.generator import SubtitleGenerator
+    from applications.content_factory.subtitle_engine.manager import (
+        SubtitleEngineManager,
+    )
+    from applications.content_factory.subtitle_engine.planner import (
+        SubtitleGenerationPlanner,
+    )
+    from applications.content_factory.subtitle_engine.telemetry import (
+        SubtitleEngineTelemetry,
+    )
+    from applications.content_factory.thumbnail_engine.generator import (
+        ThumbnailGenerator,
+    )
+    from applications.content_factory.thumbnail_engine.manager import (
+        ThumbnailEngineManager,
+    )
+    from applications.content_factory.thumbnail_engine.planner import (
+        ThumbnailGenerationPlanner,
+    )
+    from applications.content_factory.thumbnail_engine.telemetry import (
+        ThumbnailEngineTelemetry,
+    )
+    from applications.content_factory.video_engine.assembler import SceneSequencer
+    from applications.content_factory.video_engine.ffmpeg_adapter import FFmpegAdapter
+    from applications.content_factory.video_engine.manager import VideoEngineManager
+    from applications.content_factory.video_engine.planner import VideoGenerationPlanner
+    from applications.content_factory.video_engine.renderer import VideoRenderer
+    from applications.content_factory.video_engine.telemetry import VideoEngineTelemetry
+    from applications.content_factory.video_engine.timeline import TimelineBuilder
+    from applications.content_factory.video_engine.validator import VideoValidator
+    from applications.content_factory.voice_engine.asset_pipeline import (
+        VoiceAssetPipeline,
+    )
+    from applications.content_factory.voice_engine.manager import VoiceEngineManager
+    from applications.content_factory.voice_engine.planner import VoiceGenerationPlanner
+    from applications.content_factory.voice_engine.quality import VoiceQualityEvaluator
+    from applications.content_factory.voice_engine.renderer import VoiceRenderer
+    from applications.content_factory.voice_engine.scheduler import VoiceScheduler
+    from applications.content_factory.voice_engine.telemetry import VoiceEngineTelemetry
+    from applications.content_factory.voice_engine.validator import VoiceValidator
+    from config.config import load_config as _lc
     from core.integrations.n8n.capability import N8nCapabilityManager
     from core.integrations.n8n.client import N8nClient
     from core.integrations.n8n.installer import N8nInstaller
     from core.integrations.n8n.telemetry import N8nTelemetry
     from core.integrations.n8n.workflow_registry import N8nWorkflowRegistry
     from core.integrations.n8n.workflow_runner import N8nWorkflowRunner
-    from config.config import load_config as _lc
     config = _lc()
 
     # n8n
@@ -457,18 +510,23 @@ def _build_content_factory(infra: InfraContext, mem: MemoryContext) -> ContentCo
 def _build_cognition_stack(infra: InfraContext, mem: MemoryContext, content: ContentContext) -> CognitionContext:
     """Build CognitiveManager, ToolIntelligence, and CapabilityManager."""
     from core.capability import (
-        Capability, CapabilityManager, CapabilityType, CostTier, LatencyTier, ModelProfile,
+        Capability,
+        CapabilityManager,
+        CapabilityType,
+        CostTier,
+        LatencyTier,
+        ModelProfile,
     )
     from core.cognition.context import ShortTermContext
+    from core.cognition.context_orchestrator import ContextOrchestrator
     from core.cognition.conversation import ConversationEngine
     from core.cognition.manager import CognitiveManager
-    from core.cognition.reflection import CognitiveReflection
-    from core.cognition.retrieval import MemoryRetriever
-    from core.cognition.workspace_provider import WorkspaceProvider
     from core.cognition.mission_provider import MissionProvider
     from core.cognition.project_provider import ProjectProvider
+    from core.cognition.reflection import CognitiveReflection
+    from core.cognition.retrieval import MemoryRetriever
     from core.cognition.tool_provider import ToolProvider
-    from core.cognition.context_orchestrator import ContextOrchestrator
+    from core.cognition.workspace_provider import WorkspaceProvider
     from core.executive.manager import ExecutiveBrain
     from core.tool_intelligence import ToolIntelligenceManager
 
