@@ -217,3 +217,31 @@ def test_conversation_engine_uses_identity_manager() -> None:
     assert "JARVIS" in response.message
     assert "Qwen" not in response.message
     assert response.type == "RESPONSE"
+
+
+def test_identity_manager_planner_prompt_cache_hits() -> None:
+    mgr = IdentityManager(active_model="test", active_provider="test")
+    builder = MagicMock(return_value="cached prompt")
+    mgr._prompt_builder.build_planner_prompt = builder
+
+    assert mgr.build_planner_prompt("tools", "context") == "cached prompt"
+    assert mgr.build_planner_prompt("tools", "context") == "cached prompt"
+    builder.assert_called_once_with("tools", "context")
+
+
+def test_identity_manager_planner_prompt_cache_is_bounded_and_evicts_lru() -> None:
+    mgr = IdentityManager(active_model="test", active_provider="test")
+    builder = MagicMock(side_effect=lambda tools, context: f"{tools}:{context}")
+    mgr._prompt_builder.build_planner_prompt = builder
+
+    for index in range(16):
+        mgr.build_planner_prompt(f"tool-{index}", "context")
+    # Access the oldest entry so the next insertion evicts tool-1, not tool-0.
+    mgr.build_planner_prompt("tool-0", "context")
+    mgr.build_planner_prompt("tool-16", "context")
+    assert len(mgr._planner_prompt_cache) == 16
+
+    builder.reset_mock()
+    mgr.build_planner_prompt("tool-0", "context")
+    mgr.build_planner_prompt("tool-1", "context")
+    builder.assert_called_once_with("tool-1", "context")

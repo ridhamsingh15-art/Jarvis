@@ -1,4 +1,4 @@
-﻿# Audit-Derived Reliability Tasks
+# Audit-Derived Reliability Tasks
 
 ## Verified baseline (2026-10-17)
 - Branch: `feature/jarvis-control-center`; HEAD: `c720084` (`fix(swe): harden repository analysis`).
@@ -8,7 +8,7 @@
 - Worktree contains pre-existing edits in `core/applications/installer.py` and `core/applications/permissions.py`, plus untracked `jarvis_test_workspace/`. These were inspected and are intentionally excluded from audit commits; do not overwrite, stage, or remove them.
 
 ## Checklist
-- [ ] **Bound identity prompt cache to the manager instance:** replace the class-level `lru_cache` on `IdentityManager.build_planner_prompt` with a bounded per-instance cache; add regression coverage for cache hits and eviction; run identity tests and targeted Ruff.
+- [x] **Bound identity prompt cache to the manager instance:** replace the class-level `lru_cache` on `IdentityManager.build_planner_prompt` with a bounded per-instance cache; add regression coverage for cache hits and eviction; run identity tests and targeted Ruff.
 - [ ] **Remove bare exception handlers from environment probing:** replace the two bare `except:` clauses in `scripts/evaluate_intelligence.py` with the expected subprocess/OS exception types; compile the script and run relevant evaluation tests.
 - [ ] **Make best-effort failures observable without leaking exception payloads:** replace production `except Exception: pass` sites reported by Ruff `S110` with safe debug diagnostics that log only exception type; verify `ruff check applications core scripts mission_control tools --select S110` and focused affected tests.
 - [ ] **Final regression gate:** run the complete test suite, full Ruff statistics, `git diff --check`, compile checks, and review the final staged diff; record actual outcomes in `NOTES.md`.

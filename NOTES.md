@@ -161,3 +161,8 @@ Replaced the application permission manager's unsafe stub (`check_permission` al
 - No first-party TODO/FIXME/HACK/XXX marker was confirmed by the initial scan; the scan also traversed `.jarvis_backups` and found old backup copies, so those are not treated as current source. A docs example containing `todo.txt` is not a TODO marker.
 - Several `NotImplementedError` paths are explicit fail-closed responses for unsupported software-engineering capabilities, rather than false-success stubs. They remain a documented capability limitation unless tests or call paths show that an advertised workflow falsely claims completion.
 - Audit caution: prior NOTES/TASKS history contains historical test and Ruff counts from different commits and worktree snapshots. The counts above are the authoritative baseline for this session; historical figures are not comparable without matching commit/worktree state.
+
+
+## Task 1 ? per-instance identity prompt cache
+
+Replaced the shared method-level `functools.lru_cache` with a bounded 16-entry LRU-style dictionary owned by each `IdentityManager`. This preserves prompt reuse and eviction behavior without the function-level cache retaining manager instances across their lifetimes. Added regressions for cache hits, capacity, and least-recently-used eviction. Verification: `pytest -q tests/test_identity.py` ? **22 passed in 0.16s**; Ruff on `core/identity/manager.py` and `tests/test_identity.py` ? all checks passed; `ruff check . --select B019` ? all checks passed (0 findings).

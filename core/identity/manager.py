@@ -6,7 +6,6 @@ depend on for identity-related concerns. It composes Persona,
 PromptBuilder, GuardrailEngine, and IdentityContextBuilder internally.
 """
 
-import functools
 import logging
 
 from core.cognition.context_models import ContextPackage
@@ -39,6 +38,9 @@ class IdentityManager:
         )
         self._identity_context: IdentityContext = self._context_builder.build()
         self._prompt_builder = PromptBuilder(self._identity_context)
+        # Keep prompt entries on this manager instance; a function-level lru_cache
+        # on a method retains `self` in its shared cache across manager lifetimes.
+        self._planner_prompt_cache: dict[tuple[str, str], str] = {}
         logger.info(
             "IdentityManager initialized (model=%s, provider=%s)",
             active_model,
@@ -50,7 +52,6 @@ class IdentityManager:
         # Using a simple hash caching mechanism directly since state/context might not be hashable by functools
         return self._prompt_builder.build_conversation_prompt(state, context_package)
 
-    @functools.lru_cache(maxsize=16)
     def build_planner_prompt(self, tool_descriptions: str, context: str) -> str:
         """Build the system prompt for the Planner.
 
@@ -61,7 +62,18 @@ class IdentityManager:
         Returns:
             Full system prompt for the planning pipeline.
         """
-        return self._prompt_builder.build_planner_prompt(tool_descriptions, context)
+        key = (tool_descriptions, context)
+        if key in self._planner_prompt_cache:
+            prompt = self._planner_prompt_cache.pop(key)
+            self._planner_prompt_cache[key] = prompt
+            return prompt
+
+        prompt = self._prompt_builder.build_planner_prompt(tool_descriptions, context)
+        self._planner_prompt_cache[key] = prompt
+        if len(self._planner_prompt_cache) > 16:
+            oldest_key = next(iter(self._planner_prompt_cache))
+            del self._planner_prompt_cache[oldest_key]
+        return prompt
 
     def apply_guardrails(self, text: str) -> str:
         """Post-process LLM output to enforce JARVIS identity.
