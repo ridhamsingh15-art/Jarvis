@@ -3,6 +3,7 @@ import time
 
 from core.tasks import TaskManager, TaskStatus
 
+from .executor import ExecutionEngine
 from .models import ExecutionContext
 from .pool import WorkerPool
 from .timeouts import TimeoutEnforcer
@@ -11,10 +12,17 @@ from .timeouts import TimeoutEnforcer
 class TaskDispatcher:
     """Daemon thread bridging the TaskManager queue and the WorkerPool."""
     
-    def __init__(self, task_manager: TaskManager, pool: WorkerPool, timeout_enforcer: TimeoutEnforcer):
+    def __init__(
+        self,
+        task_manager: TaskManager,
+        pool: WorkerPool,
+        timeout_enforcer: TimeoutEnforcer,
+        engine: ExecutionEngine,
+    ):
         self._task_manager = task_manager
         self._pool = pool
         self._timeout_enforcer = timeout_enforcer
+        self._engine = engine
         
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -55,6 +63,11 @@ class TaskDispatcher:
                 
             # 3. Transition to RUNNING, build context and assign
             running_task = self._task_manager.transition_task(task.task_id.value, TaskStatus.RUNNING)
+            effective_timeout = self._engine.timeout_for_task(
+                running_task, running_task.timeout_seconds
+            )
+            if effective_timeout != running_task.timeout_seconds:
+                running_task = running_task.copy(timeout_seconds=effective_timeout)
             context = ExecutionContext(task=running_task)
             self._timeout_enforcer.track(running_task.task_id.value, context)
             worker.assign(context)

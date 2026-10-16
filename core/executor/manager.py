@@ -29,7 +29,7 @@ class ExecutorManager(BaseComponent):
         
         self._timeouts = TimeoutEnforcer()
         self._pool = WorkerPool("JarvisExecutor", min_workers, max_workers, self._engine.execute_context, self._handle_worker_completion)
-        self._dispatcher = TaskDispatcher(task_manager, self._pool, self._timeouts)
+        self._dispatcher = TaskDispatcher(task_manager, self._pool, self._timeouts, self._engine)
 
     def register_action(self, action_name: str, handler: Callable) -> None:
         """Registers a callable into the execution engine."""

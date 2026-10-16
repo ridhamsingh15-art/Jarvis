@@ -1,8 +1,11 @@
+import math
+from numbers import Real
 from typing import Any
 
 from core.task import TaskStatus
 
 from .action_registry import ActionRegistry
+from .exceptions import ActionNotFoundError
 from .models import ExecutionContext
 
 
@@ -12,6 +15,31 @@ class ExecutionEngine:
     def __init__(self, registry: ActionRegistry):
         self._registry = registry
         
+    def timeout_for_task(self, task: Any, default_timeout: float | None) -> float | None:
+        """Resolve a handler timeout without reducing an explicitly larger budget."""
+        if default_timeout is not None and (
+            not isinstance(default_timeout, Real)
+            or isinstance(default_timeout, bool)
+            or not math.isfinite(default_timeout)
+            or default_timeout <= 0
+        ):
+            raise ValueError("default_timeout must be a finite positive number or None")
+
+        try:
+            handler = self._registry.get(task.action)
+        except (AttributeError, ActionNotFoundError):
+            return float(default_timeout) if default_timeout is not None else None
+
+        timeout = getattr(handler, "execution_timeout_seconds", None)
+        if (
+            isinstance(timeout, Real)
+            and not isinstance(timeout, bool)
+            and math.isfinite(timeout)
+            and timeout > 0
+        ):
+            return max(float(timeout), float(default_timeout or 0.0))
+        return float(default_timeout) if default_timeout is not None else None
+
     def execute_context(self, context: ExecutionContext) -> dict[str, Any]:
         """
         Locates the action in the registry and invokes it.

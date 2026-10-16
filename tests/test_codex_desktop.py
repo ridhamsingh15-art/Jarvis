@@ -42,6 +42,26 @@ def test_codex_timeout_exceeds_subprocess_timeout():
 
     assert tool.execution_timeout_seconds > 240
     assert executor.timeout_for_task(task, 30.0) == tool.execution_timeout_seconds
+    # A larger caller-provided budget must not be shortened by the handler default.
+    assert executor.timeout_for_task(task, 300.0) == 300.0
+
+
+def test_timeout_for_task_uses_default_for_invalid_handler_override():
+    registry = ActionRegistry()
+
+    def handler(_context, **kwargs):
+        return "ok"
+
+    handler.execution_timeout_seconds = float("nan")
+    registry.register("run_codex_task", handler)
+    executor = ExecutionEngine(registry)
+    task = Task(
+        tool="codex_desktop",
+        action="run_codex_task",
+        args={"task": "Read only desktop observation"},
+    )
+
+    assert executor.timeout_for_task(task, 30.0) == 30.0
 
 
 def test_parse_events_extracts_final_agent_message():
