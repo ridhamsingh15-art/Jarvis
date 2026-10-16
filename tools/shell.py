@@ -21,7 +21,6 @@ from __future__ import annotations
 import logging
 import os
 import re
-import shlex
 import subprocess
 import sys
 import time
@@ -60,7 +59,42 @@ _BLOCKED_ENV_KEYS: frozenset[str] = frozenset({
     "JARVIS_SECRET_KEY",
     "API_KEY",
     "ACCESS_TOKEN",
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SHARED_CREDENTIALS_FILE",
+    "AWS_CONFIG_FILE",
+    "AWS_PROFILE",
+    "AZURE_CONFIG_DIR",
+    "CLOUDSDK_CONFIG",
+    "CLOUDSDK_AUTH_CREDENTIAL_FILE_OVERRIDE",
+    "KUBECONFIG",
+    "DOCKER_CONFIG",
+    "GIT_ASKPASS",
+    "SSH_AUTH_SOCK",
 })
+
+# Catch provider-specific names as well as credentials added by future integrations.
+_BLOCKED_ENV_KEY_FRAGMENTS: tuple[str, ...] = (
+    "TOKEN",
+    "SECRET",
+    "PASSWORD",
+    "PASSWD",
+    "API_KEY",
+    "APIKEY",
+    "PRIVATE_KEY",
+    "ACCESS_KEY",
+    "CREDENTIAL",
+    "BEARER",
+    "AUTHORIZATION",
+    "SIGNING_KEY",
+)
+
+
+def _is_sensitive_environment_key(key: str) -> bool:
+    normalized = key.upper()
+    return any(blocked.upper() in normalized for blocked in _BLOCKED_ENV_KEYS) or any(
+        fragment in normalized for fragment in _BLOCKED_ENV_KEY_FRAGMENTS
+    )
+
 
 # High-risk command patterns — denied immediately
 _HIGH_RISK_PATTERNS: list[re.Pattern] = [
@@ -292,8 +326,9 @@ class ShellTool(BaseTool):
 
         # 5. Filter environment variables (credential sanitization)
         filtered_env = {
-            k: v for k, v in os.environ.items()
-            if not any(blocked.lower() in k.lower() for blocked in _BLOCKED_ENV_KEYS)
+            key: value
+            for key, value in os.environ.items()
+            if not _is_sensitive_environment_key(key)
         }
         venv_scripts = str(Path(sys.executable).parent)
         current_path = filtered_env.get("PATH", "")
