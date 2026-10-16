@@ -10,7 +10,6 @@ import logging
 import subprocess
 from typing import Optional
 
-from .exceptions import ObserverError
 from .models import GitRepoStatus, GitStatus, RegisteredWorkspace
 
 logger = logging.getLogger(__name__)

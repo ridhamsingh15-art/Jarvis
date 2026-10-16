@@ -6,9 +6,10 @@ Ensures intelligent delta updates for World Model, Memory, and Experience.
 import logging
 import time
 from typing import Any
+
 from .models import SyncPayload
-from .transport import TransportLayer
 from .registry import NodeRegistry
+from .transport import TransportLayer
 
 logger = logging.getLogger(__name__)
 

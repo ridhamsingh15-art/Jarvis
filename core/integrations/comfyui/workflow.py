@@ -3,8 +3,8 @@ ComfyUI Workflow Helpers.
 
 Provides utilities for parsing, modifying, and preparing JSON workflows.
 """
-from typing import Any, Dict
 from .models import ComfyUIWorkflow
+
 
 class WorkflowHelper:
     """Helper methods for manipulating ComfyUI workflow JSON."""

@@ -8,10 +8,10 @@ Two-stage classification:
 The classifier MUST NEVER invoke ExecutiveBrain, ReasoningLoop, or Planner.
 It is a pure router — once it returns an IntentType, exactly one pipeline owns the request.
 """
-import re
 import logging
+import re
 from enum import StrEnum
-from typing import Optional, Any
+from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 

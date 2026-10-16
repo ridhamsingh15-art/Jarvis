@@ -3,8 +3,9 @@ Manifest Parser for AI Applications.
 """
 import logging
 from typing import Any
-from .models import AppManifest, AppDependency
+
 from .exceptions import InvalidManifestError
+from .models import AppDependency, AppManifest
 
 logger = logging.getLogger(__name__)
 

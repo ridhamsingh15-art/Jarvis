@@ -1,13 +1,13 @@
 """
 XTTS Local Client.
 """
-import logging
 import json
-import urllib.request
+import logging
 import urllib.error
+import urllib.request
 
-from core.integrations.voice.models import VoiceRequest, VoiceResponse, ProviderType
 from core.integrations.voice.exceptions import SynthesisFailedError
+from core.integrations.voice.models import ProviderType, VoiceRequest, VoiceResponse
 
 logger = logging.getLogger(__name__)
 

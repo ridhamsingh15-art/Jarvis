@@ -4,9 +4,9 @@ System Profiler for Self-Evolution.
 Identifies specific architectural bottlenecks.
 """
 import logging
-from typing import Any
-from .models import SystemMetrics
+
 from .exceptions import ProfilingError
+from .models import SystemMetrics
 
 logger = logging.getLogger(__name__)
 

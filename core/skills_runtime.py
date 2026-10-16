@@ -17,12 +17,12 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from core.execution_policy import ExecutionPolicy
     from core.skills.manager import SkillManager
     from core.skills.models import Skill, SkillMatch
-    from core.execution_policy import ExecutionPolicy, CapabilitySource, PolicyContext
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +140,7 @@ class SkillsRuntime:
         if self._policy is None:
             return True  # No policy configured — allow (test/dev mode)
 
-        from core.execution_policy import PolicyContext, CapabilitySource, PolicyVerdict
+        from core.execution_policy import CapabilitySource, PolicyContext, PolicyVerdict
         ctx = PolicyContext(
             tool=tool,
             action=action,

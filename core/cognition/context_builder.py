@@ -1,5 +1,6 @@
 import logging
-from typing import Set, Optional, Any
+from typing import Optional, Set
+
 from core.cognition.context_models import ProviderType
 from core.reasoning.execution_plan import ExecutionPlan
 

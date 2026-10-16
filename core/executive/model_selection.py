@@ -1,5 +1,6 @@
 import logging
-from core.executive.models import ExecutionStrategy, GoalType, Complexity
+
+from core.executive.models import Complexity, ExecutionStrategy, GoalType
 from providers.capabilities import Capability
 from providers.provider_models import InferenceRequirements
 

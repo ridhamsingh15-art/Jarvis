@@ -7,13 +7,10 @@ analytics) into a structured ExperienceRecord ready for storage.
 from __future__ import annotations
 
 import logging
-import time
-from typing import Any
 
-from core.agents.models import AgentResult
 from core.agents.enums import TaskState
+from core.agents.models import AgentResult
 from core.mission.models import Mission
-from core.mission.enums import MissionStatus
 
 from .models import (
     AnalyticsSnapshot,

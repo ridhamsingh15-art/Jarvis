@@ -4,13 +4,13 @@ ComfyUI Downloader.
 Fetches the resulting images/videos from the server.
 """
 import logging
-import urllib.request
 import urllib.parse
+import urllib.request
 from typing import List
 
 from .client import ComfyUIClient
-from .models import QueueHistory, ImageOutput
 from .exceptions import ImageDownloadError
+from .models import ImageOutput, QueueHistory
 
 logger = logging.getLogger(__name__)
 

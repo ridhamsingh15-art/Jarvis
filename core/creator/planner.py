@@ -1,6 +1,9 @@
 from typing import List
+
 from core.reasoning.execution_plan import ExecutionPlan
+
 from .models import WorkflowNode
+
 
 class CreatorPlanner:
     """Translates a Workflow sequence into an ExecutionPlan for the MasterCoordinator."""

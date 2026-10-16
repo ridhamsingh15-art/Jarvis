@@ -4,10 +4,10 @@ Application Lifecycle Manager.
 Manages application states (Start, Stop, Suspend, Resume, Restart).
 """
 import logging
-from typing import Any
+
+from .exceptions import AppLifecycleError
 from .models import AppState
 from .registry import AppRegistry
-from .exceptions import AppLifecycleError
 
 logger = logging.getLogger(__name__)
 

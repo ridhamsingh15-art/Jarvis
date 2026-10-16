@@ -4,17 +4,16 @@ Federation Manager.
 Facade for the JARVIS Federation subsystem.
 """
 import logging
-from typing import Any
 
-from .models import FederationNode, FederatedMission, SyncPayload
+from .discovery import DiscoveryService
+from .exceptions import DelegationFailedError
+from .models import FederatedMission, FederationNode
 from .node import LocalNode
 from .registry import NodeRegistry
-from .discovery import DiscoveryService
 from .scheduler import FederationScheduler
-from .transport import TransportLayer
-from .synchronization import StateSynchronizer
 from .security import SecurityManager
-from .exceptions import DelegationFailedError
+from .synchronization import StateSynchronizer
+from .transport import TransportLayer
 
 logger = logging.getLogger(__name__)
 

@@ -10,9 +10,9 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, Optional
+from typing import Optional
 
-from core.models.primitives import Identifier, Timestamp
+from core.models.primitives import Timestamp
 
 
 class ExperienceType(StrEnum):

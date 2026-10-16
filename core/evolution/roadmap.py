@@ -5,7 +5,8 @@ Generates and maintains the evolving backlog/roadmap of proposals.
 """
 import logging
 import time
-from .models import EvolutionRoadmap, EvolutionProposal, ProposalState, Priority
+
+from .models import EvolutionProposal, EvolutionRoadmap, Priority, ProposalState
 
 logger = logging.getLogger(__name__)
 

@@ -5,8 +5,9 @@ Handles node authentication, authorization, and payload encryption.
 """
 import logging
 from typing import Any
-from .models import FederationNode
+
 from .exceptions import FederationAuthError
+from .models import FederationNode
 
 logger = logging.getLogger(__name__)
 

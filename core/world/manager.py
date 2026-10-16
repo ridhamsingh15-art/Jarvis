@@ -19,7 +19,6 @@ import logging
 from typing import Optional
 
 from .browser_monitor import BrowserMonitor
-from .exceptions import WorkspaceAlreadyRegisteredError
 from .git_monitor import GitMonitor
 from .models import ActiveMissionRef, RegisteredWorkspace, WorldState
 from .observers import WorldObservers

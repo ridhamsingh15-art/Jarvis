@@ -1,6 +1,6 @@
-from .manager import ExecutiveBrain, ExecutiveManager
 from .decision import DecisionContext, ExecutiveDecision
-from .models import ExecutionStrategy, GoalType, Complexity
+from .manager import ExecutiveBrain, ExecutiveManager
+from .models import Complexity, ExecutionStrategy, GoalType
 
 __all__ = [
     "ExecutiveBrain",

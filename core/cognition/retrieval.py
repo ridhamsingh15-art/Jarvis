@@ -2,9 +2,9 @@ import json
 import logging
 from typing import List
 
-from core.llm import LLMClient
-from core.cognition.models import RetrievedMemory, MemoryType
+from core.cognition.models import MemoryType, RetrievedMemory
 from core.knowledge.indexer.manager import KnowledgeManager
+from core.llm import LLMClient
 from memory.memory_manager import MemoryManager
 
 logger = logging.getLogger(__name__)

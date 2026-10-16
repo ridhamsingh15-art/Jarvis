@@ -4,10 +4,10 @@ Federation Mission Scheduler.
 Evaluates missions and matches them to the optimal node in the registry.
 """
 import logging
-from typing import Optional
+
+from .exceptions import DelegationFailedError
 from .models import FederatedMission, FederationNode
 from .registry import NodeRegistry
-from .exceptions import DelegationFailedError
 
 logger = logging.getLogger(__name__)
 

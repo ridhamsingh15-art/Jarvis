@@ -6,6 +6,7 @@ Tracks active trusted nodes in the network and caches their capabilities.
 import logging
 import time
 from typing import Optional
+
 from .models import FederationNode, NodeState
 
 logger = logging.getLogger(__name__)

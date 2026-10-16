@@ -5,10 +5,16 @@ Translates raw UIElements from the vision layer into semantic
 UIObservations with recognized roles (e.g., dialogs, editors, terminals).
 """
 import logging
-from core.vision.models import UIElement
-from core.perception.models import UIObservation, SpatialBounds, ObservationType, UIComponentRole
+
 from core.perception.exceptions import UIDetectionError
+from core.perception.models import (
+    ObservationType,
+    SpatialBounds,
+    UIComponentRole,
+    UIObservation,
+)
 from core.vision.enums import UIElementType
+from core.vision.models import UIElement
 
 logger = logging.getLogger(__name__)
 

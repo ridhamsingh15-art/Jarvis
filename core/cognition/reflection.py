@@ -5,9 +5,9 @@ import logging
 from core.cognition.enums import IntentType
 from core.cognition.models import ExperienceRecord
 from core.events.bus import EventBus
+from core.llm import LLMClient
 from core.models.domain import Event
 from core.models.primitives import Timestamp
-from core.llm import LLMClient
 from memory.memory_manager import MemoryManager
 
 logger = logging.getLogger(__name__)

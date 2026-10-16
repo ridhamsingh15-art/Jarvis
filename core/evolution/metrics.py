@@ -5,8 +5,9 @@ Aggregates operational metrics, polling the World Model and Mission Control.
 """
 import logging
 from typing import Any
-from .models import SystemMetrics
+
 from .exceptions import MetricCollectionError
+from .models import SystemMetrics
 
 logger = logging.getLogger(__name__)
 

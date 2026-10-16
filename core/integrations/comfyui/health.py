@@ -4,6 +4,7 @@ ComfyUI Health Checker.
 Verifies the server is online.
 """
 import logging
+
 from .client import ComfyUIClient
 from .exceptions import ComfyUIServerOfflineError
 

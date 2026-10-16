@@ -97,8 +97,8 @@ class ModelRouter(ModelGateway):
                 self._health_monitor.mark_success(provider.provider_id)
 
                 try:
-                    from core.runtime_trace import get_current_trace
                     from core.context_budget import estimate_tokens
+                    from core.runtime_trace import get_current_trace
                     trace = get_current_trace()
                     if trace is not None:
                         in_tok = (
@@ -143,8 +143,8 @@ class ModelRouter(ModelGateway):
                 # Failure
                 end_llm = time.time()
                 try:
-                    from core.runtime_trace import get_current_trace
                     from core.context_budget import estimate_tokens
+                    from core.runtime_trace import get_current_trace
                     trace = get_current_trace()
                     if trace is not None:
                         trace.record_llm_call(

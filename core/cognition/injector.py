@@ -1,5 +1,6 @@
 from core.cognition.models import CognitiveContext
 
+
 class ContextInjector:
     """Formats the cognitive context into text ready for prompt injection."""
     

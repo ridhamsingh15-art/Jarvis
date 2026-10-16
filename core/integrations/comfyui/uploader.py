@@ -4,6 +4,7 @@ ComfyUI Uploader.
 Handles uploading input images or masks to ComfyUI.
 """
 import logging
+
 from .client import ComfyUIClient
 
 logger = logging.getLogger(__name__)

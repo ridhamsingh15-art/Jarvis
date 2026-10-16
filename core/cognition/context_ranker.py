@@ -1,5 +1,6 @@
 import logging
 from typing import List
+
 from core.cognition.context_models import ContextChunk, ContextPackage, ProviderType
 
 logger = logging.getLogger(__name__)

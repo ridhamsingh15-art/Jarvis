@@ -5,7 +5,7 @@ Correlates data from metrics, profiler, and the Experience Engine to detect patt
 """
 import logging
 from typing import Any
-from .models import SystemMetrics
+
 from .metrics import MetricsCollector
 from .profiler import SystemProfiler
 

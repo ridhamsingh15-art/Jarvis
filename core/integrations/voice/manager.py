@@ -5,14 +5,17 @@ Central routing facade. It accepts a VoiceRequest, checks provider health,
 routes the request, handles retries, and seamlessly falls back to Piper.
 """
 import logging
-from typing import Optional
 
-from .models import VoiceRequest, VoiceResponse, ProviderType
 from .elevenlabs.client import ElevenLabsClient
-from .xtts.client import XTTSClient
-from .piper.client import PiperClient
+from .exceptions import (
+    SynthesisFailedError,
+    VoiceIntegrationError,
+    VoiceProviderOfflineError,
+)
 from .health import ProviderHealthCheck
-from .exceptions import VoiceIntegrationError, VoiceProviderOfflineError, SynthesisFailedError
+from .models import ProviderType, VoiceRequest, VoiceResponse
+from .piper.client import PiperClient
+from .xtts.client import XTTSClient
 
 logger = logging.getLogger(__name__)
 

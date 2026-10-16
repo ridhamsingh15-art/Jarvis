@@ -16,30 +16,29 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from core.exceptions import JarvisError
-from core.executor import Executor
-from core.planner import Planner
-from core.task import Task, TaskStatus
-from core.validator import Validator
-from core.execution_summary import ExecutionSummary
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from core.execution_policy import (
+    CapabilitySource,
     ExecutionPolicy,
     PolicyContext,
-    PolicyResult,
     PolicyVerdict,
-    CapabilitySource,
 )
-from core.tool_feedback_loop import ToolFeedbackLoop, MAX_TOOL_ITERATIONS
+from core.execution_summary import ExecutionSummary
+from core.executor import Executor
 from core.mission_verifier import (
     MissionCompletionVerifier,
-    VerificationResult,
-    VerificationStatus,
     MissionPostcondition,
+    VerificationResult,
 )
+from core.planner import Planner
+from core.task import Task, TaskStatus
+from core.tool_feedback_loop import MAX_TOOL_ITERATIONS, ToolFeedbackLoop
+from core.validator import Validator
 
 if TYPE_CHECKING:
     from memory.memory_manager import MemoryManager
@@ -63,8 +62,8 @@ from core.cognition.manager import CognitiveManager
 from core.integrations.n8n.capability import N8nCapabilityManager
 from core.knowledge.indexer.manager import KnowledgeManager
 from core.knowledge.indexer.scheduler import KnowledgeScheduler
-from core.tool_intelligence.manager import ToolIntelligenceManager
 from core.routing.intent_classifier import IntentClassifier, IntentType
+from core.tool_intelligence.manager import ToolIntelligenceManager
 
 
 class Agent:
@@ -282,7 +281,11 @@ class Agent:
         logger.info("[REQUEST] %s (id=%s, session_id=%s, turn=%d)", user_input, req_id, target_session_id, session_turn)
         start_time = time.time()
 
-        from core.runtime_trace import RequestTrace, set_current_trace, reset_current_trace
+        from core.runtime_trace import (
+            RequestTrace,
+            reset_current_trace,
+            set_current_trace,
+        )
         trace = RequestTrace(
             request_id=req_id,
             session_id=target_session_id,

@@ -2,12 +2,12 @@ import logging
 from typing import Any, Optional
 
 from core.cognition.context import ShortTermContext
+from core.cognition.context_orchestrator import ContextOrchestrator
 from core.cognition.conversation import ConversationEngine, ConversationResponse
 from core.cognition.dialogue import DialogueState
 from core.cognition.reflection import CognitiveReflection
-from core.cognition.context_orchestrator import ContextOrchestrator
-from core.executive.manager import ExecutiveBrain
 from core.events.bus import EventBus
+from core.executive.manager import ExecutiveBrain
 from core.models.domain import Event
 from core.models.primitives import Timestamp
 from core.runtime.component import BaseComponent

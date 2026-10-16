@@ -1,7 +1,9 @@
 from core.models.primitives import Identifier
+
 from .agent import BaseAgent
 from .enums import AgentRole, TaskState
 from .models import AgentCapability, AgentProfile, AgentResult, AgentTask, SharedContext
+
 
 class WriterAgent(BaseAgent):
     def __init__(self) -> None:

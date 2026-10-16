@@ -1,8 +1,13 @@
 from typing import Any
 
+from core.cognition.context import ShortTermContext
 from core.events.bus import EventBus
+from core.llm import LLMClient
 from core.models import Event
 from core.models.primitives import Identifier
+from core.reasoning.execution_plan import ExecutionPlan
+from core.reasoning.loop import ReasoningLoop
+from core.registry import Registry
 from core.runtime.enums import ComponentState, HealthState
 from core.runtime.interfaces import RuntimeComponent
 from core.runtime.models import ComponentMetadata, HealthReport
@@ -16,11 +21,7 @@ from .planner_bridge import PlannerBridge
 from .probabilistic_reasoner import ProbabilisticReasoner
 from .simulation import ExecutionSimulator
 from .world_model import WorldModel
-from core.llm import LLMClient
-from core.registry import Registry
-from core.cognition.context import ShortTermContext
-from core.reasoning.execution_plan import ExecutionPlan
-from core.reasoning.loop import ReasoningLoop
+
 
 class ReasoningManager(RuntimeComponent):
     def __init__(self, event_bus: EventBus, llm_client: LLMClient = None, registry: Registry = None):

@@ -1,6 +1,16 @@
 from .agent import BaseAgent
 from .coding_agent import CodingAgent
 from .collaboration import CollaborationManager
+from .content_agents import (
+    AnalyticsAgent,
+    AnimationDirectorAgent,
+    EditorAgent,
+    PublisherAgent,
+    StoryboardAgent,
+    VisualDirectorAgent,
+    VoiceDirectorAgent,
+    WriterAgent,
+)
 from .coordinator import MasterCoordinator
 from .dispatcher import TaskDispatcher
 from .enums import AgentRole, CollaborationState, ConsensusStrategy, TaskState, VoteType
@@ -19,6 +29,7 @@ from .interfaces import (
     ISharedMemory,
     IVotingMechanism,
 )
+from .lifecycle import AgentLifecycleAdapter
 from .manager import AgentManager
 from .memory_agent import MemoryAgent
 from .models import (
@@ -37,17 +48,6 @@ from .review_agent import ReviewAgent
 from .shared_memory import ThreadSafeSharedMemory
 from .testing_agent import TestingAgent
 from .voting import VotingEngine
-from .lifecycle import AgentLifecycleAdapter
-from .content_agents import (
-    WriterAgent,
-    StoryboardAgent,
-    VisualDirectorAgent,
-    AnimationDirectorAgent,
-    VoiceDirectorAgent,
-    EditorAgent,
-    PublisherAgent,
-    AnalyticsAgent
-)
 
 __all__ = [
     "AgentCapability",

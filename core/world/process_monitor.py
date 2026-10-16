@@ -10,7 +10,6 @@ of known AI/ML/media binary names is flagged as an AI process.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from .exceptions import ObserverError
 from .models import ProcessInfo, ProcessStatus

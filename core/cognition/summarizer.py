@@ -1,5 +1,7 @@
 from typing import List
-from core.cognition.models import RetrievedMemory, CognitiveContext, MemoryType
+
+from core.cognition.models import CognitiveContext, MemoryType, RetrievedMemory
+
 
 class MemorySummarizer:
     """Compresses retrieved memories into a structured CognitiveContext."""

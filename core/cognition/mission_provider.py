@@ -1,7 +1,8 @@
 import logging
 from typing import List
-from core.mission.manager import MissionManager
+
 from core.cognition.context_models import ContextChunk, ProviderType
+from core.mission.manager import MissionManager
 
 logger = logging.getLogger(__name__)
 

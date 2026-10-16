@@ -3,8 +3,9 @@ Permissions and Security Sandbox for AI Applications.
 """
 import logging
 from typing import Any
-from .models import AppManifest
+
 from .exceptions import AppPermissionError
+from .models import AppManifest
 
 logger = logging.getLogger(__name__)
 

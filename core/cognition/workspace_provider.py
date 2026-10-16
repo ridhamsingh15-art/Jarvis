@@ -1,7 +1,7 @@
-import os
 import logging
 from pathlib import Path
 from typing import List
+
 from core.cognition.context_models import ContextChunk, ProviderType
 
 logger = logging.getLogger(__name__)

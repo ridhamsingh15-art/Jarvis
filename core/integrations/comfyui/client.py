@@ -3,16 +3,16 @@ ComfyUI REST Client.
 
 Handles the standard HTTP API wrapper.
 """
+import json
 import logging
-import urllib.request
 import urllib.error
 import urllib.parse
-import json
+import urllib.request
 import uuid
 from typing import Any, Dict
 
-from .models import ComfyUIWorkflow, PromptResponse, QueueHistory
 from .exceptions import ComfyUIServerOfflineError, WorkflowExecutionError
+from .models import ComfyUIWorkflow, PromptResponse, QueueHistory
 
 logger = logging.getLogger(__name__)
 

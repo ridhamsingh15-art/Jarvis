@@ -4,8 +4,9 @@ General Image Understanding.
 Provides broad semantic understanding of images, charts, and diagrams.
 """
 import logging
-from core.perception.models import ImageObservation, ObservationType
+
 from core.perception.exceptions import VisionError
+from core.perception.models import ImageObservation, ObservationType
 
 logger = logging.getLogger(__name__)
 

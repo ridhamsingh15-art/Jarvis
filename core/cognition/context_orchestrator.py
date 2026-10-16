@@ -1,8 +1,9 @@
 import logging
 import re
-from typing import List, Any
+from typing import Any, List
+
 from core.cognition.context import ShortTermContext
-from core.cognition.context_models import ContextPackage, ContextChunk, ProviderType
+from core.cognition.context_models import ContextChunk, ContextPackage, ProviderType
 from core.context_budget import (
     ContextBudget,
     ContextBudgetManager,
@@ -12,11 +13,11 @@ from core.reasoning.execution_plan import ExecutionPlan
 
 from .context_builder import ContextBuilder
 from .context_ranker import ContextRanker
-from .workspace_provider import WorkspaceProvider
 from .mission_provider import MissionProvider
 from .project_provider import ProjectProvider
-from .tool_provider import ToolProvider
 from .retrieval import MemoryRetriever
+from .tool_provider import ToolProvider
+from .workspace_provider import WorkspaceProvider
 
 logger = logging.getLogger(__name__)
 

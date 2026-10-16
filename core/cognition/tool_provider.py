@@ -1,7 +1,8 @@
 import logging
 from typing import List
-from core.registry import Registry
+
 from core.cognition.context_models import ContextChunk, ProviderType
+from core.registry import Registry
 
 logger = logging.getLogger(__name__)
 

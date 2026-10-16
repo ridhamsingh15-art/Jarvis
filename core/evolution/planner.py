@@ -5,8 +5,9 @@ Translates analysis findings into concrete, structured EvolutionProposal objects
 """
 import logging
 from typing import Any
-from .models import EvolutionProposal, Priority, RiskLevel
+
 from .exceptions import ProposalValidationError
+from .models import EvolutionProposal, Priority, RiskLevel
 
 logger = logging.getLogger(__name__)
 

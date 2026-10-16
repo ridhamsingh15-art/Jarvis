@@ -6,7 +6,8 @@ Determines relationships like "contains", "next to", or "above" based on
 bounding box geometry.
 """
 import logging
-from core.perception.models import SceneGraph, PerceptionObservation, ObservationType
+
+from core.perception.models import ObservationType, PerceptionObservation, SceneGraph
 
 logger = logging.getLogger(__name__)
 

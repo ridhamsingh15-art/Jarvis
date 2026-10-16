@@ -1,6 +1,7 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any
+
 
 class GoalType(Enum):
     QUESTION = "question"

@@ -5,15 +5,16 @@ Facade for the perception subsystem, providing cognitive reasoning systems
 with high-level semantic observations.
 """
 import logging
-from core.vision.manager import VisionManager
-from core.perception.ocr import OCRPerception
-from core.perception.ui_understanding import UIUnderstanding
-from core.perception.scene_graph import SceneGraphBuilder
+
 from core.perception.document import DocumentUnderstanding
-from core.perception.vision import ImageUnderstanding
-from core.perception.screenshot import ScreenshotPerception
+from core.perception.models import DocumentObservation, ImageObservation, SceneGraph
 from core.perception.observers import PerceptionObservers
-from core.perception.models import SceneGraph, DocumentObservation, ImageObservation
+from core.perception.ocr import OCRPerception
+from core.perception.scene_graph import SceneGraphBuilder
+from core.perception.screenshot import ScreenshotPerception
+from core.perception.ui_understanding import UIUnderstanding
+from core.perception.vision import ImageUnderstanding
+from core.vision.manager import VisionManager
 
 logger = logging.getLogger(__name__)
 

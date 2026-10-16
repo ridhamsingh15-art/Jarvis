@@ -1,5 +1,7 @@
 from typing import List
+
 from core.cognition.models import RetrievedMemory
+
 
 class MemoryRanker:
     """Ranks retrieved memories and removes irrelevant/duplicate information."""

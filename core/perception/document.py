@@ -5,8 +5,9 @@ Parses structured documents (like PDFs, invoices, receipts) into
 semantic DocumentObservations.
 """
 import logging
-from core.perception.models import DocumentObservation, ObservationType
+
 from core.perception.exceptions import DocumentParsingError
+from core.perception.models import DocumentObservation, ObservationType
 
 logger = logging.getLogger(__name__)
 

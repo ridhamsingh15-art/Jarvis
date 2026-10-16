@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from .models import ExperienceRecord, StageOutcome
+from .models import ExperienceRecord
 
 logger = logging.getLogger(__name__)
 

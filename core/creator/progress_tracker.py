@@ -1,6 +1,7 @@
 import logging
-from typing import List, Optional
-from .models import ProgressReport, WorkflowNode, ProductionState
+from typing import List
+
+from .models import ProductionState, ProgressReport, WorkflowNode
 
 logger = logging.getLogger(__name__)
 

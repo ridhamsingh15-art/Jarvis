@@ -6,9 +6,10 @@ structured, semantically meaningful TextObservations (e.g., preserving
 paragraphs, code blocks, headings).
 """
 import logging
-from core.vision.models import OCRResult
-from core.perception.models import TextObservation, SpatialBounds, ObservationType
+
 from core.perception.exceptions import OCRError
+from core.perception.models import ObservationType, SpatialBounds, TextObservation
+from core.vision.models import OCRResult
 
 logger = logging.getLogger(__name__)
 

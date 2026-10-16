@@ -32,19 +32,16 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import re
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable
 
-from core.task import Task, TaskStatus
 from core.context_budget import (
-    DEFAULT_MAX_CONTEXT_TOKENS,
     DEFAULT_MAX_TOOL_RESULT_CHARS,
     ContextBudget,
     ContextBudgetManager,
-    estimate_tokens,
 )
+from core.task import Task, TaskStatus
 
 if TYPE_CHECKING:
     from core.cognition.manager import CognitiveManager

@@ -6,6 +6,7 @@ Ensures deduplication and merging of similar proposals.
 """
 import logging
 from typing import Optional
+
 from .models import EvolutionProposal, ProposalState
 
 logger = logging.getLogger(__name__)

@@ -5,12 +5,13 @@ Handles versioning, migrations, and compatibility checks.
 """
 import logging
 from typing import Any
-from .models import InstallResult
-from .manifest import ManifestParser
-from .registry import AppRegistry
+
 from .dependency_manager import AppDependencyManager
-from .permissions import AppPermissionManager
 from .exceptions import AppUpdateError, DependencyResolutionError, InvalidManifestError
+from .manifest import ManifestParser
+from .models import InstallResult
+from .permissions import AppPermissionManager
+from .registry import AppRegistry
 
 logger = logging.getLogger(__name__)
 

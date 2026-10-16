@@ -5,7 +5,8 @@ Encapsulates the current machine's capabilities and manages the heartbeat.
 """
 import logging
 import time
-from .models import FederationNode, NodeCapabilities, NodeType, NodeState
+
+from .models import FederationNode, NodeCapabilities, NodeState, NodeType
 
 logger = logging.getLogger(__name__)
 

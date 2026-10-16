@@ -1,23 +1,24 @@
 import logging
 from typing import Any, Optional
-from core.llm import LLMClient
+
 from core.cognition.context import ShortTermContext
+from core.events.bus import EventBus
+from core.llm import LLMClient
+from core.models import Identifier
 from core.reasoning.execution_plan import ExecutionPlan
 from core.reasoning.manager import ReasoningManager
 from core.registry import Registry
-from core.events.bus import EventBus
-
-from core.models import Identifier
 from core.runtime.component import RuntimeComponent
 from core.runtime.enums import ComponentState, HealthState
 from core.runtime.models import ComponentMetadata, HealthReport
-from .decision import ExecutiveDecision, DecisionContext
-from .attention import AttentionSystem
-from .priorities import PriorityManager
-from .policies import ExecutivePolicies
-from .interrupt import InterruptHandler
+
 from .arbitration import ConflictArbitrator
+from .attention import AttentionSystem
 from .confidence import ConfidenceEstimator
+from .decision import DecisionContext, ExecutiveDecision
+from .interrupt import InterruptHandler
+from .policies import ExecutivePolicies
+from .priorities import PriorityManager
 from .reflection import ReflectionEngine
 
 logger = logging.getLogger(__name__)

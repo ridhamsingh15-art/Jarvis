@@ -1,5 +1,7 @@
 from typing import List
+
 from .models import DependencyGraph, WorkflowNode
+
 
 class WorkflowCompiler:
     """Compiles a DependencyGraph into an ordered execution sequence."""

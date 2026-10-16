@@ -9,7 +9,6 @@ prompt. This is the ONLY place where system prompts are assembled.
 from typing import Any
 
 from core.cognition.dialogue import DialogueState
-from core.cognition.context_models import ContextPackage
 from core.identity.models import IdentityContext
 
 

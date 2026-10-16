@@ -28,13 +28,11 @@ All sensitive data (passwords, tokens, API keys) are redacted.
 from __future__ import annotations
 
 import contextvars
-import json
 import logging
 import re
 import time
-import uuid
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 

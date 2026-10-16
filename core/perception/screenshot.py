@@ -5,12 +5,13 @@ Captures screenshots using the core Vision system, then delegates to
 OCR and UI understanding to build a complete SceneGraph.
 """
 import logging
-from core.vision.manager import VisionManager
-from core.perception.ocr import OCRPerception
-from core.perception.ui_understanding import UIUnderstanding
-from core.perception.scene_graph import SceneGraphBuilder
-from core.perception.models import SceneGraph
+
 from core.perception.exceptions import ScreenshotError
+from core.perception.models import SceneGraph
+from core.perception.ocr import OCRPerception
+from core.perception.scene_graph import SceneGraphBuilder
+from core.perception.ui_understanding import UIUnderstanding
+from core.vision.manager import VisionManager
 
 logger = logging.getLogger(__name__)
 

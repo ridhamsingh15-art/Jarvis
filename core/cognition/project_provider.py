@@ -1,5 +1,6 @@
 import logging
 from typing import List
+
 from applications.content_factory.project.manager import ProjectManager
 from core.cognition.context_models import ContextChunk, ProviderType
 

@@ -6,11 +6,11 @@ depend on for identity-related concerns. It composes Persona,
 PromptBuilder, GuardrailEngine, and IdentityContextBuilder internally.
 """
 
-import logging
 import functools
+import logging
 
-from core.cognition.dialogue import DialogueState
 from core.cognition.context_models import ContextPackage
+from core.cognition.dialogue import DialogueState
 from core.identity.context import IdentityContextBuilder
 from core.identity.guardrails import GuardrailEngine
 from core.identity.models import IdentityContext

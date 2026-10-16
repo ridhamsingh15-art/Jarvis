@@ -4,8 +4,9 @@ Safety Validator for the Self-Evolution Framework.
 Ensures that no code execution or framework mutation can occur without explicit user approval.
 """
 import logging
-from .models import EvolutionProposal, ProposalState
+
 from .exceptions import ApprovalRequiredError
+from .models import EvolutionProposal, ProposalState
 
 logger = logging.getLogger(__name__)
 

@@ -6,15 +6,14 @@ Central facade for the Self-Evolution Framework.
 import logging
 from typing import Any
 
-from .models import EvolutionProposal, ProposalState, EvolutionRoadmap
-from .metrics import MetricsCollector
-from .profiler import SystemProfiler
 from .analyzer import EvolutionAnalyzer
+from .metrics import MetricsCollector
+from .models import EvolutionProposal, EvolutionRoadmap, ProposalState
 from .planner import EvolutionPlanner
+from .profiler import SystemProfiler
 from .proposal import ProposalManager
 from .roadmap import RoadmapManager
 from .validator import EvolutionValidator
-from .exceptions import ApprovalRequiredError
 
 logger = logging.getLogger(__name__)
 

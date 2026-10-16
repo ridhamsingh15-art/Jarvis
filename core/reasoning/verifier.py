@@ -1,6 +1,7 @@
 import logging
-from core.reasoning.models import VerificationResult
+
 from core.reasoning.execution_plan import ExecutionPlan
+from core.reasoning.models import VerificationResult
 from core.registry import Registry
 
 logger = logging.getLogger(__name__)

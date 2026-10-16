@@ -97,3 +97,7 @@ Optional runtime tracing previously swallowed exceptions without a diagnostic, a
 ## Item 19 — fail-closed path resolution in shell boundary checks
 
 `ShellTool._check_workspace_boundary()` previously continued to the next token when resolving a tokenized path raised an exception, effectively skipping validation for that token. It now blocks the command whenever an absolute path cannot be safely resolved and logs only the exception type, not the path payload or error message. Regression simulates a symlink-resolution failure and verifies no command executes and the detail is not echoed. Verification: focused shell/security tests → **47 passed**; targeted Ruff `S112,F821,F811,PLW1510` on shell and regression test → all checks passed.
+
+## Item 20 — core safe lint cleanup
+
+Applied Ruff's safe F401/I001 fixes under `core/` only: **168 findings removed across 117 files**. Reviewed the aggregate diff; it contains import removals/reordering and related `__all__` ordering only, with no unsafe fixes requested. Verification: `git diff --check` passed; `ruff check core --select F401,I001` passed with zero findings; focused core tests → **64 passed in 6.60s**. Global Ruff baseline-to-current now **1,157 → 880 findings** (overall, includes remaining non-import style/exception-handling work); critical `F821,F811,PLW1510,RUF012` remain clean.

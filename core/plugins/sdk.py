@@ -17,13 +17,12 @@ Usage in a plugin::
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 from core.capability.models import Capability, CapabilityType
 from core.events.bus import EventBus
 from core.models.domain import Event
 from core.models.primitives import Identifier
-from core.telemetry import AsyncLogger
 
 from .exceptions import PluginSecurityError
 from .permissions import PermissionManager

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any
 
 from providers.capabilities import Capability
 from providers.provider_models import InferenceRequirements

@@ -4,8 +4,9 @@ Perception Observers.
 Aggregates all perception modalities.
 """
 import logging
-from core.perception.screenshot import ScreenshotPerception
+
 from core.perception.document import DocumentUnderstanding
+from core.perception.screenshot import ScreenshotPerception
 from core.perception.vision import ImageUnderstanding
 
 logger = logging.getLogger(__name__)

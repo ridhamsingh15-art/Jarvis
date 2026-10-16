@@ -1,8 +1,9 @@
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import List, Dict, Optional, Set
+from typing import Dict, List, Optional, Set
 
 from core.models.primitives import Identifier
+
 
 class ProductionState(StrEnum):
     PENDING = "PENDING"

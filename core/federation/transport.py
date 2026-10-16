@@ -4,9 +4,9 @@ Federation Transport Layer.
 Handles the network layer abstraction for transmitting payloads between nodes.
 """
 import logging
-from typing import Any
-from .models import FederatedMission, SyncPayload, FederationNode
+
 from .exceptions import NodeOfflineError
+from .models import FederatedMission, FederationNode, SyncPayload
 
 logger = logging.getLogger(__name__)
 

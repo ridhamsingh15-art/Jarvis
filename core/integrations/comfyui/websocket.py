@@ -3,18 +3,17 @@ ComfyUI WebSocket Client.
 
 Tracks real-time generation progress.
 """
-import logging
 import json
+import logging
 import time
 import urllib.request
-from typing import Any, Callable
 
 # Note: In a true production environment, we would use `websockets` or `websocket-client`.
 # For standard library compatibility without external dependencies in this sprint,
 # we provide a stubbed polling mechanism that simulates WebSocket listening via the history endpoint,
 # or a mock listener for the tests.
 from .client import ComfyUIClient
-from .exceptions import WebSocketTimeoutError, WorkflowExecutionError
+from .exceptions import WebSocketTimeoutError
 
 logger = logging.getLogger(__name__)
 

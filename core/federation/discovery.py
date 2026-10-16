@@ -5,8 +5,9 @@ Manages the protocol for finding other nodes and advertising this node.
 """
 import logging
 from typing import Callable
-from .models import FederationNode
+
 from .exceptions import DiscoveryError
+from .models import FederationNode
 
 logger = logging.getLogger(__name__)
 

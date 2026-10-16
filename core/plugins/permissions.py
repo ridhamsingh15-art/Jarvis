@@ -7,8 +7,8 @@ sandbox allows access.
 """
 import builtins
 import logging
-from enum import StrEnum
 from dataclasses import dataclass, field
+from enum import StrEnum
 
 from core.models.primitives import Identifier, Timestamp
 

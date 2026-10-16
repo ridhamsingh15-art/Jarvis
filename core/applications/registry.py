@@ -5,7 +5,8 @@ Tracks installed applications, their versions, and current state.
 """
 import logging
 from typing import Optional
-from .models import AppManifest, AppStatus, AppState
+
+from .models import AppManifest, AppState, AppStatus
 
 logger = logging.getLogger(__name__)
 

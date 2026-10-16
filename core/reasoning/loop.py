@@ -1,14 +1,14 @@
 import logging
 from typing import Optional
-from core.llm import LLMClient
+
 from core.cognition.context import ShortTermContext
-from core.registry import Registry
-from core.reasoning.models import ReasoningState
-from core.reasoning.execution_plan import ExecutionPlan
-from core.reasoning.exceptions import MaxIterationsExceededError
-from core.reasoning.planner import ReasoningPlanner
+from core.llm import LLMClient
 from core.reasoning.critic import ReasoningCritic
+from core.reasoning.execution_plan import ExecutionPlan
+from core.reasoning.models import ReasoningState
+from core.reasoning.planner import ReasoningPlanner
 from core.reasoning.verifier import ReasoningVerifier
+from core.registry import Registry
 
 logger = logging.getLogger(__name__)
 

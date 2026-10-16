@@ -1,9 +1,9 @@
 import json
 import logging
-from typing import Optional
+
 from core.llm import LLMClient
-from core.reasoning.models import CritiqueResult
 from core.reasoning.execution_plan import ExecutionPlan
+from core.reasoning.models import CritiqueResult
 
 logger = logging.getLogger(__name__)
 

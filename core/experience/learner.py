@@ -9,9 +9,8 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Optional
 
-from .evaluator import EvaluationResult, ExperienceEvaluator
+from .evaluator import ExperienceEvaluator
 from .models import ExperienceRecord, Lesson, LessonCategory
 from .repository import InMemoryExperienceRepository
 

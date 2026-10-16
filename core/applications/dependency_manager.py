@@ -5,8 +5,9 @@ Automatically resolves plugin, model, application, and external requirements.
 """
 import logging
 from typing import Any
-from .models import AppManifest
+
 from .exceptions import DependencyResolutionError
+from .models import AppManifest
 
 logger = logging.getLogger(__name__)
 

@@ -2,8 +2,9 @@
 Health checking utilities for Voice Providers.
 """
 import logging
-import urllib.request
 import urllib.error
+import urllib.request
+
 from .exceptions import VoiceProviderOfflineError
 
 logger = logging.getLogger(__name__)

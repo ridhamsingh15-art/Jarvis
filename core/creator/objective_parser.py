@@ -1,9 +1,10 @@
 import logging
 import uuid
-from core.models.primitives import Identifier
+
 from core.llm import LLMClient
+from core.models.primitives import Identifier
+
 from .models import CreatorObjective
-from .exceptions import ObjectiveParsingError
 
 logger = logging.getLogger(__name__)
 
