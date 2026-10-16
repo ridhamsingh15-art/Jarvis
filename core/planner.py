@@ -9,7 +9,7 @@ structured, validated intent.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from core.model_gateway import ModelGateway
 from core.normalizer import normalize

@@ -10,7 +10,7 @@ import logging
 
 from core.exceptions import ExecutionError
 from core.registry import Registry
-from core.task import Task
+from core.task import Task, TaskStatus
 
 logger = logging.getLogger(__name__)
 

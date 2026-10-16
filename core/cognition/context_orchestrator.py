@@ -8,6 +8,7 @@ from core.context_budget import (
     ContextBudgetManager,
     estimate_tokens,
 )
+from core.reasoning.execution_plan import ExecutionPlan
 
 from .context_builder import ContextBuilder
 from .context_ranker import ContextRanker
