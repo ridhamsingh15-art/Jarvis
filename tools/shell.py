@@ -318,6 +318,7 @@ class ShellTool(BaseTool):
                 capture_output=True,
                 timeout=effective_timeout,
                 text=True,
+                check=False,
             )
             stdout = proc.stdout[: self._max_output]
             stderr = proc.stderr[: self._max_output // 4]

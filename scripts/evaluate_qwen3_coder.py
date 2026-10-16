@@ -320,6 +320,7 @@ def run_ab_benchmarks(h: ABHarness, tmp: Path):
         text=True,
         timeout=30,
         cwd=str(sd),
+        check=False,
     )
     tests_pass_on_disk = test_run_res.returncode == 0
 

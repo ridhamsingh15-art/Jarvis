@@ -31,7 +31,8 @@ class TestEngine:
                 [".venv/Scripts/python", "-m", "pytest", "tests/"],
                 cwd=self._workspace_path,
                 capture_output=True,
-                text=True
+                text=True,
+                check=False,
             )
             
             passed = result.returncode == 0

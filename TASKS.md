@@ -8,4 +8,4 @@ Baseline: clean `feature/jarvis-control-center` HEAD, commit `9fd4956`. On 2026-
 - [x] **Workflow termination:** prevent `WorkflowScheduler.run_graph()` from spinning forever when upstream nodes fail and dependent nodes remain pending; add a dependent-failure regression test that completes within a bounded timeout.
 - [x] **Retry validation:** reject `WorkflowNode.retries < 1` at construction; test zero and negative retry counts and preserve normal retries.
 - [x] **Duplicate definitions:** remove the four Ruff `F811` redefinition findings in `core/cognition/conversation.py` and `tests/test_world_model.py`; run the focused tests and `ruff check . --select F811`.
-- [ ] **Subprocess result handling:** add an explicit `check=` policy to all six Ruff `PLW1510` call sites; preserve intentionally handled non-zero return codes and test affected behavior.
+- [x] **Subprocess result handling:** add an explicit `check=` policy to all six Ruff `PLW1510` call sites; preserve intentionally handled non-zero return codes and test affected behavior.

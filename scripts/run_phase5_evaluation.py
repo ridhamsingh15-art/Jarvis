@@ -243,6 +243,7 @@ def main():
             text=True,
             timeout=30,
             cwd=str(sd),
+            check=False,
         )
         tests_pass_on_disk = test_run_res.returncode == 0
         tests_invoked_by_jarvis = any("test" in str(t).lower() or "pytest" in str(t).lower() for t in r.raw_tasks)

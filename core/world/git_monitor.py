@@ -28,6 +28,7 @@ def _run_git(args: list[str], cwd: str) -> Optional[str]:
             capture_output=True,
             text=True,
             timeout=_GIT_TIMEOUT,
+            check=False,
         )
         if result.returncode == 0:
             return result.stdout.strip()
