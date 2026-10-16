@@ -289,7 +289,6 @@ class TestWorldContextIntegration:
     def test_executive_brain_uses_world_manager(self):
         """Verify ExecutiveBrain accepts world_manager and injects world state."""
         from core.executive.manager import ExecutiveBrain
-        from unittest.mock import MagicMock
 
         mock_llm = MagicMock()
         mock_registry = MagicMock()

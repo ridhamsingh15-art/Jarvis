@@ -62,7 +62,6 @@ class ConversationEngine:
         self._registry = registry
         self._identity = identity
         from core.routing.model_selector import TaskModelSelector
-        from core.context_budget import ContextBudget, ContextBudgetManager, estimate_tokens
         self._model_selector = model_selector or TaskModelSelector()
         self._budget_manager = ContextBudgetManager()
         self._last_budget: ContextBudget | None = None
@@ -109,7 +108,6 @@ class ConversationEngine:
         user_prompt = self._build_user_prompt(user_input, context_package)
 
         # Budget checking & Token estimation
-        from core.context_budget import estimate_tokens
         est_sys = estimate_tokens(system_prompt)
         est_user = estimate_tokens(user_prompt)
         total_est = est_sys + est_user
