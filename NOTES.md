@@ -133,3 +133,11 @@ Added a quote-aware pre-execution shell-syntax guard before `subprocess.run(shel
 ## Item 26 — ShellTool configuration and timeout validation
 
 `ShellTool` now rejects invalid default timeouts (zero/negative/non-finite/boolean/unparseable) and output caps that are not positive integers, including booleans. Runtime timeout overrides are normalized from numeric values or numeric JSON strings, but malformed, zero, negative, non-finite, boolean, and other object values return a blocked `ShellResult` before invoking a subprocess. Empty/non-string commands also fail closed. Verification: Ruff on the modified shell module and its regression test → clean; focused shell/security suites → **100 passed in 11.12s**.
+
+## Full-suite gate after items 25–27
+
+`pytest -q --basetemp %TEMP%\pytest-jarvis-full-after-item27` → **1,028 passed, 1 skipped in 31.93s**, exit 0. The skip is the environment-conditional directory-symlink test when the platform does not allow symlink creation.
+
+## Item 27 — workspace-relative working directory
+
+`ShellTool._resolve_cwd("subdirectory")` previously resolved relative to the application process's current directory rather than `workspace_root`, so legitimate workspace-relative working directories were rejected and behavior depended on where JARVIS was launched. It now resolves relative overrides against the configured workspace, then resolves symlinks and requires the final location to remain inside the workspace. Traversal, absolute outside paths, and symlink escapes remain rejected; invalid/path-resolution exceptions fail closed. Verification: focused shell suites → **102 passed, 1 skipped**; Ruff on `tools/shell.py` and the new cwd tests → clean; full suite after items 25–27 → **1,028 passed, 1 skipped**.

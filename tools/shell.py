@@ -573,12 +573,15 @@ class ShellTool(BaseTool):
         return any(cmd_lower.startswith(prefix.lower()) for prefix in self._allowed_commands or [])
 
     def _resolve_cwd(self, cwd_override: str | None) -> Path | None:
-        """Resolve cwd, ensuring it is within workspace_root."""
+        """Resolve cwd relative to the workspace and reject traversal/symlink escapes."""
         if cwd_override is None:
             return self._workspace_root
         try:
-            candidate = Path(cwd_override).resolve()
+            requested = Path(cwd_override).expanduser()
+            if not requested.is_absolute():
+                requested = self._workspace_root / requested
+            candidate = requested.resolve()
             candidate.relative_to(self._workspace_root)
             return candidate
-        except (ValueError, OSError):
+        except (TypeError, ValueError, OSError, RuntimeError):
             return None
