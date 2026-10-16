@@ -98,8 +98,8 @@ class AnimationGenerationPlanner:
                 if os.path.exists(temp_path):
                     try:
                         os.remove(temp_path)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logging.getLogger(__name__).debug("Best-effort operation failed (%s)", type(exc).__name__)
                         
         return current_bundle
 

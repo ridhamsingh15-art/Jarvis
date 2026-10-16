@@ -85,5 +85,5 @@ class StoryboardEngineManager:
             logger.error("Background storyboard generation failed for mission %s: %s", mission_id, e)
             try:
                 self._mission_manager.fail(mission_id)
-            except Exception:
-                pass
+            except Exception as exc:
+                logging.getLogger(__name__).debug("Best-effort operation failed (%s)", type(exc).__name__)

@@ -1,6 +1,7 @@
 """
 Telemetry for the Publishing Engine.
 """
+import logging
 import time
 
 from core.events.bus import Event, EventBus
@@ -27,5 +28,5 @@ class PublishingEngineTelemetry:
     def _publish(self, event: Event) -> None:
         try:
             self._event_bus.publish(event)
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.getLogger(__name__).debug("Best-effort operation failed (%s)", type(exc).__name__)

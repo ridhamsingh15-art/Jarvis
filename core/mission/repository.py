@@ -104,6 +104,21 @@ class SqliteMissionRepository(MissionRepository):
         else:
             return self._conn
 
+    def close(self) -> None:
+        """Close the SQLite connection owned by the calling thread.
+
+        Path-backed repositories create a connection per thread. Call this from
+        each long-lived worker's shutdown path; connections belonging to exited
+        threads are released with those threads.
+        """
+        conn = getattr(self._local, "conn", None)
+        if conn is not None:
+            conn.close()
+            del self._local.conn
+        elif self._conn is not None:
+            self._conn.close()
+            self._conn = None
+
     def _ensure_table(self) -> None:
         with self._lock:
             conn = self._get_conn()

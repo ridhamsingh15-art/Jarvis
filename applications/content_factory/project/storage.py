@@ -2,6 +2,7 @@
 Disk storage abstraction for Project Bundles.
 """
 
+import logging
 import json
 import shutil
 from pathlib import Path
@@ -94,8 +95,8 @@ class ProjectStorage:
                     )
                     try:
                         script_package = format_script(script_data)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logging.getLogger(__name__).debug("Best-effort operation failed (%s)", type(exc).__name__)
                         
             storyboard_package = None
             storyboard_file = proj_dir / "storyboard.json"
@@ -107,8 +108,8 @@ class ProjectStorage:
                     )
                     try:
                         storyboard_package = format_storyboard(sb_data)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logging.getLogger(__name__).debug("Best-effort operation failed (%s)", type(exc).__name__)
             
             # Hydrate Models
             from .models import Asset, AssetMetadata, ProjectBundleMetadata

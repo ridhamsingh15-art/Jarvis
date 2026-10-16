@@ -49,8 +49,8 @@ class LogCaptureHandler(logging.Handler):
     def emit(self, record):
         try:
             self.lines.append(self.format(record))
-        except Exception:
-            pass
+        except Exception as exc:
+            logging.getLogger(__name__).debug("Best-effort operation failed (%s)", type(exc).__name__)
 
 
 @dataclass

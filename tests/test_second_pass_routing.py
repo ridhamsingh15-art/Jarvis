@@ -281,6 +281,7 @@ class TestBugRegressions:
         """Bug 3 Regression: SqliteMissionRepository must support multi-threaded access without thread affinity error."""
         fd, db_path = tempfile.mkstemp(suffix=".db")
         os.close(fd)
+        repo = None
         try:
             repo = SqliteMissionRepository(db_path)
             errors = []
@@ -306,7 +307,7 @@ class TestBugRegressions:
             missions = repo.list()
             assert len(missions) == 25
         finally:
-            try:
+            if repo is not None:
+                repo.close()
+            if os.path.exists(db_path):
                 os.remove(db_path)
-            except Exception:
-                pass

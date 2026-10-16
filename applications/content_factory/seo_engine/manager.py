@@ -1,6 +1,7 @@
 """
 Manager for the SEO Engine.
 """
+import logging
 import threading
 
 from applications.content_factory.project.manager import ProjectManager
@@ -49,5 +50,5 @@ class SEOEngineManager:
         except Exception:
             try:
                 self._mission_manager.fail(mission_id)
-            except Exception:
-                pass
+            except Exception as exc:
+                logging.getLogger(__name__).debug("Best-effort operation failed (%s)", type(exc).__name__)
