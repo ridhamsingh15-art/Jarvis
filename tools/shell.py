@@ -19,6 +19,7 @@ Security model:
 from __future__ import annotations
 
 import logging
+import math
 import os
 import re
 import subprocess
@@ -142,6 +143,19 @@ _DIRECT_SHELL_LAUNCH = re.compile(
 _WINDOWS_ENV_EXPANSION = re.compile(r"%[A-Za-z_][A-Za-z0-9_]*%|![A-Za-z_][A-Za-z0-9_]*!")
 
 
+def _coerce_positive_timeout(value: object) -> float | None:
+    """Convert a finite positive timeout while rejecting booleans and invalid types."""
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        return None
+    if isinstance(value, str) and not value.strip():
+        return None
+    try:
+        timeout = float(value)
+    except (OverflowError, ValueError):
+        return None
+    return timeout if math.isfinite(timeout) and timeout > 0 else None
+
+
 def _check_shell_syntax(command: str) -> str:
     """Reject shell syntax that can chain commands or expand into another command.
 
@@ -256,8 +270,18 @@ class ShellTool(BaseTool):
         max_output_bytes: int = MAX_OUTPUT_BYTES,
         allowed_commands: list[str] | None = None,
     ) -> None:
+        validated_timeout = _coerce_positive_timeout(timeout_seconds)
+        if validated_timeout is None:
+            raise ValueError("timeout_seconds must be a finite positive number")
+        if (
+            not isinstance(max_output_bytes, int)
+            or isinstance(max_output_bytes, bool)
+            or max_output_bytes < 1
+        ):
+            raise ValueError("max_output_bytes must be a positive integer")
+
         self._workspace_root = Path(workspace_root).resolve()
-        self._timeout = timeout_seconds
+        self._timeout = validated_timeout
         self._max_output = max_output_bytes
         self._allowed_commands = allowed_commands
 
@@ -355,11 +379,32 @@ class ShellTool(BaseTool):
             ShellResult with outcome details.
         """
         t0 = time.perf_counter()
-        effective_timeout = float(timeout) if timeout is not None else self._timeout
+        if not isinstance(command, str) or not command.strip():
+            safe_command = repr(command)
+            return ShellResult(
+                command=safe_command,
+                return_code=-1,
+                stdout="",
+                stderr="",
+                timed_out=False,
+                blocked=True,
+                blocked_reason="Command must be a non-empty string.",
+            )
+
+        effective_timeout = self._timeout if timeout is None else _coerce_positive_timeout(timeout)
+        if effective_timeout is None:
+            logger.warning("[SHELL] BLOCKED invalid timeout override")
+            return ShellResult(
+                command=command,
+                return_code=-1,
+                stdout="",
+                stderr="",
+                timed_out=False,
+                blocked=True,
+                blocked_reason="Timeout must be a finite positive number.",
+            )
 
         # 1. High-risk pattern & path-escape check
-        if not isinstance(command, str):
-            command = repr(command)
         block_reason = self._check_high_risk(command)
         if block_reason:
             logger.warning("[SHELL] BLOCKED: %s | reason: %s", command[:120], block_reason)
