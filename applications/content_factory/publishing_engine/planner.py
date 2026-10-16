@@ -2,13 +2,15 @@
 Planner for the Publishing Engine.
 """
 import dataclasses
-from applications.content_factory.project.models import ProjectBundle
+
 from applications.content_factory.project.manager import ProjectManager
+from applications.content_factory.project.models import ProjectBundle
 
 from .adapter import PublishingAdapter
-from .telemetry import PublishingEngineTelemetry
-from .models import PublishRequest
 from .exceptions import PublishingEngineError
+from .models import PublishRequest
+from .telemetry import PublishingEngineTelemetry
+
 
 class PublishingPlanner:
     def __init__(
@@ -32,7 +34,6 @@ class PublishingPlanner:
             if not success:
                 raise PublishingEngineError("n8n workflow failed.")
                 
-            from applications.content_factory.project.bundle import BundleModifier
             status = "published" if request.mode == "immediate" else "scheduled" if request.mode == "scheduled" else "draft"
             
             updated_metadata = dataclasses.replace(bundle.metadata, publishing_status=status)

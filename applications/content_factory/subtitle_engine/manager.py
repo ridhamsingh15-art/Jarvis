@@ -2,13 +2,15 @@
 Manager for the Subtitle Engine.
 """
 import threading
+
+from applications.content_factory.project.manager import ProjectManager
+from core.capability.models import Capability, CapabilityType
 from core.mission.manager import MissionManager
 from core.mission.models import Mission
 from core.models import Metadata
-from core.capability.models import Capability, CapabilityType
-from applications.content_factory.project.manager import ProjectManager
 
 from .planner import SubtitleGenerationPlanner
+
 
 class SubtitleEngineManager:
     def __init__(self, planner: SubtitleGenerationPlanner, mission_manager: MissionManager, project_manager: ProjectManager):

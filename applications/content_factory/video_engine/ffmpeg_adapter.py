@@ -2,8 +2,8 @@
 Adapter for FFmpeg interactions.
 """
 
-from .models import VideoTask
 from .exceptions import FFmpegError
+from .models import VideoTask
 
 
 class FFmpegAdapter:

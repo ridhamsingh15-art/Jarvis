@@ -3,7 +3,7 @@ Scheduler for the Voice Engine.
 """
 
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Callable, Dict, TypeVar, Any
+from typing import Callable, Dict, List, TypeVar
 
 T = TypeVar('T')
 R = TypeVar('R')

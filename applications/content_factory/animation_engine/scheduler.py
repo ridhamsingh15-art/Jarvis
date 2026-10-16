@@ -3,9 +3,9 @@ Scheduler for the Animation Engine.
 """
 
 from concurrent.futures import ThreadPoolExecutor
-from typing import List, Callable, Dict
+from typing import Callable, Dict, List
 
-from .models import AnimationTask, AnimationAsset
+from .models import AnimationAsset, AnimationTask
 
 
 class AnimationScheduler:

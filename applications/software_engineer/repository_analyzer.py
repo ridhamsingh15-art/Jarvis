@@ -4,10 +4,10 @@ Repository Analyzer Agent.
 Understands repository structure, builds dependency graphs, and locates relevant modules.
 """
 import ast
-import os
 import logging
-from typing import Optional
-from .models import RepositoryAnalysis, DependencyGraph
+import os
+
+from .models import DependencyGraph, RepositoryAnalysis
 
 logger = logging.getLogger(__name__)
 

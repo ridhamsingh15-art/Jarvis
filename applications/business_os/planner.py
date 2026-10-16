@@ -5,9 +5,10 @@ Translates broad user objectives into structured BusinessPlans.
 """
 import logging
 from typing import Any
+
+from .exceptions import PlanningError
 from .models import BusinessGoal, BusinessPlan, BusinessType, MarketingStrategy
 from .strategy import StrategyAgent
-from .exceptions import PlanningError
 
 logger = logging.getLogger(__name__)
 

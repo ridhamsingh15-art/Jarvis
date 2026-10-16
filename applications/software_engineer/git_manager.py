@@ -6,9 +6,9 @@ Strictly sandboxed to local operations (branch, commit, checkout).
 Never pushes remotely to prevent destructive actions without user consent.
 """
 import logging
-import subprocess
 import os
-from typing import Optional
+import subprocess
+
 from .exceptions import GitConflictError
 from .models import CodeDiff
 

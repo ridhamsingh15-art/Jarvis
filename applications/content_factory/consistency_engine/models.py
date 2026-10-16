@@ -3,7 +3,7 @@ Data models for the Character & Asset Consistency Engine.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional
+from typing import List
 
 
 @dataclass

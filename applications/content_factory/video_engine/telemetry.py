@@ -5,7 +5,7 @@ Telemetry for the Video Engine.
 import logging
 import time
 
-from core.events.bus import EventBus, Event
+from core.events.bus import Event, EventBus
 
 logger = logging.getLogger(__name__)
 

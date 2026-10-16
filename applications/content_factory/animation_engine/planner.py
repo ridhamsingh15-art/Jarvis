@@ -3,21 +3,23 @@ Planner for the Animation Engine.
 """
 
 import logging
-import uuid
 import os
-from typing import List
+import uuid
 
 from applications.content_factory.project.models import ProjectBundle
-from applications.content_factory.storyboard_engine.models import StoryboardScene
 
-from .renderer import AnimationRenderer
-from .quality import AnimationQualityEvaluator
-from .validator import AnimationValidator
 from .asset_pipeline import AnimationAssetPipeline
+from .exceptions import AnimationEngineError
+from .models import (
+    AnimationMetadata,
+    AnimationParameters,
+    AnimationTask,
+)
+from .quality import AnimationQualityEvaluator
+from .renderer import AnimationRenderer
 from .scheduler import AnimationScheduler
 from .telemetry import AnimationEngineTelemetry
-from .models import AnimationParameters, AnimationTask, AnimationAsset, AnimationMetadata
-from .exceptions import AnimationEngineError
+from .validator import AnimationValidator
 
 logger = logging.getLogger(__name__)
 

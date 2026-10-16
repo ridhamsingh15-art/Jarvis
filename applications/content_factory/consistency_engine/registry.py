@@ -3,11 +3,11 @@ Registry for consistency profiles.
 """
 
 import threading
-from typing import Dict, List, Optional
 from collections import defaultdict
+from typing import Dict, List
 
-from .models import CharacterProfile, EnvironmentProfile, ObjectProfile
 from .exceptions import ProfileNotFoundError
+from .models import CharacterProfile, EnvironmentProfile, ObjectProfile
 
 
 class ConsistencyRegistry:

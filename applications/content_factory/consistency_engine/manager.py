@@ -3,18 +3,17 @@ Capability Facade for the Consistency Engine.
 """
 
 import logging
-from typing import List
 
 from applications.content_factory.storyboard_engine.models import StoryboardScene
 from core.capability.models import Capability, CapabilityType
 
 from .asset_matcher import AssetMatcher
-from .prompt_enricher import PromptEnricher
 from .character_library import CharacterLibrary
 from .environment_library import EnvironmentLibrary
-from .object_library import ObjectLibrary
-from .telemetry import ConsistencyTelemetry
 from .models import EnrichmentResult
+from .object_library import ObjectLibrary
+from .prompt_enricher import PromptEnricher
+from .telemetry import ConsistencyTelemetry
 
 logger = logging.getLogger(__name__)
 

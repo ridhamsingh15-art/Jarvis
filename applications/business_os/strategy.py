@@ -5,7 +5,8 @@ Handles market research, competitor analysis, and positioning.
 """
 import logging
 from typing import Any
-from .models import BusinessGoal, MarketAnalysis, BusinessType
+
+from .models import BusinessGoal, BusinessType, MarketAnalysis
 
 logger = logging.getLogger(__name__)
 

@@ -2,7 +2,6 @@
 Renderer for the Animation Engine.
 """
 
-from typing import Tuple
 
 from .adapters import AnimationAdapterFactory
 from .models import AnimationParameters

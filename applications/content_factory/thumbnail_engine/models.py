@@ -4,6 +4,7 @@ Models for the Thumbnail Engine.
 from dataclasses import dataclass
 from typing import Optional
 
+
 @dataclass
 class ThumbnailGenerationRequest:
     base_image_path: str

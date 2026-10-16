@@ -5,9 +5,9 @@ Tracks revenue, costs, and burn rate.
 Strictly isolated from actual financial transactions.
 """
 import logging
-from typing import Any
-from .models import FinancialReport
+
 from .exceptions import FinancialConstraintError
+from .models import FinancialReport
 
 logger = logging.getLogger(__name__)
 

@@ -5,6 +5,7 @@ Generates marketing plans, content strategy, and GTM strategy.
 """
 import logging
 from typing import Any
+
 from .models import BusinessGoal, MarketingStrategy
 
 logger = logging.getLogger(__name__)

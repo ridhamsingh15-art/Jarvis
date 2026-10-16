@@ -3,15 +3,16 @@ Production ComfyUI Animation Adapter.
 """
 import logging
 
-from .models import AnimationParameters
-from .exceptions import AnimationAdapterError
 from core.integrations.comfyui import (
     ComfyUIClient,
-    ComfyUIWebSocket,
     ComfyUIDownloader,
     ComfyUIHealthCheck,
-    ComfyUIWorkflow
+    ComfyUIWebSocket,
+    ComfyUIWorkflow,
 )
+
+from .exceptions import AnimationAdapterError
+from .models import AnimationParameters
 
 logger = logging.getLogger(__name__)
 

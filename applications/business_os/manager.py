@@ -6,14 +6,14 @@ Facade for the Autonomous Business Operating System.
 import logging
 from typing import Any
 
-from .models import BusinessGoal, BusinessReport, BusinessPlan
-from .planner import BusinessPlanner
+from .analytics import AnalyticsAgent
+from .exceptions import BusinessOSError
 from .execution import ExecutionManager
 from .finance import FinanceAgent
-from .analytics import AnalyticsAgent
-from .marketing import MarketingAgent
 from .forecasting import ForecastingAgent
-from .exceptions import BusinessOSError
+from .marketing import MarketingAgent
+from .models import BusinessGoal, BusinessReport
+from .planner import BusinessPlanner
 
 logger = logging.getLogger(__name__)
 

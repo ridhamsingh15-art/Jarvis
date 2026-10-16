@@ -1,18 +1,19 @@
 """
 Planner for the Thumbnail Engine.
 """
-import os
-import json
 import dataclasses
+import json
+import os
 from pathlib import Path
 
-from applications.content_factory.project.models import ProjectBundle
 from applications.content_factory.project.manager import ProjectManager
+from applications.content_factory.project.models import ProjectBundle
 
-from .generator import ThumbnailGenerator
-from .telemetry import ThumbnailEngineTelemetry
-from .models import ThumbnailGenerationRequest, ThumbnailAssetMetadata
 from .exceptions import ThumbnailEngineError
+from .generator import ThumbnailGenerator
+from .models import ThumbnailAssetMetadata, ThumbnailGenerationRequest
+from .telemetry import ThumbnailEngineTelemetry
+
 
 class ThumbnailGenerationPlanner:
     def __init__(

@@ -3,6 +3,7 @@ Validator for Animation Engine Metadata.
 """
 
 from core.errors import JarvisError
+
 from .models import AnimationMetadata
 
 

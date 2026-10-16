@@ -3,7 +3,9 @@ Telemetry for the Music Engine.
 """
 
 import time
-from core.events.bus import EventBus, Event
+
+from core.events.bus import Event, EventBus
+
 
 class MusicEngineTelemetry:
     def __init__(self, event_bus: EventBus) -> None:

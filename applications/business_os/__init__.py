@@ -1,20 +1,20 @@
+from .exceptions import (
+    AnalyticsError,
+    BusinessOSError,
+    DelegationError,
+    FinancialConstraintError,
+    PlanningError,
+)
 from .manager import BusinessOSManager
 from .models import (
-    BusinessType,
+    KPI,
     BusinessGoal,
+    BusinessPlan,
+    BusinessReport,
+    BusinessType,
+    FinancialReport,
     MarketAnalysis,
     MarketingStrategy,
-    BusinessPlan,
-    KPI,
-    FinancialReport,
-    BusinessReport
-)
-from .exceptions import (
-    BusinessOSError,
-    FinancialConstraintError,
-    DelegationError,
-    PlanningError,
-    AnalyticsError
 )
 
 __all__ = [

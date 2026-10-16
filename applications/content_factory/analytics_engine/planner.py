@@ -2,13 +2,15 @@
 Planner for the Analytics Engine.
 """
 import dataclasses
-from applications.content_factory.project.models import ProjectBundle
-from applications.content_factory.project.manager import ProjectManager
 
-from .tracker import AnalyticsTracker
-from .telemetry import AnalyticsEngineTelemetry
-from .models import AnalyticsSyncRequest
+from applications.content_factory.project.manager import ProjectManager
+from applications.content_factory.project.models import ProjectBundle
+
 from .exceptions import AnalyticsEngineError
+from .models import AnalyticsSyncRequest
+from .telemetry import AnalyticsEngineTelemetry
+from .tracker import AnalyticsTracker
+
 
 class AnalyticsPlanner:
     def __init__(

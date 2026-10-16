@@ -101,3 +101,7 @@ Optional runtime tracing previously swallowed exceptions without a diagnostic, a
 ## Item 20 — core safe lint cleanup
 
 Applied Ruff's safe F401/I001 fixes under `core/` only: **168 findings removed across 117 files**. Reviewed the aggregate diff; it contains import removals/reordering and related `__all__` ordering only, with no unsafe fixes requested. Verification: `git diff --check` passed; `ruff check core --select F401,I001` passed with zero findings; focused core tests → **64 passed in 6.60s**. Global Ruff baseline-to-current now **1,157 → 880 findings** (overall, includes remaining non-import style/exception-handling work); critical `F821,F811,PLW1510,RUF012` remain clean.
+
+## Item 21 — applications safe lint cleanup
+
+Applied Ruff safe F401/I001 fixes under `applications/` only: **137 findings removed**. Verification: `git diff --check` passed; `ruff check applications --select F401,I001` passed with zero findings; focused SWE, test-engine, animation/image/video/voice/storyboard/script and project-manager tests → **56 passed in 2.19s**.

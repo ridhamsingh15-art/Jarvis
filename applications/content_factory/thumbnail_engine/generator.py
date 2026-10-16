@@ -3,6 +3,7 @@ Generator adapter for Thumbnail Engine.
 """
 from .models import ThumbnailGenerationRequest
 
+
 class ThumbnailGenerator:
     """Mock generator for creating click-optimized thumbnails with overlays."""
     

@@ -2,10 +2,8 @@
 Data models for the Animation Engine.
 """
 
-from dataclasses import dataclass, field
-from typing import Dict, Any, Optional
-
-from core.models import Metadata
+from dataclasses import dataclass
+from typing import Any, Dict
 
 
 @dataclass

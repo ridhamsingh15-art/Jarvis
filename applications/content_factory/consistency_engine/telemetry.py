@@ -6,7 +6,7 @@ import logging
 from datetime import datetime, timezone
 from typing import List
 
-from core.events.bus import EventBus, Event
+from core.events.bus import Event, EventBus
 
 logger = logging.getLogger(__name__)
 

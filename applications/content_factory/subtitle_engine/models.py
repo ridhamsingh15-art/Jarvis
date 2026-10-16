@@ -3,6 +3,7 @@ Models for the Subtitle Engine.
 """
 from dataclasses import dataclass
 
+
 @dataclass
 class SubtitleGenerationRequest:
     text: str

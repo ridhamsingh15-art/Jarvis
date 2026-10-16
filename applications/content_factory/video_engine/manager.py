@@ -11,8 +11,8 @@ from core.mission.manager import MissionManager
 from core.mission.models import Mission
 from core.models import Metadata
 
-from .planner import VideoGenerationPlanner
 from .models import VideoParameters
+from .planner import VideoGenerationPlanner
 
 logger = logging.getLogger(__name__)
 

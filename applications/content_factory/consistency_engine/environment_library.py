@@ -2,13 +2,13 @@
 Domain service for managing Environment Profiles.
 """
 
-from typing import List
 import uuid
+from typing import List
 
 from .models import EnvironmentProfile
 from .registry import ConsistencyRegistry
-from .validator import ProfileValidator
 from .telemetry import ConsistencyTelemetry
+from .validator import ProfileValidator
 
 
 class EnvironmentLibrary:

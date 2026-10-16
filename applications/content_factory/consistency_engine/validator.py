@@ -3,8 +3,9 @@ Validators for consistency profiles.
 """
 
 from typing import Union
-from .models import CharacterProfile, EnvironmentProfile, ObjectProfile
+
 from .exceptions import ConsistencyValidationError
+from .models import CharacterProfile, EnvironmentProfile, ObjectProfile
 
 
 class ProfileValidator:

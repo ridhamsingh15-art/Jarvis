@@ -1,9 +1,11 @@
 """
 Adapter mapping Project Bundle to n8n payloads.
 """
-from core.integrations.n8n.workflow_runner import N8nWorkflowRunner
 from applications.content_factory.project.models import ProjectBundle
+from core.integrations.n8n.workflow_runner import N8nWorkflowRunner
+
 from .models import PublishRequest
+
 
 class PublishingAdapter:
     """Adapter to trigger n8n workflows for publishing."""

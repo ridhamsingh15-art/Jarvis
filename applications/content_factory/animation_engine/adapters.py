@@ -3,9 +3,10 @@ Model adapters for the Animation Engine.
 """
 
 from typing import Protocol
-from .models import AnimationParameters
-from .exceptions import AnimationAdapterError
+
 from .comfyui_adapter import ProductionComfyUIAnimationAdapter
+from .exceptions import AnimationAdapterError
+from .models import AnimationParameters
 
 
 class AnimationAdapter(Protocol):

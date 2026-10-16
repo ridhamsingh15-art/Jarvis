@@ -4,9 +4,8 @@ Telemetry for the Voice Engine.
 
 import logging
 import time
-from typing import Dict, Any
 
-from core.events.bus import EventBus, Event
+from core.events.bus import Event, EventBus
 
 logger = logging.getLogger(__name__)
 

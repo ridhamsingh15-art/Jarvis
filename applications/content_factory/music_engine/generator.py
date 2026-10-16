@@ -4,6 +4,7 @@ Generator adapter for Music Engine.
 
 from .models import MusicGenerationRequest
 
+
 class MusicGenerator:
     """Mock adapter for generating music (Suno/Local)."""
     

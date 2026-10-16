@@ -3,6 +3,7 @@ Validator for Video Engine Metadata.
 """
 
 from core.errors import JarvisError
+
 from .models import VideoMetadata
 
 

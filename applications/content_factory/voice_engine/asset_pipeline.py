@@ -2,12 +2,13 @@
 Asset Pipeline for ingesting voices into the Project Bundle.
 """
 
+import dataclasses
 import json
 from pathlib import Path
-import dataclasses
 
-from applications.content_factory.project.models import ProjectBundle
 from applications.content_factory.project.manager import ProjectManager
+from applications.content_factory.project.models import ProjectBundle
+
 from .models import VoiceMetadata
 
 

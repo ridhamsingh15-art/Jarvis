@@ -2,7 +2,7 @@
 Models for the Publishing Engine.
 """
 from dataclasses import dataclass
-from typing import Dict, Any
+
 
 @dataclass
 class PublishRequest:

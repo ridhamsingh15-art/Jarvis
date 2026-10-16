@@ -4,15 +4,15 @@ Production ComfyUI Image Adapter.
 import logging
 from typing import Any
 
-from .models import GenerationParameters
 from core.integrations.comfyui import (
     ComfyUIClient,
-    ComfyUIWebSocket,
-    WorkflowHelper,
     ComfyUIDownloader,
     ComfyUIHealthCheck,
-    ComfyUIWorkflow
+    ComfyUIWebSocket,
+    ComfyUIWorkflow,
 )
+
+from .models import GenerationParameters
 
 logger = logging.getLogger(__name__)
 

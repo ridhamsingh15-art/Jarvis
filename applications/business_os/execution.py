@@ -5,8 +5,9 @@ Delegates tasks to specialized subsystems like Content Factory or Software Engin
 """
 import logging
 from typing import Any
-from .models import BusinessPlan, BusinessType
+
 from .exceptions import DelegationError
+from .models import BusinessPlan
 
 logger = logging.getLogger(__name__)
 

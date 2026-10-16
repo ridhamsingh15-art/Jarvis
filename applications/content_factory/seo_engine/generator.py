@@ -3,6 +3,7 @@ Generator adapter for SEO Engine.
 """
 import json
 
+
 class SEOGenerator:
     """Mock generator for creating YouTube SEO metadata."""
     

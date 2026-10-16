@@ -1,18 +1,21 @@
 """
 Planner for the SEO Engine.
 """
-import os
-import json
 import dataclasses
+import json
+import os
 from pathlib import Path
 
-from applications.content_factory.project.models import ProjectBundle, ProjectBundleMetadata
 from applications.content_factory.project.manager import ProjectManager
+from applications.content_factory.project.models import (
+    ProjectBundle,
+)
 
-from .generator import SEOGenerator
-from .telemetry import SEOEngineTelemetry
-from .models import SEOAssetMetadata
 from .exceptions import SEOEngineError
+from .generator import SEOGenerator
+from .models import SEOAssetMetadata
+from .telemetry import SEOEngineTelemetry
+
 
 class SEOGenerationPlanner:
     def __init__(
@@ -70,7 +73,6 @@ class SEOGenerationPlanner:
             os.remove(temp_path)
             
             # Inject directly into ProjectBundleMetadata
-            from applications.content_factory.project.bundle import BundleModifier
             updated_metadata = dataclasses.replace(updated_bundle.metadata, seo_metadata=seo_data)
             updated_bundle = dataclasses.replace(updated_bundle, metadata=updated_metadata)
             

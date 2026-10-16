@@ -2,7 +2,9 @@
 Generator adapter for Subtitle Engine.
 """
 from typing import List
+
 from .models import SubtitleGenerationRequest
+
 
 class SubtitleGenerator:
     """Generates SRT/VTT formatted text from requests."""

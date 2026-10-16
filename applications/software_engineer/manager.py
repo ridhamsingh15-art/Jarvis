@@ -6,9 +6,9 @@ Facade for the Autonomous Software Engineering Framework.
 import logging
 from typing import Any
 
-from .models import EngineeringMissionContext, EngineeringReport
 from .coordinator import SoftwareEngineeringCoordinator
 from .git_manager import GitManager
+from .models import EngineeringMissionContext, EngineeringReport
 from .quality_manager import QualityManager
 
 logger = logging.getLogger(__name__)

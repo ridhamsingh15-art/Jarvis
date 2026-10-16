@@ -4,6 +4,7 @@ Quality Manager.
 Enforces rules: never overwrite silently, always create checkpoints, always produce a review.
 """
 import logging
+
 from .exceptions import QualityGateError
 
 logger = logging.getLogger(__name__)

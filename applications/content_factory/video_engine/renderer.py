@@ -2,8 +2,8 @@
 Renderer for the Video Engine.
 """
 
-from .models import VideoTask
 from .ffmpeg_adapter import FFmpegAdapter
+from .models import VideoTask
 
 
 class VideoRenderer:

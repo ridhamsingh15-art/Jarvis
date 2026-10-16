@@ -2,7 +2,9 @@
 Telemetry for the Subtitle Engine.
 """
 import time
-from core.events.bus import EventBus, Event
+
+from core.events.bus import Event, EventBus
+
 
 class SubtitleEngineTelemetry:
     def __init__(self, event_bus: EventBus) -> None:

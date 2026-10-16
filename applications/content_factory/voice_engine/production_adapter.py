@@ -4,16 +4,16 @@ Production Voice Adapter.
 Bridges the Voice Engine to the core VoiceManager, handling parameter mapping.
 """
 import logging
-from typing import Optional
 
-from .models import VoiceParameters
-from .exceptions import VoiceAdapterError
 from core.integrations.voice import (
-    VoiceManager, 
-    VoiceRequest, 
     ProviderType,
-    VoiceIntegrationError
+    VoiceIntegrationError,
+    VoiceManager,
+    VoiceRequest,
 )
+
+from .exceptions import VoiceAdapterError
+from .models import VoiceParameters
 
 logger = logging.getLogger(__name__)
 

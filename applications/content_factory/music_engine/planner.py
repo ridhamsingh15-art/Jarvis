@@ -2,18 +2,19 @@
 Planner for the Music Engine.
 """
 
-import os
-import json
 import dataclasses
+import json
+import os
 from pathlib import Path
 
-from applications.content_factory.project.models import ProjectBundle
 from applications.content_factory.project.manager import ProjectManager
+from applications.content_factory.project.models import ProjectBundle
 
-from .generator import MusicGenerator
-from .telemetry import MusicEngineTelemetry
-from .models import MusicGenerationRequest, MusicAssetMetadata
 from .exceptions import MusicEngineError
+from .generator import MusicGenerator
+from .models import MusicAssetMetadata, MusicGenerationRequest
+from .telemetry import MusicEngineTelemetry
+
 
 class MusicGenerationPlanner:
     def __init__(

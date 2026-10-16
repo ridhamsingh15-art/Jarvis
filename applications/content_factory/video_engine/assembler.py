@@ -2,11 +2,11 @@
 Assembler for the Video Engine.
 """
 
-from typing import List
 
-from .models import TimelineClip, VideoTask, VideoParameters
-from .timeline import TimelineBuilder
 from applications.content_factory.project.models import ProjectBundle
+
+from .models import VideoParameters, VideoTask
+from .timeline import TimelineBuilder
 
 
 class SceneSequencer:

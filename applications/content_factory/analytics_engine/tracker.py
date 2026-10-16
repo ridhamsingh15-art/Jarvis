@@ -1,9 +1,12 @@
 """
 Tracker for Analytics Engine.
 """
-from typing import Dict, Any
-from .models import AnalyticsSyncRequest
+from typing import Any, Dict
+
 from applications.content_factory.project.models import ProjectBundle
+
+from .models import AnalyticsSyncRequest
+
 
 class AnalyticsTracker:
     """Mock tracker that generates simulated analytics data."""

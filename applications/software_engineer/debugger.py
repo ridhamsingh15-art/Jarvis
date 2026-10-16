@@ -6,7 +6,9 @@ and suggests or applies fixes.
 """
 import logging
 from typing import Any, Optional
+
 from core.perception.manager import PerceptionManager
+
 from .models import DebugReport, ImplementationResult
 
 logger = logging.getLogger(__name__)

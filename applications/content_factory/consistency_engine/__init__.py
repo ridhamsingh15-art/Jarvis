@@ -2,9 +2,18 @@
 AI Content Factory: Character & Asset Consistency Engine
 """
 
-from .models import CharacterProfile, EnvironmentProfile, ObjectProfile, EnrichmentResult
+from .exceptions import (
+    ConsistencyEngineError,
+    ConsistencyValidationError,
+    ProfileNotFoundError,
+)
 from .manager import ConsistencyEngineManager
-from .exceptions import ConsistencyEngineError, ConsistencyValidationError, ProfileNotFoundError
+from .models import (
+    CharacterProfile,
+    EnrichmentResult,
+    EnvironmentProfile,
+    ObjectProfile,
+)
 
 __all__ = [
     "ConsistencyEngineManager",

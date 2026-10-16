@@ -5,8 +5,9 @@ Tracks KPIs and analyzes performance.
 """
 import logging
 from typing import Any
-from .models import KPI
+
 from .exceptions import AnalyticsError
+from .models import KPI
 
 logger = logging.getLogger(__name__)
 

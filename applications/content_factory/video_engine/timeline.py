@@ -2,14 +2,14 @@
 Timeline builder for the Video Engine.
 """
 
-from typing import List, Dict
+from typing import List
 
-from applications.content_factory.project.models import ProjectBundle
 from applications.content_factory.project.manager import ProjectManager
-from applications.content_factory.storyboard_engine.models import StoryboardPackage
-from .models import TimelineClip, TransitionConfig
-from .transitions import TransitionBuilder
+from applications.content_factory.project.models import ProjectBundle
+
 from .exceptions import TimelineError
+from .models import TimelineClip
+from .transitions import TransitionBuilder
 
 
 class TimelineBuilder:

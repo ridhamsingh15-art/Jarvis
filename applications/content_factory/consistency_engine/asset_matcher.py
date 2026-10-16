@@ -6,6 +6,7 @@ import re
 from typing import List, Tuple
 
 from applications.content_factory.storyboard_engine.models import StoryboardScene
+
 from .models import CharacterProfile, EnvironmentProfile, ObjectProfile
 from .registry import ConsistencyRegistry
 

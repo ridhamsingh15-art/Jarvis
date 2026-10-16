@@ -2,13 +2,13 @@
 Domain service for managing Character Profiles.
 """
 
-from typing import List, Optional
 import uuid
+from typing import List
 
 from .models import CharacterProfile
 from .registry import ConsistencyRegistry
-from .validator import ProfileValidator
 from .telemetry import ConsistencyTelemetry
+from .validator import ProfileValidator
 
 
 class CharacterLibrary:

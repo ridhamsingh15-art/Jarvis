@@ -5,6 +5,9 @@ Orchestrates the image generation retry loop and batch execution.
 import logging
 import os
 
+from applications.content_factory.consistency_engine.manager import (
+    ConsistencyEngineManager,
+)
 from applications.content_factory.project.models import ProjectBundle
 from applications.content_factory.storyboard_engine.models import StoryboardScene
 
@@ -15,7 +18,6 @@ from .quality import ImageQualityEvaluator
 from .renderer import ImageRenderer
 from .scheduler import GenerationScheduler
 from .telemetry import ImageEngineTelemetry
-from applications.content_factory.consistency_engine.manager import ConsistencyEngineManager
 from .validator import ImageValidator
 
 logger = logging.getLogger(__name__)
