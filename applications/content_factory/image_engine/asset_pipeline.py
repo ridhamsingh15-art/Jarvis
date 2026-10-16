@@ -49,15 +49,14 @@ class AssetPipeline:
         )
         
         # Write sidecar metadata.json in that same directory
-        # We need the absolute path to the directory we just wrote to
-        # The new asset is the last one in the list
+        # The new asset is the last one in the list. Resolve its path through
+        # ProjectManager's public facade rather than reaching into private storage.
         latest_asset = updated_bundle.assets[-1]
-        
-        # Hack to access storage securely through project manager
-        # In a real system, ProjectManager would expose a method to get absolute dir path
-        # We know relative_path is something like images/scene_001/image_v2.png
-        storage = self._project_manager._storage
-        abs_file_path = Path(storage.get_absolute_path(bundle.metadata.project_id, latest_asset.relative_path))
+        abs_file_path = Path(
+            self._project_manager.get_asset_absolute_path(
+                updated_bundle, latest_asset.metadata.asset_id
+            )
+        )
         abs_dir = abs_file_path.parent
         
         # Save sidecar

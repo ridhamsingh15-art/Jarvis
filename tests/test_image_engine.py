@@ -13,7 +13,6 @@ from applications.content_factory.image_engine.asset_pipeline import AssetPipeli
 from applications.content_factory.image_engine.exceptions import (
     ImageQualityError,
 )
-from applications.content_factory.image_engine.manager import ImageEngineManager
 from applications.content_factory.image_engine.models import (
     GenerationParameters,
     GenerationTask,
@@ -65,7 +64,6 @@ def image_engine_stack(temp_workspace):
     planner = ImageGenerationPlanner(
         renderer, evaluator, validator, pipeline, scheduler, telemetry, max_retries=1
     )
-    manager = ImageEngineManager(planner, MagicMock(), project_manager)
     
     return project_manager, planner, renderer, evaluator, storage
 
@@ -152,6 +150,9 @@ def test_full_pipeline_ingestion(image_engine_stack):
     
     # Verify disk
     proj_dir = storage.root_dir / bundle.metadata.project_id
+    assert Path(
+        project_manager.get_asset_absolute_path(updated_bundle, asset_1.metadata.asset_id)
+    ) == proj_dir / "images" / "scene_001" / "image_v1.png"
     assert (proj_dir / "images" / "scene_001" / "image_v1.png").exists()
     assert (proj_dir / "images" / "scene_001" / "metadata.json").exists()
     assert (proj_dir / "images" / "scene_002" / "image_v1.png").exists()

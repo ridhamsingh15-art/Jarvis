@@ -86,6 +86,10 @@ class ProjectManager:
         return self._registry.list_all()
 
     # Asset Facade methods
+    def get_asset_absolute_path(self, bundle: ProjectBundle, asset_id: str) -> str:
+        """Return the physical path for a registered asset through the public facade."""
+        return self._asset_manager.get_asset_absolute_path(bundle, asset_id)
+
     def ingest_asset(
         self,
         bundle: ProjectBundle,
