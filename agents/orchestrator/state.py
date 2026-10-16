@@ -19,6 +19,14 @@ class WorkflowNode(JarvisModel):
     payload: dict[str, Any] = field(default_factory=dict)
     retries: int = 3
 
+    def validate(self) -> None:
+        if (
+            not isinstance(self.retries, int)
+            or isinstance(self.retries, bool)
+            or self.retries < 1
+        ):
+            raise ValueError("retries must be an integer greater than or equal to 1")
+
 @dataclass
 class WorkflowState:
     id: str

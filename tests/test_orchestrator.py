@@ -1,7 +1,7 @@
 import pytest
 
 from agents.orchestrator import CycleError, OrchestratorManager, WorkflowBuilder
-from agents.orchestrator.state import NodeState
+from agents.orchestrator.state import NodeState, WorkflowNode
 from core.events.bus import EventBus
 
 
@@ -36,6 +36,17 @@ async def test_cycle_detection():
     
     with pytest.raises(CycleError):
         builder.build()
+
+@pytest.mark.parametrize("retries", [0, -1])
+def test_workflow_node_rejects_nonpositive_retry_count(retries):
+    with pytest.raises(ValueError, match="retries must be an integer"):
+        WorkflowNode(id="invalid-retries", action="work", retries=retries)
+
+
+def test_workflow_node_accepts_positive_retry_count():
+    node = WorkflowNode(id="valid-retries", action="work", retries=1)
+    assert node.retries == 1
+
 
 def test_build_rejects_unknown_dependency():
     builder = WorkflowBuilder("missing_dependency")
