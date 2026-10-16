@@ -11,7 +11,6 @@ import logging
 import sqlite3
 import threading
 from pathlib import Path
-from typing import Optional
 
 from .exceptions import DuplicateExperienceError
 from .models import ExperienceRecord, Lesson
@@ -40,7 +39,7 @@ class InMemoryExperienceRepository:
                 raise DuplicateExperienceError(f"Experience {record.id} already stored.")
             self._records[record.id] = record
 
-    def get_record(self, record_id: str) -> Optional[ExperienceRecord]:
+    def get_record(self, record_id: str) -> ExperienceRecord | None:
         with self._lock:
             return self._records.get(record_id)
 
@@ -65,7 +64,7 @@ class InMemoryExperienceRepository:
         with self._lock:
             self._lessons[lesson.id] = lesson
 
-    def get_lesson(self, lesson_id: str) -> Optional[Lesson]:
+    def get_lesson(self, lesson_id: str) -> Lesson | None:
         with self._lock:
             return self._lessons.get(lesson_id)
 

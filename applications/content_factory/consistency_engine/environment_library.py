@@ -3,7 +3,6 @@ Domain service for managing Environment Profiles.
 """
 
 import uuid
-from typing import List
 
 from .models import EnvironmentProfile
 from .registry import ConsistencyRegistry
@@ -44,7 +43,7 @@ class EnvironmentLibrary:
         """Retrieves an EnvironmentProfile by ID."""
         return self._registry.get_environment(project_id, profile_id)
 
-    def search_environments(self, project_id: str, query: str = "") -> List[EnvironmentProfile]:
+    def search_environments(self, project_id: str, query: str = "") -> list[EnvironmentProfile]:
         """Searches for environments by name or description."""
         all_envs = self._registry.list_environments(project_id)
         if not query:

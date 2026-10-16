@@ -1,4 +1,3 @@
-from typing import List
 
 from .models import ProductionState, WorkflowNode
 
@@ -6,7 +5,7 @@ from .models import ProductionState, WorkflowNode
 class RecoveryManager:
     """Handles failure recovery and workflow resumption."""
 
-    def resume_from_checkpoint(self, workflow_sequence: List[WorkflowNode], completed_stage_ids: List[str]) -> List[WorkflowNode]:
+    def resume_from_checkpoint(self, workflow_sequence: list[WorkflowNode], completed_stage_ids: list[str]) -> list[WorkflowNode]:
         """
         Takes a workflow sequence and marks previously completed stages as SKIPPED
         so they are not re-executed, while preserving the project bundle.
@@ -17,7 +16,7 @@ class RecoveryManager:
                 
         return workflow_sequence
 
-    def filter_runnable_sequence(self, workflow_sequence: List[WorkflowNode]) -> List[WorkflowNode]:
+    def filter_runnable_sequence(self, workflow_sequence: list[WorkflowNode]) -> list[WorkflowNode]:
         """
         Returns only the nodes that actually need to be executed.
         """

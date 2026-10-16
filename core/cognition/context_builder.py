@@ -1,5 +1,4 @@
 import logging
-from typing import Optional, Set
 
 from core.cognition.context_models import ProviderType
 from core.reasoning.execution_plan import ExecutionPlan
@@ -7,7 +6,7 @@ from core.reasoning.execution_plan import ExecutionPlan
 logger = logging.getLogger(__name__)
 
 # Deterministic provider sets per intent — no LLM required.
-_PROVIDERS_BY_INTENT: dict[str, Set[ProviderType]] = {
+_PROVIDERS_BY_INTENT: dict[str, set[ProviderType]] = {
     "chat":    {ProviderType.CONVERSATION, ProviderType.TOOL},
     "tool":    {ProviderType.CONVERSATION, ProviderType.TOOL},
     "memory":  {ProviderType.MEMORY, ProviderType.PKI, ProviderType.CONVERSATION},
@@ -17,7 +16,7 @@ _PROVIDERS_BY_INTENT: dict[str, Set[ProviderType]] = {
         ProviderType.TOOL, ProviderType.CONVERSATION,
     },
 }
-_PROVIDERS_DEFAULT: Set[ProviderType] = {ProviderType.MEMORY, ProviderType.CONVERSATION, ProviderType.TOOL}
+_PROVIDERS_DEFAULT: set[ProviderType] = {ProviderType.MEMORY, ProviderType.CONVERSATION, ProviderType.TOOL}
 
 
 class ContextBuilder:
@@ -28,10 +27,10 @@ class ContextBuilder:
 
     def determine_providers(
         self,
-        plan: Optional[ExecutionPlan] = None,
+        plan: ExecutionPlan | None = None,
         user_input: str = "",
         intent: str = "chat",
-    ) -> Set[ProviderType]:
+    ) -> set[ProviderType]:
         """Return the set of context providers to query.
 
         Priority:
@@ -45,7 +44,7 @@ class ContextBuilder:
             or plan.required_tools
             or plan.requires_project
         ):
-            providers: Set[ProviderType] = {ProviderType.MEMORY, ProviderType.CONVERSATION, ProviderType.TOOL}
+            providers: set[ProviderType] = {ProviderType.MEMORY, ProviderType.CONVERSATION, ProviderType.TOOL}
             if plan.requires_knowledge:
                 providers.add(ProviderType.PKI)
             if plan.required_missions:

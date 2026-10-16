@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Optional
 
 from core.models import JarvisModel
 
@@ -53,9 +52,9 @@ class CritiqueResult:
     is_complete: bool
     feedback: str
     needs_clarification: bool = False
-    clarification_question: Optional[str] = None
+    clarification_question: str | None = None
 
 @dataclass
 class VerificationResult:
     is_valid: bool
-    errors: List[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)

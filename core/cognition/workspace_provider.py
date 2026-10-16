@@ -1,6 +1,5 @@
 import logging
 from pathlib import Path
-from typing import List
 
 from core.cognition.context_models import ContextChunk, ProviderType
 
@@ -9,7 +8,7 @@ logger = logging.getLogger(__name__)
 class WorkspaceProvider:
     """Gathers context about the physical workspace."""
     
-    def gather(self, user_input: str) -> List[ContextChunk]:
+    def gather(self, user_input: str) -> list[ContextChunk]:
         """Fetch workspace path and layout."""
         try:
             cwd = Path.cwd()

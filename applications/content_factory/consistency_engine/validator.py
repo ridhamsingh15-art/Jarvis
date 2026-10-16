@@ -2,7 +2,6 @@
 Validators for consistency profiles.
 """
 
-from typing import Union
 
 from .exceptions import ConsistencyValidationError
 from .models import CharacterProfile, EnvironmentProfile, ObjectProfile
@@ -32,7 +31,7 @@ class ProfileValidator:
         if not profile.description or not profile.description.strip():
             raise ConsistencyValidationError(f"ObjectProfile {profile.id} '{profile.name}' is missing a description.")
 
-    def validate(self, profile: Union[CharacterProfile, EnvironmentProfile, ObjectProfile]) -> None:
+    def validate(self, profile: CharacterProfile | EnvironmentProfile | ObjectProfile) -> None:
         """Validates any profile type."""
         if isinstance(profile, CharacterProfile):
             self.validate_character(profile)

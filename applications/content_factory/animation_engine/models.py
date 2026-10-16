@@ -3,7 +3,7 @@ Data models for the Animation Engine.
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any
 
 
 @dataclass
@@ -37,7 +37,7 @@ class AnimationMetadata:
     model_name: str
     motion_prompt: str
     camera_motion: str
-    generation_parameters: Dict[str, Any]
+    generation_parameters: dict[str, Any]
     version: int
     timestamp: str
 

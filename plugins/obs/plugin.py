@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("plugin.obs_studio")
 
-_ctx: "PluginContext | None" = None
+_ctx: PluginContext | None = None
 _PLUGIN_ID = "obs_studio"
 
 
@@ -28,7 +28,7 @@ _PLUGIN_ID = "obs_studio"
 # Lifecycle hooks — called by JARVIS DefaultPluginLifecycle
 # ---------------------------------------------------------------------------
 
-def plugin_initialize(ctx: "PluginContext") -> None:
+def plugin_initialize(ctx: PluginContext) -> None:
     """Called once after the module is loaded. Set up the plugin context."""
     global _ctx
     _ctx = ctx
@@ -54,7 +54,7 @@ def plugin_initialize(ctx: "PluginContext") -> None:
     ctx.log.info("OBS Studio capabilities registered.")
 
 
-def plugin_start(ctx: "PluginContext") -> None:
+def plugin_start(ctx: PluginContext) -> None:
     """Called when the plugin transitions to RUNNING state."""
     ctx.assert_permission("network")
     ctx.assert_permission("automation")
@@ -66,7 +66,7 @@ def plugin_start(ctx: "PluginContext") -> None:
     ctx.log.info("OBS Studio plugin started. Listening for publishing events.")
 
 
-def plugin_stop(ctx: "PluginContext") -> None:
+def plugin_stop(ctx: PluginContext) -> None:
     """Called when the plugin transitions to STOPPED state."""
     ctx.events.cleanup()
     ctx.log.info("OBS Studio plugin stopped.")

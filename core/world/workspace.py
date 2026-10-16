@@ -11,7 +11,6 @@ import os
 import threading
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
 
 from .exceptions import WorkspaceAlreadyRegisteredError, WorkspaceNotFoundError
 from .models import RegisteredWorkspace
@@ -32,7 +31,7 @@ _LANG_HINTS: list[tuple[str, str]] = [
 ]
 
 
-def _detect_language(path: str) -> Optional[str]:
+def _detect_language(path: str) -> str | None:
     try:
         entries = set(os.listdir(path))
         for marker, lang in _LANG_HINTS:
@@ -54,7 +53,7 @@ class WorkspaceRegistry:
         self._lock = threading.RLock()
         self._workspaces: dict[str, RegisteredWorkspace] = {}  # id -> workspace
 
-    def register(self, path: str, name: Optional[str] = None) -> RegisteredWorkspace:
+    def register(self, path: str, name: str | None = None) -> RegisteredWorkspace:
         """
         Register a new trusted workspace. The path must exist.
         Raises WorkspaceAlreadyRegisteredError if the path is already tracked.
@@ -89,11 +88,11 @@ class WorkspaceRegistry:
             removed = self._workspaces.pop(workspace_id)
             logger.info(f"Workspace removed: {removed.name}")
 
-    def get(self, workspace_id: str) -> Optional[RegisteredWorkspace]:
+    def get(self, workspace_id: str) -> RegisteredWorkspace | None:
         with self._lock:
             return self._workspaces.get(workspace_id)
 
-    def find_by_path(self, path: str) -> Optional[RegisteredWorkspace]:
+    def find_by_path(self, path: str) -> RegisteredWorkspace | None:
         abs_path = os.path.abspath(path)
         with self._lock:
             for ws in self._workspaces.values():

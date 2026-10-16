@@ -33,8 +33,9 @@ import hashlib
 import json
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Callable
+from typing import TYPE_CHECKING
 
 from core.context_budget import (
     DEFAULT_MAX_TOOL_RESULT_CHARS,
@@ -153,7 +154,7 @@ class ToolFeedbackLoop:
     def __init__(
         self,
         execute_fn: Callable[[Task], Task],
-        cognitive_manager: "CognitiveManager | None" = None,
+        cognitive_manager: CognitiveManager | None = None,
         max_iterations: int = MAX_TOOL_ITERATIONS,
         on_action: Callable[[Task], None] | None = None,
     ) -> None:

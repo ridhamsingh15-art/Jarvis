@@ -3,7 +3,6 @@ Data models for the Character & Asset Consistency Engine.
 """
 
 from dataclasses import dataclass, field
-from typing import List
 
 
 @dataclass
@@ -13,7 +12,7 @@ class CharacterProfile:
     name: str
     description: str
     role: str = ""
-    reference_images: List[str] = field(default_factory=list)
+    reference_images: list[str] = field(default_factory=list)
     face_reference: str = ""
     clothing: str = ""
     accessories: str = ""
@@ -33,7 +32,7 @@ class EnvironmentProfile:
     id: str
     name: str
     description: str
-    reference_images: List[str] = field(default_factory=list)
+    reference_images: list[str] = field(default_factory=list)
     architecture_style: str = ""
     lighting: str = ""
     weather: str = ""
@@ -48,7 +47,7 @@ class ObjectProfile:
     id: str
     name: str
     description: str
-    reference_images: List[str] = field(default_factory=list)
+    reference_images: list[str] = field(default_factory=list)
     material: str = ""
     color: str = ""
     scale: str = ""
@@ -60,6 +59,6 @@ class EnrichmentResult:
     """The result of enriching a prompt with consistency references."""
     original_prompt: str
     enriched_prompt: str
-    matched_characters: List[str] = field(default_factory=list)
-    matched_environments: List[str] = field(default_factory=list)
-    matched_objects: List[str] = field(default_factory=list)
+    matched_characters: list[str] = field(default_factory=list)
+    matched_environments: list[str] = field(default_factory=list)
+    matched_objects: list[str] = field(default_factory=list)

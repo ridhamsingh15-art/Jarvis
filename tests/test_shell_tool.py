@@ -14,6 +14,7 @@ Tests:
 10. path traversal blocked
 """
 import sys
+from unittest.mock import Mock
 
 from tools.shell import _HIGH_RISK_PATTERNS, ShellResult, ShellTool
 
@@ -54,6 +55,19 @@ class TestShellToolSafeCommands:
         # Should complete, not crash
         assert isinstance(result, ShellResult)
         assert not result.blocked
+
+
+class TestShellToolArgumentNormalization:
+    def test_invalid_list_literal_preserves_original_command_text(self):
+        tool = _tool()
+        mock_result = Mock(blocked=False, timed_out=False, return_code=0, stdout="ok", stderr="")
+        tool.run = Mock(return_value=mock_result)
+
+        tool.execute("run", {"command": "[malformed, literal]"})
+
+        tool.run.assert_called_once_with(
+            "[malformed, literal]", cwd_override=None, timeout=None
+        )
 
 
 class TestShellToolBlockedCommands:

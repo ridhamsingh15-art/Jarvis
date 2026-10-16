@@ -3,7 +3,6 @@ Asset Matcher for NLP-based profile detection in prompts.
 """
 
 import re
-from typing import List, Tuple
 
 from applications.content_factory.storyboard_engine.models import StoryboardScene
 
@@ -21,7 +20,7 @@ class AssetMatcher:
         self,
         project_id: str,
         scene: StoryboardScene
-    ) -> Tuple[List[CharacterProfile], List[EnvironmentProfile], List[ObjectProfile]]:
+    ) -> tuple[list[CharacterProfile], list[EnvironmentProfile], list[ObjectProfile]]:
         """
         Analyzes the scene's prompt to find mentioned characters, environments, and objects.
         """

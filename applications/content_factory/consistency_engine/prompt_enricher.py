@@ -2,7 +2,6 @@
 Prompt Enricher to inject consistency details into prompts.
 """
 
-from typing import List
 
 from .models import CharacterProfile, EnvironmentProfile, ObjectProfile
 
@@ -13,9 +12,9 @@ class PromptEnricher:
     def enrich(
         self,
         base_prompt: str,
-        characters: List[CharacterProfile],
-        environments: List[EnvironmentProfile],
-        objects: List[ObjectProfile]
+        characters: list[CharacterProfile],
+        environments: list[EnvironmentProfile],
+        objects: list[ObjectProfile]
     ) -> str:
         """
         Takes the base prompt and appends heavily structured visual descriptors 

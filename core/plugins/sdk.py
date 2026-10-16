@@ -17,7 +17,8 @@ Usage in a plugin::
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from core.capability.models import Capability, CapabilityType
 from core.events.bus import EventBus

@@ -1,5 +1,4 @@
 import logging
-from typing import List
 
 from core.cognition.context_models import ContextChunk, ProviderType
 from core.registry import Registry
@@ -12,7 +11,7 @@ class ToolProvider:
     def __init__(self, registry: Registry):
         self._registry = registry
         
-    def gather(self, user_input: str) -> List[ContextChunk]:
+    def gather(self, user_input: str) -> list[ContextChunk]:
         """Fetch available tools."""
         try:
             tool_names = self._registry.list_tools()

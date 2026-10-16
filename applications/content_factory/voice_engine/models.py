@@ -3,7 +3,7 @@ Data models for the Voice Engine.
 """
 
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any
 
 
 @dataclass
@@ -40,7 +40,7 @@ class VoiceMetadata:
     text: str
     voice_id: str
     is_narration: bool
-    generation_parameters: Dict[str, Any]
+    generation_parameters: dict[str, Any]
     version: int
     timestamp: str
 

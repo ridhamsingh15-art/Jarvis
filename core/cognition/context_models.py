@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List
 
 
 class ProviderType(Enum):
@@ -31,10 +30,10 @@ class ContextChunk:
 class ContextPackage:
     """The complete context payload ready for injection."""
     identity_context: str = ""
-    memory_facts: List[str] = field(default_factory=list)
-    pki_knowledge: List[str] = field(default_factory=list)
-    active_projects: List[str] = field(default_factory=list)
-    workspace_state: List[str] = field(default_factory=list)
-    mission_status: List[str] = field(default_factory=list)
-    tool_state: List[str] = field(default_factory=list)
-    recent_conversation: List[str] = field(default_factory=list)
+    memory_facts: list[str] = field(default_factory=list)
+    pki_knowledge: list[str] = field(default_factory=list)
+    active_projects: list[str] = field(default_factory=list)
+    workspace_state: list[str] = field(default_factory=list)
+    mission_status: list[str] = field(default_factory=list)
+    tool_state: list[str] = field(default_factory=list)
+    recent_conversation: list[str] = field(default_factory=list)

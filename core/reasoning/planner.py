@@ -1,6 +1,5 @@
 import json
 import logging
-from typing import List, Optional
 
 from core.cognition.context import ShortTermContext
 from core.llm import LLMClient
@@ -18,9 +17,9 @@ class ReasoningPlanner:
         self, 
         user_input: str, 
         context: ShortTermContext, 
-        previous_plan: Optional[ExecutionPlan] = None,
-        feedback: Optional[str] = None,
-        verification_errors: Optional[List[str]] = None
+        previous_plan: ExecutionPlan | None = None,
+        feedback: str | None = None,
+        verification_errors: list[str] | None = None
     ) -> ExecutionPlan:
         """Generates a drafted ExecutionPlan."""
         

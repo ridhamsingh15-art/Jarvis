@@ -6,7 +6,6 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Optional
 
 
 class ProviderType(StrEnum):
@@ -34,4 +33,4 @@ class VoiceResponse:
     voice_id: str
     language: str
     generation_time: float = field(default_factory=time.time)
-    duration_seconds: Optional[float] = None
+    duration_seconds: float | None = None

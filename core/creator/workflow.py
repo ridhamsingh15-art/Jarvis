@@ -1,4 +1,3 @@
-from typing import List
 
 from .models import DependencyGraph, WorkflowNode
 
@@ -6,12 +5,12 @@ from .models import DependencyGraph, WorkflowNode
 class WorkflowCompiler:
     """Compiles a DependencyGraph into an ordered execution sequence."""
 
-    def compile(self, graph: DependencyGraph) -> List[WorkflowNode]:
+    def compile(self, graph: DependencyGraph) -> list[WorkflowNode]:
         """
         Performs a topological sort on the DependencyGraph to yield a linear 
         execution sequence where all dependencies are satisfied.
         """
-        ordered: List[WorkflowNode] = []
+        ordered: list[WorkflowNode] = []
         visited = set()
         
         # We need to visit nodes only after all their dependencies are visited

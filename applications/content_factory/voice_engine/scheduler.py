@@ -2,8 +2,9 @@
 Scheduler for the Voice Engine.
 """
 
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable, Dict, List, TypeVar
+from typing import TypeVar
 
 T = TypeVar('T')
 R = TypeVar('R')
@@ -16,9 +17,9 @@ class VoiceScheduler:
 
     def execute_batch(
         self,
-        tasks: List[T],
+        tasks: list[T],
         generator_func: Callable[[T], R]
-    ) -> Dict[str, R]:
+    ) -> dict[str, R]:
         """
         Executes a batch of tasks in parallel using ThreadPoolExecutor.
         Returns a dictionary mapping task_id to result.

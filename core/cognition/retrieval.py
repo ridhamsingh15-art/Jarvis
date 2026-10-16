@@ -1,6 +1,5 @@
 import json
 import logging
-from typing import List
 
 from core.cognition.models import MemoryType, RetrievedMemory
 from core.knowledge.indexer.manager import KnowledgeManager
@@ -22,7 +21,7 @@ class MemoryRetriever:
         self._memory_manager = memory_manager
         self._knowledge_manager = knowledge_manager
 
-    def retrieve(self, user_input: str) -> List[RetrievedMemory]:
+    def retrieve(self, user_input: str) -> list[RetrievedMemory]:
         """Determine if retrieval is needed and fetch memories/knowledge."""
         results = []
         
@@ -78,7 +77,7 @@ class MemoryRetriever:
                 
         return results
 
-    def _generate_search_queries(self, user_input: str) -> List[str]:
+    def _generate_search_queries(self, user_input: str) -> list[str]:
         """Uses fast heuristics or LLM to decide if memory/PKI search is needed."""
         cleaned = user_input.lower().strip()
         # Fast filter: Simple greetings or generic chatter don't need semantic memory retrieval

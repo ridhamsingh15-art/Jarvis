@@ -8,7 +8,6 @@ WorldSnapshot assembles into a WorldState.
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from .git_monitor import GitMonitor
 from .models import GitStatus, ProcessInfo, RegisteredWorkspace, WindowInfo
@@ -48,7 +47,7 @@ class WorldObservers:
             logger.warning(f"Process observation failed: {e}")
             return []
 
-    def collect_focused_window(self) -> Optional[WindowInfo]:
+    def collect_focused_window(self) -> WindowInfo | None:
         try:
             return self._window.observe_focused()
         except Exception as e:  # noqa: BLE001

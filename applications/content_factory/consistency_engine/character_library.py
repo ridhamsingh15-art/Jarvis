@@ -3,7 +3,6 @@ Domain service for managing Character Profiles.
 """
 
 import uuid
-from typing import List
 
 from .models import CharacterProfile
 from .registry import ConsistencyRegistry
@@ -44,7 +43,7 @@ class CharacterLibrary:
         """Retrieves a CharacterProfile by ID."""
         return self._registry.get_character(project_id, profile_id)
 
-    def search_characters(self, project_id: str, query: str = "") -> List[CharacterProfile]:
+    def search_characters(self, project_id: str, query: str = "") -> list[CharacterProfile]:
         """Searches for characters by name or description (simple text match)."""
         all_chars = self._registry.list_characters(project_id)
         if not query:

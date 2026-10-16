@@ -1,4 +1,3 @@
-from typing import List
 
 from core.reasoning.execution_plan import ExecutionPlan
 
@@ -8,7 +7,7 @@ from .models import WorkflowNode
 class CreatorPlanner:
     """Translates a Workflow sequence into an ExecutionPlan for the MasterCoordinator."""
 
-    def create_execution_plan(self, workflow_sequence: List[WorkflowNode]) -> ExecutionPlan:
+    def create_execution_plan(self, workflow_sequence: list[WorkflowNode]) -> ExecutionPlan:
         """
         Takes the ordered sequence of WorkflowNodes and constructs a standard
         ExecutionPlan that the ExecutiveBrain / MasterCoordinator understands.

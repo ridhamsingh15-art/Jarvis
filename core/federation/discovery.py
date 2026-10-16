@@ -4,7 +4,7 @@ Federation Node Discovery.
 Manages the protocol for finding other nodes and advertising this node.
 """
 import logging
-from typing import Callable
+from collections.abc import Callable
 
 from .exceptions import DiscoveryError
 from .models import FederationNode

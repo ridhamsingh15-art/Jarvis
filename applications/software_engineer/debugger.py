@@ -5,7 +5,7 @@ Analyzes failures, reads stack traces (potentially via perception),
 and suggests or applies fixes.
 """
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from core.perception.manager import PerceptionManager
 
@@ -16,11 +16,11 @@ logger = logging.getLogger(__name__)
 class Debugger:
     """Agent that analyzes failures and proposes fixes."""
 
-    def __init__(self, llm_client: Any, perception_manager: Optional[PerceptionManager] = None):
+    def __init__(self, llm_client: Any, perception_manager: PerceptionManager | None = None):
         self._llm_client = llm_client
         self._perception_manager = perception_manager
 
-    def analyze_failure(self, error_output: str, source_context: Optional[str] = None) -> DebugReport:
+    def analyze_failure(self, error_output: str, source_context: str | None = None) -> DebugReport:
         """
         Analyze an error string (e.g., stack trace or compiler error).
         """

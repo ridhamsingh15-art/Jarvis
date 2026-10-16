@@ -2,8 +2,8 @@
 Scheduler for the Animation Engine.
 """
 
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable, Dict, List
 
 from .models import AnimationAsset, AnimationTask
 
@@ -16,9 +16,9 @@ class AnimationScheduler:
 
     def execute_batch(
         self,
-        tasks: List[AnimationTask],
+        tasks: list[AnimationTask],
         generator_func: Callable[[AnimationTask], AnimationAsset]
-    ) -> Dict[str, AnimationAsset]:
+    ) -> dict[str, AnimationAsset]:
         """
         Executes a batch of AnimationTasks in parallel using ThreadPoolExecutor.
         Returns a dictionary mapping task_id to AnimationAsset.

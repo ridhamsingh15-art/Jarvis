@@ -80,8 +80,8 @@ class SkillsRuntime:
 
     def __init__(
         self,
-        skill_manager: "SkillManager | None" = None,
-        execution_policy: "ExecutionPolicy | None" = None,
+        skill_manager: SkillManager | None = None,
+        execution_policy: ExecutionPolicy | None = None,
         max_skills: int = 2,
     ) -> None:
         self._manager = skill_manager
@@ -102,7 +102,7 @@ class SkillsRuntime:
             return []
 
         try:
-            matches: list["SkillMatch"] = self._manager.match_skill(user_input)
+            matches: list[SkillMatch] = self._manager.match_skill(user_input)
             if not matches:
                 return []
 
@@ -175,7 +175,7 @@ class SkillsRuntime:
     # Private
     # ------------------------------------------------------------------
 
-    def _build_context(self, skill: "Skill") -> SkillContext | None:
+    def _build_context(self, skill: Skill) -> SkillContext | None:
         try:
             skill_id = getattr(skill.id, "value", str(skill.id))
             return SkillContext(

@@ -1,4 +1,3 @@
-from typing import List
 
 from core.cognition.models import CognitiveContext, MemoryType, RetrievedMemory
 
@@ -6,7 +5,7 @@ from core.cognition.models import CognitiveContext, MemoryType, RetrievedMemory
 class MemorySummarizer:
     """Compresses retrieved memories into a structured CognitiveContext."""
     
-    def summarize(self, memories: List[RetrievedMemory]) -> CognitiveContext:
+    def summarize(self, memories: list[RetrievedMemory]) -> CognitiveContext:
         """Groups memories by type and compresses them into a CognitiveContext."""
         context = CognitiveContext()
         

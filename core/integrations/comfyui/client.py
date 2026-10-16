@@ -9,7 +9,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
-from typing import Any, Dict
+from typing import Any
 
 from .exceptions import ComfyUIServerOfflineError, WorkflowExecutionError
 from .models import ComfyUIWorkflow, PromptResponse, QueueHistory
@@ -25,7 +25,7 @@ class ComfyUIClient:
         self.base_url = f"http://{host}:{port}"
         self.client_id = str(uuid.uuid4())
 
-    def _request(self, endpoint: str, method: str = "GET", data: Dict[str, Any] = None) -> Any:
+    def _request(self, endpoint: str, method: str = "GET", data: dict[str, Any] = None) -> Any:
         url = f"{self.base_url}{endpoint}"
         req = urllib.request.Request(url, method=method)
         

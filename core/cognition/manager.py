@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from core.cognition.context import ShortTermContext
 from core.cognition.context_orchestrator import ContextOrchestrator
@@ -24,7 +24,7 @@ class CognitiveManager(BaseComponent):
         conversation_engine: ConversationEngine,
         reflection: CognitiveReflection,
         context_orchestrator: ContextOrchestrator,
-        executive_brain: Optional[ExecutiveBrain] = None,
+        executive_brain: ExecutiveBrain | None = None,
         context: ShortTermContext = None,
         event_bus: EventBus = None,
     ):
@@ -62,7 +62,7 @@ class CognitiveManager(BaseComponent):
         logger.info("CognitiveManager processing message via fast path (No ExecutiveBrain)")
         return self.process(message, plan=None, intent=intent)
 
-    def process(self, message: str, plan: Optional[Any] = None, intent: str = "chat") -> ConversationResponse:
+    def process(self, message: str, plan: Any | None = None, intent: str = "chat") -> ConversationResponse:
         """Process a user message conversationally.
 
         Args:

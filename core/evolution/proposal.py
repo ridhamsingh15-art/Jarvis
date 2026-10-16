@@ -5,7 +5,6 @@ Manages the lifecycle of a proposal (Draft -> Review -> Approved -> Implemented)
 Ensures deduplication and merging of similar proposals.
 """
 import logging
-from typing import Optional
 
 from .models import EvolutionProposal, ProposalState
 
@@ -71,7 +70,7 @@ class ProposalManager:
         self._proposals[proposal_id] = updated
         logger.debug(f"Proposal {proposal_id} transitioned to {new_state.value}")
 
-    def get_proposal(self, proposal_id: str) -> Optional[EvolutionProposal]:
+    def get_proposal(self, proposal_id: str) -> EvolutionProposal | None:
         return self._proposals.get(proposal_id)
 
     def get_all(self) -> list[EvolutionProposal]:

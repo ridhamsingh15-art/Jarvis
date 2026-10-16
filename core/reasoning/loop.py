@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 from core.cognition.context import ShortTermContext
 from core.llm import LLMClient
@@ -26,8 +25,8 @@ class ReasoningLoop:
         logger.info(f"Starting Reasoning Loop for input: '{user_input}'")
         
         state = ReasoningState.THINK
-        plan: Optional[ExecutionPlan] = None
-        feedback: Optional[str] = None
+        plan: ExecutionPlan | None = None
+        feedback: str | None = None
         verification_errors = []
         
         iteration = 0

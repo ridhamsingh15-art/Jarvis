@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import Optional
 
 from .models import WindowFocusState, WindowInfo
 
@@ -27,7 +26,7 @@ _IDE_NAMES = frozenset({
 })
 
 
-def _get_focused_window_windows() -> Optional[WindowInfo]:
+def _get_focused_window_windows() -> WindowInfo | None:
     """Read focused window on Windows via ctypes/win32api."""
     try:
         import ctypes
@@ -59,7 +58,7 @@ def _get_focused_window_windows() -> Optional[WindowInfo]:
 
         # Try to extract workspace path from IDE window title (heuristic)
         # e.g. "main.py — Jarvis [C:\Users\ridha\Projects\Jarvis] — Visual Studio Code"
-        workspace_path: Optional[str] = None
+        workspace_path: str | None = None
         if app_lower in _IDE_NAMES:
             import re
             match = re.search(r"\[([A-Za-z]:\\[^\]]+)\]", title)
@@ -83,7 +82,7 @@ class WindowMonitor:
     Returns None gracefully on unsupported platforms or when detection fails.
     """
 
-    def observe_focused(self) -> Optional[WindowInfo]:
+    def observe_focused(self) -> WindowInfo | None:
         if sys.platform == "win32":
             return _get_focused_window_windows()
         # macOS/Linux support can be added via AppleScript / xdotool

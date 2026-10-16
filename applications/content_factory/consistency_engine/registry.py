@@ -4,7 +4,6 @@ Registry for consistency profiles.
 
 import threading
 from collections import defaultdict
-from typing import Dict, List
 
 from .exceptions import ProfileNotFoundError
 from .models import CharacterProfile, EnvironmentProfile, ObjectProfile
@@ -22,9 +21,9 @@ class ConsistencyRegistry:
         self._lock = threading.RLock()
         
         # Maps project_id -> { profile_id -> CharacterProfile }
-        self._characters: Dict[str, Dict[str, CharacterProfile]] = defaultdict(dict)
-        self._environments: Dict[str, Dict[str, EnvironmentProfile]] = defaultdict(dict)
-        self._objects: Dict[str, Dict[str, ObjectProfile]] = defaultdict(dict)
+        self._characters: dict[str, dict[str, CharacterProfile]] = defaultdict(dict)
+        self._environments: dict[str, dict[str, EnvironmentProfile]] = defaultdict(dict)
+        self._objects: dict[str, dict[str, ObjectProfile]] = defaultdict(dict)
 
     # --- Character Registry ---
     def save_character(self, project_id: str, profile: CharacterProfile) -> None:
@@ -38,7 +37,7 @@ class ConsistencyRegistry:
                 raise ProfileNotFoundError("Character", profile_id)
             return profile
 
-    def list_characters(self, project_id: str) -> List[CharacterProfile]:
+    def list_characters(self, project_id: str) -> list[CharacterProfile]:
         with self._lock:
             return list(self._characters[project_id].values())
 
@@ -54,7 +53,7 @@ class ConsistencyRegistry:
                 raise ProfileNotFoundError("Environment", profile_id)
             return profile
 
-    def list_environments(self, project_id: str) -> List[EnvironmentProfile]:
+    def list_environments(self, project_id: str) -> list[EnvironmentProfile]:
         with self._lock:
             return list(self._environments[project_id].values())
 
@@ -70,6 +69,6 @@ class ConsistencyRegistry:
                 raise ProfileNotFoundError("Object", profile_id)
             return profile
 
-    def list_objects(self, project_id: str) -> List[ObjectProfile]:
+    def list_objects(self, project_id: str) -> list[ObjectProfile]:
         with self._lock:
             return list(self._objects[project_id].values())

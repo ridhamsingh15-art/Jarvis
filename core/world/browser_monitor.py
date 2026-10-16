@@ -11,7 +11,6 @@ from __future__ import annotations
 import logging
 import threading
 from dataclasses import dataclass
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +33,7 @@ class BrowserMonitor:
     def __init__(self) -> None:
         self._lock = threading.RLock()
         self._tabs: list[BrowserTab] = []
-        self._active_tab: Optional[BrowserTab] = None
+        self._active_tab: BrowserTab | None = None
 
     def push_tabs(self, tabs: list[dict]) -> None:
         """
@@ -46,7 +45,7 @@ class BrowserMonitor:
             self._active_tab = next((t for t in self._tabs if t.is_active), None)
             logger.debug(f"Browser monitor updated: {len(self._tabs)} tabs")
 
-    def get_active_tab(self) -> Optional[BrowserTab]:
+    def get_active_tab(self) -> BrowserTab | None:
         with self._lock:
             return self._active_tab
 

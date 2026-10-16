@@ -1,6 +1,5 @@
 import logging
 import uuid
-from typing import List, Optional
 
 from applications.content_factory.project.manager import ProjectManager
 from core.agents.manager import AgentManager
@@ -45,7 +44,7 @@ class CreatorManager:
         self._mission_manager = mission_manager
         self._agent_manager = agent_manager
 
-    async def create_production(self, user_goal: str, resume_from_project_id: Optional[str] = None) -> ProgressReport:
+    async def create_production(self, user_goal: str, resume_from_project_id: str | None = None) -> ProgressReport:
         """
         Orchestrates the entire content creation pipeline for a given user goal.
         """
@@ -70,7 +69,7 @@ class CreatorManager:
             # Simulated recovery logic: mark nodes complete if project bundle has artifacts
             # Here we just naively pass, in reality we'd inspect `project.assets`
             # For simplicity, we assume recovery is passed via completed_stage_ids (stubbed)
-            completed_stages: List[str] = [] 
+            completed_stages: list[str] = []
             workflow_sequence = self._recovery.resume_from_checkpoint(workflow_sequence, completed_stages)
         else:
             logger.info("Initializing new Project Bundle...")

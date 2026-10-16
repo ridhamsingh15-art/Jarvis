@@ -4,7 +4,6 @@ Telemetry for the Character & Asset Consistency Engine.
 
 import logging
 from datetime import datetime, timezone
-from typing import List
 
 from core.events.bus import Event, EventBus
 
@@ -21,9 +20,9 @@ class ConsistencyTelemetry:
         self,
         project_id: str,
         scene_number: int,
-        matched_chars: List[str],
-        matched_envs: List[str],
-        matched_objs: List[str]
+        matched_chars: list[str],
+        matched_envs: list[str],
+        matched_objs: list[str]
     ) -> None:
         """Emits an event when a scene prompt is successfully enriched."""
         event = Event(

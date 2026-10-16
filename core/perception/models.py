@@ -9,7 +9,6 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Optional
 
 
 class ObservationType(StrEnum):
@@ -47,7 +46,7 @@ class PerceptionObservation:
     """Base class for all semantic observations."""
     type: ObservationType
     confidence: float
-    bounds: Optional[SpatialBounds] = None
+    bounds: SpatialBounds | None = None
     observation_id: str = field(default_factory=lambda: f"obs_{uuid.uuid4().hex[:8]}")
 
 

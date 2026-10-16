@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, Optional
+from typing import Any
 
 
 class AppState(StrEnum):
@@ -47,14 +47,14 @@ class AppStatus:
     state: AppState
     version: str
     uptime_seconds: float = 0.0
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
 class InstallResult:
     """Result of an installation attempt."""
     success: bool
-    app_id: Optional[str] = None
-    version: Optional[str] = None
+    app_id: str | None = None
+    version: str | None = None
     errors: list[str] = field(default_factory=list)
     resolved_dependencies: list[str] = field(default_factory=list)

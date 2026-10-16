@@ -6,7 +6,6 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Optional
 
 
 class BusinessType(StrEnum):
@@ -22,8 +21,8 @@ class BusinessType(StrEnum):
 class BusinessGoal:
     """A high-level business objective."""
     description: str
-    target_date: Optional[str] = None
-    target_revenue: Optional[float] = None
+    target_date: str | None = None
+    target_revenue: float | None = None
 
 
 @dataclass(frozen=True, kw_only=True)

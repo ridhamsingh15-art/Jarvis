@@ -6,7 +6,6 @@ Fetches the resulting images/videos from the server.
 import logging
 import urllib.parse
 import urllib.request
-from typing import List
 
 from .client import ComfyUIClient
 from .exceptions import ImageDownloadError
@@ -34,7 +33,7 @@ class ComfyUIDownloader:
             logger.error(f"Failed to download image {filename}: {e}")
             raise ImageDownloadError(f"Could not download {filename}") from e
 
-    def download_outputs(self, history: QueueHistory) -> List[ImageOutput]:
+    def download_outputs(self, history: QueueHistory) -> list[ImageOutput]:
         """Parse history and download all generated outputs."""
         logger.info(f"Downloading outputs for prompt {history.prompt_id}...")
         outputs = []

@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 import subprocess
-from typing import Optional
 
 from .models import GitRepoStatus, GitStatus, RegisteredWorkspace
 
@@ -18,7 +17,7 @@ _MAX_COMMITS = 3
 _GIT_TIMEOUT = 3   # seconds per subprocess call
 
 
-def _run_git(args: list[str], cwd: str) -> Optional[str]:
+def _run_git(args: list[str], cwd: str) -> str | None:
     """Run a git subcommand and return stdout, or None on error."""
     try:
         result = subprocess.run(
@@ -42,7 +41,7 @@ class GitMonitor:
     Safe to call repeatedly — each call is a fresh read (no caching).
     """
 
-    def observe(self, workspace: RegisteredWorkspace) -> Optional[GitStatus]:
+    def observe(self, workspace: RegisteredWorkspace) -> GitStatus | None:
         """
         Return a GitStatus for the workspace, or None if it is not a git repo.
         """

@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Dict, List, Optional, Set
 
 from core.models.primitives import Identifier
 
@@ -19,7 +18,7 @@ class CreatorObjective:
     raw_prompt: str
     target_format: str  # e.g., "video", "short", "documentary"
     topic: str
-    required_capabilities: List[str] = field(default_factory=list)
+    required_capabilities: list[str] = field(default_factory=list)
 
 @dataclass
 class WorkflowNode:
@@ -27,15 +26,15 @@ class WorkflowNode:
     id: str  # e.g., "research", "script", "storyboard"
     capability: str # The required capability/intent (e.g., "web_search", "script_writing")
     description: str
-    dependencies: Set[str] = field(default_factory=set)
+    dependencies: set[str] = field(default_factory=set)
     state: ProductionState = ProductionState.PENDING
-    result_payload: Dict[str, str] = field(default_factory=dict)
-    error_message: Optional[str] = None
+    result_payload: dict[str, str] = field(default_factory=dict)
+    error_message: str | None = None
 
 @dataclass
 class DependencyGraph:
     """A directed acyclic graph representing the order of production stages."""
-    nodes: Dict[str, WorkflowNode] = field(default_factory=dict)
+    nodes: dict[str, WorkflowNode] = field(default_factory=dict)
 
     def add_node(self, node: WorkflowNode) -> None:
         self.nodes[node.id] = node
@@ -49,7 +48,7 @@ class ProgressReport:
     """A snapshot of the current overall production progress."""
     mission_id: str
     overall_progress_percent: float
-    completed_stages: List[str]
-    running_stage: Optional[str]
-    failed_stages: List[str]
-    skipped_stages: List[str]
+    completed_stages: list[str]
+    running_stage: str | None
+    failed_stages: list[str]
+    skipped_stages: list[str]

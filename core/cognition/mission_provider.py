@@ -1,5 +1,4 @@
 import logging
-from typing import List
 
 from core.cognition.context_models import ContextChunk, ProviderType
 from core.mission.manager import MissionManager
@@ -12,7 +11,7 @@ class MissionProvider:
     def __init__(self, mission_manager: MissionManager):
         self._mission_manager = mission_manager
         
-    def gather(self, user_input: str) -> List[ContextChunk]:
+    def gather(self, user_input: str) -> list[ContextChunk]:
         """Fetch mission statuses and progress."""
         try:
             missions = self._mission_manager.list()

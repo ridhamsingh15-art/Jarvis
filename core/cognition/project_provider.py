@@ -1,5 +1,4 @@
 import logging
-from typing import List
 
 from applications.content_factory.project.manager import ProjectManager
 from core.cognition.context_models import ContextChunk, ProviderType
@@ -12,7 +11,7 @@ class ProjectProvider:
     def __init__(self, project_manager: ProjectManager):
         self._project_manager = project_manager
         
-    def gather(self, user_input: str) -> List[ContextChunk]:
+    def gather(self, user_input: str) -> list[ContextChunk]:
         """Fetch active projects and latest assets."""
         try:
             projects = self._project_manager.search_projects()

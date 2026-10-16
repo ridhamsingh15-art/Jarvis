@@ -1,5 +1,4 @@
 import logging
-from typing import List
 
 from .models import ProductionState, ProgressReport, WorkflowNode
 
@@ -8,7 +7,7 @@ logger = logging.getLogger(__name__)
 class ProgressTracker:
     """Tracks overall mission progress for the Creator Agent."""
 
-    def __init__(self, mission_id: str, workflow_sequence: List[WorkflowNode]):
+    def __init__(self, mission_id: str, workflow_sequence: list[WorkflowNode]):
         self.mission_id = mission_id
         self.total_nodes = len(workflow_sequence)
         self.workflow_sequence = workflow_sequence

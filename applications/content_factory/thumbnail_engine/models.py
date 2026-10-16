@@ -2,13 +2,12 @@
 Models for the Thumbnail Engine.
 """
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
 class ThumbnailGenerationRequest:
     base_image_path: str
-    title_text: Optional[str]
+    title_text: str | None
     layout_style: str
     
 @dataclass

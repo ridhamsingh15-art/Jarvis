@@ -5,7 +5,6 @@ Tracks active trusted nodes in the network and caches their capabilities.
 """
 import logging
 import time
-from typing import Optional
 
 from .models import FederationNode, NodeState
 
@@ -33,7 +32,7 @@ class NodeRegistry:
             logger.info(f"Removing node from registry: {node_id}")
             del self._nodes[node_id]
 
-    def get_node(self, node_id: str) -> Optional[FederationNode]:
+    def get_node(self, node_id: str) -> FederationNode | None:
         """Retrieve a specific node."""
         return self._nodes.get(node_id)
 

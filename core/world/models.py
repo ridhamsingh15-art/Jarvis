@@ -9,7 +9,6 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Optional
 
 
 class WindowFocusState(StrEnum):
@@ -41,7 +40,7 @@ class RegisteredWorkspace:
     id: str
     path: str                    # absolute filesystem path
     name: str                    # human-readable label
-    language: Optional[str] = None  # primary programming language
+    language: str | None = None  # primary programming language
     registered_at: str = ""
 
 
@@ -87,7 +86,7 @@ class WindowInfo:
     title: str
     application: str
     focus_state: WindowFocusState = WindowFocusState.UNKNOWN
-    workspace_path: Optional[str] = None   # if IDE — detected project path
+    workspace_path: str | None = None   # if IDE — detected project path
 
 
 # ---------------------------------------------------------------------------
@@ -117,7 +116,7 @@ class WorldState:
 
     # Workspace
     registered_workspaces: list[RegisteredWorkspace] = field(default_factory=list)
-    active_workspace: Optional[RegisteredWorkspace] = None
+    active_workspace: RegisteredWorkspace | None = None
 
     # Git
     git_statuses: list[GitStatus] = field(default_factory=list)
@@ -126,7 +125,7 @@ class WorldState:
     running_processes: list[ProcessInfo] = field(default_factory=list)
 
     # Window / focus
-    focused_window: Optional[WindowInfo] = None
+    focused_window: WindowInfo | None = None
     recent_windows: list[WindowInfo] = field(default_factory=list)
 
     # Active missions

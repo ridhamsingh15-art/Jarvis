@@ -13,7 +13,6 @@ Usage::
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from core.agents.models import AgentResult
 from core.mission.models import Mission
@@ -54,9 +53,9 @@ class ExperienceManager:
         mission: Mission,
         agent_results: list[AgentResult],
         ordered_steps: list[str],
-        analytics: Optional[AnalyticsSnapshot] = None,
-        user_feedback: Optional[str] = None,
-        user_rating: Optional[float] = None,
+        analytics: AnalyticsSnapshot | None = None,
+        user_feedback: str | None = None,
+        user_rating: float | None = None,
     ) -> tuple[ExperienceRecord, list[Lesson]]:
         """
         Extract an ExperienceRecord from a completed mission, evaluate it,

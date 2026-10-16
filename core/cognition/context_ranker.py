@@ -1,5 +1,4 @@
 import logging
-from typing import List
 
 from core.cognition.context_models import ContextChunk, ContextPackage, ProviderType
 
@@ -8,7 +7,7 @@ logger = logging.getLogger(__name__)
 class ContextRanker:
     """Ranks and filters context chunks to prevent prompt flooding."""
     
-    def rank_and_package(self, chunks: List[ContextChunk]) -> ContextPackage:
+    def rank_and_package(self, chunks: list[ContextChunk]) -> ContextPackage:
         """Sorts chunks by total_score and populates the ContextPackage."""
         if not chunks:
             return ContextPackage()

@@ -61,7 +61,7 @@ class LifecycleEvent(StrEnum):
 # ---------------------------------------------------------------------------
 
 
-def _make_event(topic: LifecycleEvent, payload: dict[str, Any]) -> "Event":
+def _make_event(topic: LifecycleEvent, payload: dict[str, Any]) -> Event:
     """Build a core.models.Event for the given lifecycle topic."""
     from core.models import Event  # local import to avoid circular deps
     return Event(topic=topic.value, payload=payload)
@@ -83,7 +83,7 @@ class LifecycleHooks:
     by the EventDispatcher and must not propagate to the primary request path.
     """
 
-    def __init__(self, event_bus: "EventBus | None" = None) -> None:
+    def __init__(self, event_bus: EventBus | None = None) -> None:
         self._bus = event_bus
 
     # ------------------------------------------------------------------

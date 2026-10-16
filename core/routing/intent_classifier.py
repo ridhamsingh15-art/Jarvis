@@ -11,7 +11,7 @@ It is a pure router — once it returns an IntentType, exactly one pipeline owns
 import logging
 import re
 from enum import StrEnum
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +106,7 @@ class IntentClassifier:
         "Reply with ONLY the single word category, nothing else."
     )
 
-    def __init__(self, llm_client: Optional[Any] = None):
+    def __init__(self, llm_client: Any | None = None):
         """
         Args:
             llm_client: Optional LLMClient for Stage 2 ambiguous classification.

@@ -1,6 +1,6 @@
 import logging
 import re
-from typing import Any, List
+from typing import Any
 
 from core.cognition.context import ShortTermContext
 from core.cognition.context_models import ContextChunk, ContextPackage, ProviderType
@@ -72,7 +72,7 @@ class ContextOrchestrator:
             )
             logger.info(f"ContextBuilder selected providers: {[p.value for p in selected_providers]}")
             
-            raw_chunks: List[ContextChunk] = []
+            raw_chunks: list[ContextChunk] = []
             
             # 2. Gather from Memory/PKI
             if ProviderType.MEMORY in selected_providers or ProviderType.PKI in selected_providers:

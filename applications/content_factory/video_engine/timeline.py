@@ -2,7 +2,6 @@
 Timeline builder for the Video Engine.
 """
 
-from typing import List
 
 from applications.content_factory.project.manager import ProjectManager
 from applications.content_factory.project.models import ProjectBundle
@@ -18,7 +17,7 @@ class TimelineBuilder:
     def __init__(self, project_manager: ProjectManager) -> None:
         self._project_manager = project_manager
 
-    def build(self, bundle: ProjectBundle) -> List[TimelineClip]:
+    def build(self, bundle: ProjectBundle) -> list[TimelineClip]:
         """
         Constructs a list of TimelineClips representing the final sequenced video.
         Uses the storyboard as the source of truth for scene ordering and transitions.

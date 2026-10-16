@@ -6,7 +6,6 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Optional
 
 
 class Priority(StrEnum):
@@ -56,7 +55,7 @@ class EvolutionProposal:
     estimated_risk: RiskLevel
     priority: Priority
     state: ProposalState = ProposalState.DRAFT
-    duplicate_of: Optional[str] = None
+    duplicate_of: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -10,7 +10,6 @@ from __future__ import annotations
 import uuid
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Optional
 
 from core.models.primitives import Timestamp
 
@@ -43,7 +42,7 @@ class StageOutcome:
     success: bool
     duration_ms: float = 0.0
     retries: int = 0
-    error_summary: Optional[str] = None
+    error_summary: str | None = None
     payload_keys: list[str] = field(default_factory=list)  # keys produced
 
 
@@ -80,11 +79,11 @@ class ExperienceRecord:
     retry_count: int = 0
 
     # Feedback
-    user_feedback: Optional[str] = None
-    user_rating: Optional[float] = None  # 1.0 – 5.0
+    user_feedback: str | None = None
+    user_rating: float | None = None  # 1.0 – 5.0
 
     # Post-publish analytics
-    analytics: Optional[AnalyticsSnapshot] = None
+    analytics: AnalyticsSnapshot | None = None
 
     # Timestamps
     created_at: str = field(default_factory=lambda: Timestamp().iso_value)

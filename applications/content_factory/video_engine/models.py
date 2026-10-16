@@ -3,7 +3,7 @@ Data models for the Video Engine.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 @dataclass
@@ -18,7 +18,7 @@ class TimelineClip:
     """Represents a single media clip in the assembly timeline."""
     scene_number: int
     video_path: str
-    audio_path: Optional[str] = None
+    audio_path: str | None = None
     start_time: float = 0.0
     duration: float = 0.0
     transition_out: TransitionConfig = field(default_factory=TransitionConfig)
@@ -37,10 +37,10 @@ class VideoParameters:
 class VideoTask:
     """A task representing a single video assembly request."""
     task_id: str
-    clips: List[TimelineClip]
+    clips: list[TimelineClip]
     parameters: VideoParameters
-    background_audio_path: Optional[str] = None
-    subtitle_path: Optional[str] = None
+    background_audio_path: str | None = None
+    subtitle_path: str | None = None
 
 
 @dataclass
@@ -51,7 +51,7 @@ class VideoMetadata:
     codec: str
     bitrate: str
     duration_seconds: float
-    generation_parameters: Dict[str, Any]
+    generation_parameters: dict[str, Any]
     version: int
     timestamp: str
 

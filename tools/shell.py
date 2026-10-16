@@ -230,8 +230,9 @@ class ShellTool(BaseTool):
                     parsed = ast.literal_eval(s)
                     if isinstance(parsed, (list, tuple)):
                         return " ".join(str(x) for x in parsed)
-                except Exception:
-                    pass
+                except (SyntaxError, ValueError, TypeError, MemoryError, RecursionError):
+                    # If the value is not a literal list/tuple, preserve it as command text.
+                    return s
             return s
 
         if action in ("run", "shell_run"):

@@ -3,7 +3,6 @@ Domain service for managing Object Profiles.
 """
 
 import uuid
-from typing import List
 
 from .models import ObjectProfile
 from .registry import ConsistencyRegistry
@@ -44,7 +43,7 @@ class ObjectLibrary:
         """Retrieves an ObjectProfile by ID."""
         return self._registry.get_object(project_id, profile_id)
 
-    def search_objects(self, project_id: str, query: str = "") -> List[ObjectProfile]:
+    def search_objects(self, project_id: str, query: str = "") -> list[ObjectProfile]:
         """Searches for objects by name or description."""
         all_objs = self._registry.list_objects(project_id)
         if not query:

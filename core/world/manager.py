@@ -16,7 +16,6 @@ Usage::
 from __future__ import annotations
 
 import logging
-from typing import Optional
 
 from .browser_monitor import BrowserMonitor
 from .git_monitor import GitMonitor
@@ -51,7 +50,7 @@ class WorldManager:
         self._snapshot_engine = WorldSnapshot(workspace_registry, observers)
 
     @classmethod
-    def create_default(cls) -> "WorldManager":
+    def create_default(cls) -> WorldManager:
         """Factory that wires up default concrete observers."""
         registry = WorkspaceRegistry()
         observers = WorldObservers(
@@ -66,7 +65,7 @@ class WorldManager:
     # Workspace Management
     # ------------------------------------------------------------------
 
-    def register_workspace(self, path: str, name: Optional[str] = None) -> RegisteredWorkspace:
+    def register_workspace(self, path: str, name: str | None = None) -> RegisteredWorkspace:
         """Register a trusted workspace folder."""
         return self._workspace_registry.register(path, name)
 
@@ -84,7 +83,7 @@ class WorldManager:
 
     def snapshot(
         self,
-        active_missions: Optional[list[ActiveMissionRef]] = None,
+        active_missions: list[ActiveMissionRef] | None = None,
     ) -> WorldState:
         """
         Capture a fresh immutable WorldState.
@@ -102,7 +101,7 @@ class WorldManager:
 
     def snapshot_for_prompt(
         self,
-        active_missions: Optional[list[ActiveMissionRef]] = None,
+        active_missions: list[ActiveMissionRef] | None = None,
     ) -> str:
         """
         Convenience method: capture a snapshot and format it as a prompt block.

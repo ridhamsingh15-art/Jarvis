@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Optional
 
 from .exceptions import SnapshotError
 from .models import ActiveMissionRef, WorldState
@@ -34,7 +33,7 @@ class WorldSnapshot:
 
     def capture(
         self,
-        active_missions: Optional[list[ActiveMissionRef]] = None,
+        active_missions: list[ActiveMissionRef] | None = None,
     ) -> WorldState:
         """
         Perform a fresh observation of all registered subsystems and return

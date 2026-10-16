@@ -4,7 +4,6 @@ Application Registry.
 Tracks installed applications, their versions, and current state.
 """
 import logging
-from typing import Optional
 
 from .models import AppManifest, AppState, AppStatus
 
@@ -34,7 +33,7 @@ class AppRegistry:
             del self._manifests[app_id]
             del self._statuses[app_id]
 
-    def update_state(self, app_id: str, new_state: AppState, error_message: Optional[str] = None) -> None:
+    def update_state(self, app_id: str, new_state: AppState, error_message: str | None = None) -> None:
         """Update the runtime state of an application."""
         if app_id not in self._statuses:
             raise KeyError(f"Application {app_id} not found in registry.")
@@ -49,11 +48,11 @@ class AppRegistry:
         )
         logger.debug(f"App {app_id} transitioned to {new_state.value}")
 
-    def get_manifest(self, app_id: str) -> Optional[AppManifest]:
+    def get_manifest(self, app_id: str) -> AppManifest | None:
         """Retrieve an application's manifest."""
         return self._manifests.get(app_id)
 
-    def get_status(self, app_id: str) -> Optional[AppStatus]:
+    def get_status(self, app_id: str) -> AppStatus | None:
         """Retrieve an application's current runtime status."""
         return self._statuses.get(app_id)
 

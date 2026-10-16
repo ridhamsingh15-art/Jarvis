@@ -1,5 +1,5 @@
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from core.cognition.context import ShortTermContext
 from core.events.bus import EventBus
@@ -35,7 +35,7 @@ class ExecutiveBrain:
         self._experience_manager = experience_manager
         self._world_manager = world_manager
         
-    def plan(self, user_input: str, context: ShortTermContext, topic: Optional[str] = None) -> ExecutionPlan:
+    def plan(self, user_input: str, context: ShortTermContext, topic: str | None = None) -> ExecutionPlan:
         """
         Analyze the user input and determine the execution plan using the deliberation engine.
         If an ExperienceManager is configured and a topic is provided, prior lessons are

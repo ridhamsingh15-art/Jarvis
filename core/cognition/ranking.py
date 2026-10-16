@@ -1,4 +1,3 @@
-from typing import List
 
 from core.cognition.models import RetrievedMemory
 
@@ -6,7 +5,7 @@ from core.cognition.models import RetrievedMemory
 class MemoryRanker:
     """Ranks retrieved memories and removes irrelevant/duplicate information."""
     
-    def rank(self, memories: List[RetrievedMemory], user_input: str, max_items: int = 15) -> List[RetrievedMemory]:
+    def rank(self, memories: list[RetrievedMemory], user_input: str, max_items: int = 15) -> list[RetrievedMemory]:
         """
         Sorts memories by relevance score and filters out duplicates.
         In a full implementation, this could use an LLM cross-encoder to score

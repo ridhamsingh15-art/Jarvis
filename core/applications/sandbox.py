@@ -5,8 +5,8 @@ Ensures applications execute within bounded contexts.
 """
 import logging
 import os
+from collections.abc import Generator
 from contextlib import contextmanager
-from typing import Generator
 
 from .exceptions import AppSandboxError
 
