@@ -3,10 +3,11 @@ Image Model Adapters.
 """
 
 from abc import ABC, abstractmethod
+from types import MappingProxyType
 from typing import Any
 
-from .models import GenerationParameters
 from .comfyui_adapter import ProductionComfyUIAdapter
+from .models import GenerationParameters
 
 
 class ImageAdapter(ABC):
@@ -96,11 +97,11 @@ class ComfyUIAdapter(ImageAdapter):
 
 class ImageAdapterRegistry:
     """Registry to easily retrieve image adapters."""
-    _adapters = {
+    _adapters = MappingProxyType({
         "flux": FluxAdapter(),
         "sdxl": SDXLAdapter(),
-        "comfyui": ProductionComfyUIAdapter()
-    }
+        "comfyui": ProductionComfyUIAdapter(),
+    })
 
     @classmethod
     def get(cls, model_name: str) -> ImageAdapter:

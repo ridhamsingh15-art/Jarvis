@@ -35,7 +35,6 @@ Design principle:
 from __future__ import annotations
 
 import logging
-import os
 import re
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -293,7 +292,7 @@ class MissionCompletionVerifier:
     """
 
     # Default checks applied when no custom checks are provided
-    _DEFAULT_CHECKS = [ToolSucceededCheck, ResponsePresentCheck]
+    _DEFAULT_CHECKS = (ToolSucceededCheck, ResponsePresentCheck)
 
     def __init__(self, extra_checks: list | None = None) -> None:
         self._extra_checks = extra_checks or []

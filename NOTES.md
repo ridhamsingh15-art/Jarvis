@@ -85,3 +85,7 @@ The coordinator previously handed any `ImplementationResult` to the review phase
 ## Item 16 — child-process credential sanitization
 
 Expanded shell subprocess filtering beyond a few named API keys to generic `TOKEN`, `SECRET`, `PASSWORD`, `PASSWD`, `API_KEY`/`APIKEY`, `PRIVATE_KEY`, `ACCESS_KEY`, `CREDENTIAL`, `BEARER`, `AUTHORIZATION`, and signing-key fragments, plus common AWS/Azure/GCloud/Kubernetes/Docker/Git-askpass/SSH credential configuration variables. Added a real child-process test proving AWS access keys, Azure client secrets, HF tokens, custom passwords/signing keys, and GitHub personal tokens arrive as `NOT_FOUND`, plus key-pattern unit coverage. Verification: focused shell/security tests → **48 passed**. Existing Ruff debt in `tools/shell.py` remains (silent parse fallback, broad exception fallback, and conditional simplification findings); no unsafe bulk autofix was applied.
+
+## Item 17 — immutable shared defaults
+
+Changed image/prompt adapter registry dictionaries to `MappingProxyType`, project required-directory defaults to a tuple, and mission-verifier default checks to a tuple. Added regressions verifying registry lookup remains functional, registry maps cannot be mutated, storage defaults cannot be appended to, and verifier instances don't share mutable per-instance checks. Verification: `pytest -q tests/test_immutable_shared_defaults.py tests/test_phase7c_mission_verification.py` → **22 passed**; `ruff check . --select RUF012` → all checks passed (0 findings).

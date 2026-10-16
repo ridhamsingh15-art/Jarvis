@@ -13,7 +13,7 @@ from .models import ProjectBundle
 class ProjectStorage:
     """Handles all POSIX file I/O for Project Bundles."""
 
-    REQUIRED_DIRS = [
+    REQUIRED_DIRS = (
         "prompts",
         "images",
         "animations",
@@ -23,7 +23,7 @@ class ProjectStorage:
         "thumbnails",
         "exports",
         "analytics",
-    ]
+    )
 
     def __init__(self, root_dir: str) -> None:
         self.root_dir = Path(root_dir)

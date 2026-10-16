@@ -3,6 +3,7 @@ Adapters for generating model-specific image/video prompts from a generic scene 
 """
 
 from abc import ABC, abstractmethod
+from types import MappingProxyType
 
 
 class PromptAdapter(ABC):
@@ -52,12 +53,12 @@ class WANAdapter(PromptAdapter):
 
 class PromptAdapterRegistry:
     """Registry to easily retrieve adapters."""
-    _adapters = {
+    _adapters = MappingProxyType({
         "flux": FluxAdapter(),
         "sdxl": SDXLAdapter(),
         "comfyui": ComfyUIAdapter(),
-        "wan": WANAdapter()
-    }
+        "wan": WANAdapter(),
+    })
 
     @classmethod
     def get(cls, model_name: str) -> PromptAdapter:
