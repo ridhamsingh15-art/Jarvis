@@ -433,8 +433,13 @@ class ShellTool(BaseTool):
                         resolved.relative_to(self._workspace_root)
                     except ValueError:
                         return f"Argument path '{clean_token}' is outside workspace '{self._workspace_root}'"
-            except Exception:
-                continue
+            except (OSError, RuntimeError, ValueError) as exc:
+                # An unresolvable absolute path must not bypass the workspace boundary.
+                logger.warning(
+                    "[SHELL] BLOCKED path argument that could not be resolved (%s)",
+                    type(exc).__name__,
+                )
+                return f"Could not safely resolve path argument ({type(exc).__name__})"
 
         return ""
 

@@ -93,3 +93,7 @@ Changed image/prompt adapter registry dictionaries to `MappingProxyType`, projec
 ## Item 18 — core failure observability
 
 Optional runtime tracing previously swallowed exceptions without a diagnostic, and malformed persisted experience records were silently skipped at startup. The core agent's malformed-script fallback, context-budget/policy tracing, both ModelRouter trace paths, LLM observability export, tool-loop tracing, and persisted-experience loading now emit safe debug/warning entries containing only exception type or record index—not raw prompts, tokens, or corrupted payloads. Optional telemetry remains non-fatal. Verification: `pytest -q` on seven related suites → **82 passed**; targeted Ruff `S110,S112` across the touched core modules → all checks passed.
+
+## Item 19 — fail-closed path resolution in shell boundary checks
+
+`ShellTool._check_workspace_boundary()` previously continued to the next token when resolving a tokenized path raised an exception, effectively skipping validation for that token. It now blocks the command whenever an absolute path cannot be safely resolved and logs only the exception type, not the path payload or error message. Regression simulates a symlink-resolution failure and verifies no command executes and the detail is not echoed. Verification: focused shell/security tests → **47 passed**; targeted Ruff `S112,F821,F811,PLW1510` on shell and regression test → all checks passed.
