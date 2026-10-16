@@ -58,6 +58,22 @@ def test_build_accepts_dependencies_that_reference_existing_nodes():
 
 
 @pytest.mark.asyncio
+async def test_scheduler_terminates_when_dependency_fails(orchestrator):
+    import asyncio
+
+    builder = WorkflowBuilder("failed_dependency")
+    prerequisite = builder.add_task("prerequisite")
+    dependent = builder.add_task("dependent", deps=[prerequisite])
+    builder.graph.state.nodes[prerequisite].payload["simulate_fail"] = True
+
+    await asyncio.wait_for(orchestrator.scheduler.run_graph(builder.build()), timeout=0.5)
+
+    assert builder.graph.state.node_states[prerequisite] == NodeState.FAILED
+    assert builder.graph.state.node_states[dependent] == NodeState.FAILED
+    assert prerequisite in builder.graph.state.results[dependent]
+
+
+@pytest.mark.asyncio
 async def test_failure_and_recovery(orchestrator):
     builder = WorkflowBuilder("test_fail")
     n1 = builder.add_task("fail_task")
