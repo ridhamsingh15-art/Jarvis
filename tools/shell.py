@@ -135,6 +135,76 @@ _SAFE_COMMAND_PREFIXES: tuple[str, ...] = (
 )
 
 
+_DIRECT_SHELL_LAUNCH = re.compile(
+    r"^\s*(?:cmd(?:\.exe)?|powershell(?:\.exe)?|pwsh(?:\.exe)?|bash|sh|zsh|fish|wsl(?:\.exe)?)(?:\s|$)",
+    re.IGNORECASE,
+)
+_WINDOWS_ENV_EXPANSION = re.compile(r"%[A-Za-z_][A-Za-z0-9_]*%|![A-Za-z_][A-Za-z0-9_]*!")
+
+
+def _check_shell_syntax(command: str) -> str:
+    """Reject shell syntax that can chain commands or expand into another command.
+
+    Quotes are honoured so arguments such as ``python -c "print('a; b')"`` remain
+    usable. This is a defence-in-depth guard; it is not a substitute for an OS sandbox.
+    """
+    if not isinstance(command, str) or not command.strip():
+        return "Command must be a non-empty string."
+    if any(ord(char) < 32 and char not in "\\t" for char in command):
+        return "Control characters and multiline shell commands are blocked."
+    if _DIRECT_SHELL_LAUNCH.match(command):
+        return "Launching nested command interpreters is blocked."
+    # cmd.exe expands these even inside double-quoted arguments.
+    if os.name == "nt" and _WINDOWS_ENV_EXPANSION.search(command):
+        return "Windows command-shell variable expansion is blocked."
+
+    quote: str | None = None
+    escaped = False
+    for index, char in enumerate(command):
+        if quote == "'":
+            if char == "'":
+                quote = None
+            continue
+
+        if quote == '"':
+            if escaped:
+                escaped = False
+                continue
+            if char == "\\":
+                escaped = True
+                continue
+            if char == '"':
+                quote = None
+                continue
+            # POSIX shells expand command substitutions inside double quotes too.
+            if char == "`" or command.startswith("$(", index):
+                return "Shell command substitution is blocked."
+            continue
+
+        if escaped:
+            escaped = False
+            continue
+        if os.name != "nt" and char == "\\":
+            escaped = True
+            continue
+        if char == '"':
+            quote = '"'
+            continue
+        if os.name != "nt" and char == "'":
+            quote = "'"
+            continue
+        if os.name == "nt" and char == "^":
+            return "Windows shell escape syntax is blocked."
+        if char in "&|;<>":
+            return "Unquoted shell command separators, pipes, and redirects are blocked."
+        if char == "`" or command.startswith("$(", index):
+            return "Shell command substitution is blocked."
+
+    if quote is not None:
+        return "Unmatched shell quote is blocked."
+    return ""
+
+
 # ---------------------------------------------------------------------------
 # Result
 # ---------------------------------------------------------------------------
@@ -288,12 +358,22 @@ class ShellTool(BaseTool):
         effective_timeout = float(timeout) if timeout is not None else self._timeout
 
         # 1. High-risk pattern & path-escape check
+        if not isinstance(command, str):
+            command = repr(command)
         block_reason = self._check_high_risk(command)
         if block_reason:
             logger.warning("[SHELL] BLOCKED: %s | reason: %s", command[:120], block_reason)
             return ShellResult(
                 command=command, return_code=-1, stdout="", stderr="",
                 timed_out=False, blocked=True, blocked_reason=block_reason,
+            )
+
+        syntax_reason = _check_shell_syntax(command)
+        if syntax_reason:
+            logger.warning("[SHELL] BLOCKED unsafe command syntax: %s", syntax_reason)
+            return ShellResult(
+                command=command, return_code=-1, stdout="", stderr="",
+                timed_out=False, blocked=True, blocked_reason=syntax_reason,
             )
 
         # 2. Workspace boundary escape check in command arguments
@@ -306,14 +386,13 @@ class ShellTool(BaseTool):
             )
 
         # 3. Allowed command prefix check
-        if self._allowed_commands is not None:
-            if not self._is_allowed_prefix(command):
-                reason = f"Command not in allowlist. Allowed prefixes: {self._allowed_commands}"
-                logger.warning("[SHELL] BLOCKED not-in-allowlist: %s", command[:120])
-                return ShellResult(
-                    command=command, return_code=-1, stdout="", stderr="",
-                    timed_out=False, blocked=True, blocked_reason=reason,
-                )
+        if self._allowed_commands is not None and not self._is_allowed_prefix(command):
+            reason = f"Command not in allowlist. Allowed prefixes: {self._allowed_commands}"
+            logger.warning("[SHELL] BLOCKED not-in-allowlist: %s", command[:120])
+            return ShellResult(
+                command=command, return_code=-1, stdout="", stderr="",
+                timed_out=False, blocked=True, blocked_reason=reason,
+            )
 
         # 4. Resolve working directory
         cwd = self._resolve_cwd(cwd_override)
@@ -412,11 +491,11 @@ class ShellTool(BaseTool):
 
         for token in tokens[1:]:
             clean_token = token.strip("'\"")
-            # Skip flags
-            if clean_token.startswith("-") or clean_token.startswith("/"):
-                # Windows flag e.g. /q, /s or flag like -v
-                if not (len(clean_token) > 2 and clean_token[1] == ":" and clean_token[0].isalpha()):
-                    continue
+            # Skip flags, but not Windows drive-rooted paths such as C:\\.
+            if clean_token.startswith(("-", "/")) and not (
+                len(clean_token) > 2 and clean_token[1] == ":" and clean_token[0].isalpha()
+            ):
+                continue
 
             # Check if this token is an absolute path or path traversal
             if (".." in clean_token and ("/" in clean_token or "\\" in clean_token)) or clean_token.startswith(".."):

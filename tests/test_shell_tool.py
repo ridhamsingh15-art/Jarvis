@@ -51,7 +51,7 @@ class TestShellToolSafeCommands:
 
     def test_nonzero_exit_code_handled(self):
         tool = _tool()
-        result = tool.run("exit 1" if sys.platform != "win32" else "cmd /c exit 1")
+        result = tool.run('python -c "raise SystemExit(1)"')
         # Should complete, not crash
         assert isinstance(result, ShellResult)
         assert not result.blocked
