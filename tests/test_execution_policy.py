@@ -13,12 +13,14 @@ Tests:
 9. enforce() raises PolicyDeniedError on DENY
 """
 import pytest
+
 from core.execution_policy import (
-    ExecutionPolicy,
-    PolicyContext,
-    PolicyVerdict,
     CapabilitySource,
+    ExecutionPolicy,
+    PolicyConfirmationRequired,
+    PolicyContext,
     PolicyDeniedError,
+    PolicyVerdict,
 )
 
 
@@ -119,6 +121,15 @@ class TestExecutionPolicyConfirmation:
         policy = ExecutionPolicy()
         with pytest.raises(PolicyDeniedError):
             policy.enforce(_ctx("unknown_tool", "do_thing"))
+
+    def test_enforce_blocks_when_confirmation_is_required(self):
+        policy = ExecutionPolicy(allow_destructive_from_core=True)
+        with pytest.raises(PolicyConfirmationRequired, match="requires user confirmation"):
+            policy.enforce(_ctx("file", "delete_file", user_confirmed=False))
+
+    def test_enforce_allows_destructive_action_after_explicit_confirmation(self):
+        policy = ExecutionPolicy(allow_destructive_from_core=True)
+        policy.enforce(_ctx("file", "delete_file", user_confirmed=True))
 
     def test_enforce_passes_on_allow(self):
         policy = ExecutionPolicy()

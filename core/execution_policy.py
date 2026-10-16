@@ -259,6 +259,8 @@ class ExecutionPolicy:
         result = self.check(ctx)
         if result.verdict == PolicyVerdict.DENY:
             raise PolicyDeniedError(result.reason, context=ctx)
+        if result.verdict == PolicyVerdict.REQUIRE_CONFIRMATION:
+            raise PolicyConfirmationRequired(result.reason, context=ctx)
 
     # ------------------------------------------------------------------
     # Private helpers
@@ -299,9 +301,13 @@ class ExecutionPolicy:
 
 
 class PolicyDeniedError(Exception):
-    """Raised when ExecutionPolicy.enforce() produces a DENY verdict."""
+    """Raised when ExecutionPolicy.enforce() refuses a capability request."""
 
     def __init__(self, reason: str, context: PolicyContext | None = None) -> None:
         super().__init__(reason)
         self.reason = reason
         self.context = context
+
+
+class PolicyConfirmationRequired(PolicyDeniedError):
+    """Raised when a capability cannot proceed until explicit user approval."""
