@@ -7,7 +7,12 @@ import logging
 from typing import Any
 
 from .dependency_manager import AppDependencyManager
-from .exceptions import AppInstallError, DependencyResolutionError, InvalidManifestError
+from .exceptions import (
+    AppInstallError,
+    AppPermissionError,
+    DependencyResolutionError,
+    InvalidManifestError,
+)
 from .manifest import ManifestParser
 from .models import InstallResult
 from .permissions import AppPermissionManager
@@ -61,7 +66,7 @@ class AppInstaller:
                 resolved_dependencies=resolved
             )
             
-        except (InvalidManifestError, DependencyResolutionError, AppInstallError) as e:
+        except (InvalidManifestError, DependencyResolutionError, AppInstallError, AppPermissionError) as e:
             logger.error(f"Installation failed: {e}")
             return InstallResult(
                 success=False,
@@ -71,5 +76,5 @@ class AppInstaller:
             logger.error(f"Unexpected error during installation: {e}")
             return InstallResult(
                 success=False,
-                errors=[f"Unexpected error: {str(e)}"]
+                errors=[f"Unexpected error: {e!s}"]
             )

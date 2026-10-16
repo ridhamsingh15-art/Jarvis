@@ -7,7 +7,12 @@ import logging
 from typing import Any
 
 from .dependency_manager import AppDependencyManager
-from .exceptions import AppUpdateError, DependencyResolutionError, InvalidManifestError
+from .exceptions import (
+    AppPermissionError,
+    AppUpdateError,
+    DependencyResolutionError,
+    InvalidManifestError,
+)
 from .manifest import ManifestParser
 from .models import InstallResult
 from .permissions import AppPermissionManager
@@ -67,7 +72,7 @@ class AppUpdater:
                 resolved_dependencies=resolved
             )
             
-        except (InvalidManifestError, DependencyResolutionError, AppUpdateError) as e:
+        except (InvalidManifestError, DependencyResolutionError, AppUpdateError, AppPermissionError) as e:
             logger.error(f"Update failed: {e}. Rolling back...")
             self._rollback(app_id, current_manifest)
             return InstallResult(
@@ -79,7 +84,7 @@ class AppUpdater:
             self._rollback(app_id, current_manifest)
             return InstallResult(
                 success=False,
-                errors=[f"Unexpected error: {str(e)}"]
+                errors=[f"Unexpected error: {e!s}"]
             )
 
     def _rollback(self, app_id: str, manifest: Any) -> None:
