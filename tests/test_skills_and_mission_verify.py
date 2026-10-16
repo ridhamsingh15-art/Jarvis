@@ -20,19 +20,14 @@ Phase J — Mission Completion Verifier:
 8. verification timeout not applicable (sync)
 9. LLM-only approval not sufficient (structural check always runs)
 """
-import pytest
 from unittest.mock import MagicMock
-from core.task import Task, TaskStatus
+
 from core.mission_verifier import (
     MissionCompletionVerifier,
     VerificationStatus,
-    FileExistsCheck,
-    CustomCheck,
-    ToolSucceededCheck,
-    ResponsePresentCheck,
 )
-from core.skills_runtime import SkillsRuntime, SkillContext
-
+from core.skills_runtime import SkillContext, SkillsRuntime
+from core.task import Task
 
 # ---------------------------------------------------------------------------
 # Phase I — Skills Runtime
@@ -120,7 +115,7 @@ class TestSkillsRuntime:
         assert allowed is True
 
     def test_tool_permission_denied_by_policy(self):
-        from core.execution_policy import ExecutionPolicy, CapabilitySource
+        from core.execution_policy import ExecutionPolicy
         policy = ExecutionPolicy()
         runtime = SkillsRuntime(execution_policy=policy)
         # SKILL source trying to use 'unknown_tool' → denied

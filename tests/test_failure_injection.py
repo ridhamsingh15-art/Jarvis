@@ -20,13 +20,15 @@ Failure modes covered:
 9. Worker failure
 10. Cancellation
 """
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, patch
-from core.task import Task, TaskStatus
-from core.tool_feedback_loop import ToolFeedbackLoop
+
 from core.lifecycle_hooks import LifecycleHooks
 from core.llm_observability import LLMObservability
 from core.session import SessionRepository
+from core.task import Task, TaskStatus
+from core.tool_feedback_loop import ToolFeedbackLoop
 
 
 class TestLLMFailures:
@@ -52,8 +54,9 @@ class TestLLMFailures:
 
     def test_malformed_json_does_not_crash_conversation_engine(self):
         """ConversationEngine gracefully handles malformed JSON responses."""
-        from core.cognition.conversation import ConversationEngine
         from unittest.mock import MagicMock
+
+        from core.cognition.conversation import ConversationEngine
 
         router = MagicMock()
         router.generate.return_value = MagicMock(text="NOT_JSON_AT_ALL{{{")
@@ -138,7 +141,6 @@ class TestHookFailureIsolation:
             call_log.append(event.topic)
             time.sleep(0.001)  # fast enough for test, exercises path
 
-        from core.models import Event
 
         # Use a real-ish bus mock that actually calls the handler
         bus = MagicMock()

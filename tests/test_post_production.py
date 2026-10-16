@@ -1,48 +1,56 @@
 """
 Tests for the Post-Production Pipeline.
 """
-import pytest
 import dataclasses
-from pathlib import Path
 
-from applications.content_factory.project.models import ProjectBundle, ProjectBundleMetadata
-from applications.content_factory.project.manager import ProjectManager
-from applications.content_factory.storyboard_engine.models import StoryboardPackage, StoryboardScene
-from core.events.bus import EventBus
-from core.mission.manager import MissionManager
+import pytest
 
-from applications.content_factory.music_engine.planner import MusicGenerationPlanner
+from applications.content_factory.analytics_engine.models import AnalyticsSyncRequest
+from applications.content_factory.analytics_engine.planner import AnalyticsPlanner
+from applications.content_factory.analytics_engine.telemetry import (
+    AnalyticsEngineTelemetry,
+)
+from applications.content_factory.analytics_engine.tracker import AnalyticsTracker
 from applications.content_factory.music_engine.generator import MusicGenerator
+from applications.content_factory.music_engine.planner import MusicGenerationPlanner
 from applications.content_factory.music_engine.telemetry import MusicEngineTelemetry
-
-from applications.content_factory.subtitle_engine.planner import SubtitleGenerationPlanner
-from applications.content_factory.subtitle_engine.generator import SubtitleGenerator
-from applications.content_factory.subtitle_engine.telemetry import SubtitleEngineTelemetry
-
-from applications.content_factory.thumbnail_engine.planner import ThumbnailGenerationPlanner
-from applications.content_factory.thumbnail_engine.generator import ThumbnailGenerator
-from applications.content_factory.thumbnail_engine.telemetry import ThumbnailEngineTelemetry
-
-from applications.content_factory.seo_engine.planner import SEOGenerationPlanner
-from applications.content_factory.seo_engine.generator import SEOGenerator
-from applications.content_factory.seo_engine.telemetry import SEOEngineTelemetry
-
-from applications.content_factory.publishing_engine.planner import PublishingPlanner
+from applications.content_factory.project.manager import ProjectManager
 from applications.content_factory.publishing_engine.adapter import PublishingAdapter
 from applications.content_factory.publishing_engine.models import PublishRequest
-from applications.content_factory.publishing_engine.telemetry import PublishingEngineTelemetry
-
-from applications.content_factory.analytics_engine.planner import AnalyticsPlanner
-from applications.content_factory.analytics_engine.tracker import AnalyticsTracker
-from applications.content_factory.analytics_engine.models import AnalyticsSyncRequest
-from applications.content_factory.analytics_engine.telemetry import AnalyticsEngineTelemetry
+from applications.content_factory.publishing_engine.planner import PublishingPlanner
+from applications.content_factory.publishing_engine.telemetry import (
+    PublishingEngineTelemetry,
+)
+from applications.content_factory.seo_engine.generator import SEOGenerator
+from applications.content_factory.seo_engine.planner import SEOGenerationPlanner
+from applications.content_factory.seo_engine.telemetry import SEOEngineTelemetry
+from applications.content_factory.storyboard_engine.models import (
+    StoryboardPackage,
+    StoryboardScene,
+)
+from applications.content_factory.subtitle_engine.generator import SubtitleGenerator
+from applications.content_factory.subtitle_engine.planner import (
+    SubtitleGenerationPlanner,
+)
+from applications.content_factory.subtitle_engine.telemetry import (
+    SubtitleEngineTelemetry,
+)
+from applications.content_factory.thumbnail_engine.generator import ThumbnailGenerator
+from applications.content_factory.thumbnail_engine.planner import (
+    ThumbnailGenerationPlanner,
+)
+from applications.content_factory.thumbnail_engine.telemetry import (
+    ThumbnailEngineTelemetry,
+)
+from core.events.bus import EventBus
 
 
 @pytest.fixture
 def event_bus():
-    from core.telemetry.logger import AsyncLogger
-    from core.telemetry.levels import LogLevel
     from unittest.mock import MagicMock
+
+    from core.telemetry.levels import LogLevel
+    from core.telemetry.logger import AsyncLogger
     
     dummy_masker = MagicMock()
     dummy_masker.mask.side_effect = lambda x: x
@@ -51,11 +59,11 @@ def event_bus():
 
 @pytest.fixture
 def project_manager(tmp_path, event_bus):
-    from applications.content_factory.project.storage import ProjectStorage
-    from applications.content_factory.project.registry import ProjectRegistry
     from applications.content_factory.project.asset_manager import AssetManager
-    from applications.content_factory.project.validator import ProjectValidator
+    from applications.content_factory.project.registry import ProjectRegistry
+    from applications.content_factory.project.storage import ProjectStorage
     from applications.content_factory.project.telemetry import ProjectManagerTelemetry
+    from applications.content_factory.project.validator import ProjectValidator
     
     storage = ProjectStorage(root_dir=str(tmp_path))
     registry = ProjectRegistry(storage)
@@ -122,8 +130,8 @@ def mock_bundle(project_manager: ProjectManager):
     bundle = dataclasses.replace(bundle, storyboard_package=sb_package)
     
     # Inject a mock image asset for thumbnail engine
-    import tempfile
     import os
+    import tempfile
     fd, temp_path = tempfile.mkstemp(suffix=".jpg")
     os.write(fd, b"MOCK_IMAGE_DATA")
     os.close(fd)

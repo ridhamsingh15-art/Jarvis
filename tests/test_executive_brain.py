@@ -1,10 +1,11 @@
-import pytest
 from unittest.mock import MagicMock
-from core.executive.models import ExecutionStrategy, GoalType, Complexity
-from core.executive.reasoning import ReasoningEngine
-from core.executive.model_selection import ModelSelection
+
 from core.cognition.context import ShortTermContext
+from core.executive.model_selection import ModelSelection
+from core.executive.models import Complexity, ExecutionStrategy, GoalType
+from core.executive.reasoning import ReasoningEngine
 from providers.capabilities import Capability
+
 
 def test_reasoning_engine():
     mock_llm = MagicMock()

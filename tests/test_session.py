@@ -11,8 +11,6 @@ Tests:
 7. concurrent session isolation (separate IDs)
 8. session metadata preserved
 """
-import pytest
-import time
 from core.session import SessionRepository, SessionStatus
 
 

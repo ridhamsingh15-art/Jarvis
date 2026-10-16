@@ -31,8 +31,6 @@ Verifies the 25 production-path requirements:
 
 import os
 import sys
-import tempfile
-import time
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -42,16 +40,19 @@ from core.agent import Agent
 from core.cognition.context import ShortTermContext
 from core.cognition.conversation import ConversationResponse
 from core.context_budget import ContextBudget, ContextBudgetManager
-from core.execution_policy import CapabilitySource, ExecutionPolicy, PolicyContext, PolicyVerdict
+from core.execution_policy import (
+    ExecutionPolicy,
+    PolicyContext,
+    PolicyVerdict,
+)
 from core.mission_verifier import MissionCompletionVerifier, VerificationStatus
 from core.registry import Registry
 from core.routing.intent_classifier import IntentType
 from core.session import SessionRepository
 from core.task import Task, TaskStatus
-from core.tool_feedback_loop import ToolFeedbackLoop, format_untrusted_tool_result
+from core.tool_feedback_loop import format_untrusted_tool_result
 from tools.file import FileTool
 from tools.shell import ShellTool
-
 
 # ---------------------------------------------------------------------------
 # Test Helpers

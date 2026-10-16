@@ -12,11 +12,11 @@ Verifies:
 - Telemetry / logging integration
 """
 
-import pytest
 from unittest.mock import MagicMock
 
-from core.action_definition import ActionDefinition
-from core.exceptions import ValidationError, JarvisError
+import pytest
+
+from core.exceptions import JarvisError, ValidationError
 from core.registry import Registry
 from core.task import Task
 from core.tool_intelligence.argument_mapper import ArgumentMapper

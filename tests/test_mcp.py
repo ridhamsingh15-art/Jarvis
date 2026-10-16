@@ -13,7 +13,8 @@ Tests:
 9. server unregistration removes tools
 """
 import pytest
-from core.mcp import MCPRegistry, MCPServerConfig, MCPAdapter
+
+from core.mcp import MCPAdapter, MCPRegistry, MCPServerConfig
 
 
 def _make_registry_with_server(server_id="test_srv", trusted=False) -> MCPRegistry:
@@ -136,7 +137,12 @@ class TestMCPRiskClassification:
 class TestMCPPolicyIntegration:
     def test_mcp_tool_must_pass_execution_policy(self):
         """MCP tools cannot bypass ExecutionPolicy — checked at execution time."""
-        from core.execution_policy import ExecutionPolicy, PolicyContext, CapabilitySource, PolicyVerdict
+        from core.execution_policy import (
+            CapabilitySource,
+            ExecutionPolicy,
+            PolicyContext,
+            PolicyVerdict,
+        )
         policy = ExecutionPolicy(restricted_mcp_tools=frozenset({"browser"}))
 
         # MCP server trying to use 'file' tool → DENY
@@ -149,7 +155,12 @@ class TestMCPPolicyIntegration:
         assert result.verdict == PolicyVerdict.DENY
 
     def test_mcp_safe_tool_allowed_by_policy(self):
-        from core.execution_policy import ExecutionPolicy, PolicyContext, CapabilitySource, PolicyVerdict
+        from core.execution_policy import (
+            CapabilitySource,
+            ExecutionPolicy,
+            PolicyContext,
+            PolicyVerdict,
+        )
         policy = ExecutionPolicy(restricted_mcp_tools=frozenset({"browser", "system"}))
 
         ctx = PolicyContext(

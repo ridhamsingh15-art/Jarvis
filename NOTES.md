@@ -105,3 +105,7 @@ Applied Ruff's safe F401/I001 fixes under `core/` only: **168 findings removed a
 ## Item 21 — applications safe lint cleanup
 
 Applied Ruff safe F401/I001 fixes under `applications/` only: **137 findings removed**. Verification: `git diff --check` passed; `ruff check applications --select F401,I001` passed with zero findings; focused SWE, test-engine, animation/image/video/voice/storyboard/script and project-manager tests → **56 passed in 2.19s**.
+
+## Item 22 — tests and remaining first-party modules safe lint cleanup
+
+Applied Ruff safe F401/I001 fixes under `tests/`, `agents/`, `gui/`, and `tools/`, excluding the third-party `tools/toutatis` subtree. **207 findings removed**. Verification: `git diff --check` passed; targeted Ruff F401/I001 across all included paths passed with zero findings; focused agent/bootstrap/file/shell/plugin/MCP/integration/voice/SWE/content-factory tests → **135 passed in 13.21s**. Some test files lost unused imports only; behavior was checked by the focused test run and will receive the required full-suite gate now.

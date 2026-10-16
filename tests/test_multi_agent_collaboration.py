@@ -1,16 +1,19 @@
-import pytest
 from unittest.mock import MagicMock
-from core.models.primitives import Identifier
-from core.reasoning.execution_plan import ExecutionPlan
-from core.agents.manager import AgentManager
-from core.agents.registry import DefaultAgentRegistry
+
+import pytest
+
+from core.agents.content_agents import StoryboardAgent, VisualDirectorAgent, WriterAgent
 from core.agents.coordinator import MasterCoordinator
 from core.agents.lifecycle import AgentLifecycleAdapter
+from core.agents.manager import AgentManager
 from core.agents.models import SharedContext
-from core.agents.content_agents import WriterAgent, StoryboardAgent, VisualDirectorAgent
+from core.agents.registry import DefaultAgentRegistry
 from core.agents.shared_memory import ThreadSafeSharedMemory
 from core.agents.voting import VotingEngine
 from core.events.bus import EventBus
+from core.models.primitives import Identifier
+from core.reasoning.execution_plan import ExecutionPlan
+
 
 @pytest.fixture
 def registry():

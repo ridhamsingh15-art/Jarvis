@@ -1,14 +1,14 @@
-import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
-from core.cognition.memory_orchestrator import MemoryOrchestrator
-from core.cognition.retrieval import MemoryRetriever
-from core.cognition.ranking import MemoryRanker
-from core.cognition.summarizer import MemorySummarizer
+import pytest
+
 from core.cognition.injector import ContextInjector
-from core.cognition.models import RetrievedMemory, CognitiveContext, MemoryType
-from core.cognition.context import ShortTermContext
+from core.cognition.models import CognitiveContext, MemoryType, RetrievedMemory
+from core.cognition.ranking import MemoryRanker
 from core.cognition.reflection import CognitiveReflection
+from core.cognition.retrieval import MemoryRetriever
+from core.cognition.summarizer import MemorySummarizer
+
 
 @pytest.fixture
 def mock_llm_client():

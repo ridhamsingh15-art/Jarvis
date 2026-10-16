@@ -4,11 +4,11 @@ Tests for the ContextOrchestrator.
 Updated to use the new deterministic intent-based provider selection
 (no LLM call needed to decide which providers to activate).
 """
-import pytest
 from unittest.mock import MagicMock
-from core.cognition.context_orchestrator import ContextOrchestrator
-from core.cognition.context_models import ProviderType, ContextChunk
+
 from core.cognition.context import ShortTermContext
+from core.cognition.context_models import ContextChunk, ProviderType
+from core.cognition.context_orchestrator import ContextOrchestrator
 from core.cognition.retrieval import RetrievedMemory
 
 

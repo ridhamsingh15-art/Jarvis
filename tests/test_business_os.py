@@ -1,14 +1,16 @@
 """
 Tests for the Autonomous Business Operating System.
 """
-import pytest
 from unittest.mock import Mock
 
-from applications.business_os.models import BusinessGoal, BusinessType
-from applications.business_os.manager import BusinessOSManager
-from applications.business_os.planner import BusinessPlanner
-from applications.business_os.finance import FinanceAgent
+import pytest
+
 from applications.business_os.exceptions import FinancialConstraintError
+from applications.business_os.finance import FinanceAgent
+from applications.business_os.manager import BusinessOSManager
+from applications.business_os.models import BusinessGoal, BusinessType
+from applications.business_os.planner import BusinessPlanner
+
 
 class TestBusinessPlanner:
     def test_determine_business_type(self):

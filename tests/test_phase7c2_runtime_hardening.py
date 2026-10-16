@@ -10,35 +10,23 @@ Validates the fixes for:
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
 
-import pytest
-
 from core.agent import Agent
 from core.cognition.conversation import ConversationResponse
 from core.execution_policy import (
-    CapabilitySource,
     ExecutionPolicy,
-    PolicyContext,
-    PolicyResult,
-    PolicyVerdict,
 )
 from core.execution_summary import ExecutionSummary
 from core.mission_verifier import (
-    FileExistsCheck,
     MissionCompletionVerifier,
-    MissionPostcondition,
-    ToolSucceededCheck,
-    VerificationResult,
     VerificationStatus,
     get_effective_tasks,
 )
 from core.routing.intent_classifier import IntentType
 from core.task import Task, TaskStatus
-
 
 # ---------------------------------------------------------------------------
 # Test Helpers

@@ -1,12 +1,12 @@
 """
 Tests for Production Voice Integration.
 """
-import pytest
 from unittest.mock import Mock, patch
 
+from core.integrations.voice.exceptions import VoiceProviderOfflineError
 from core.integrations.voice.manager import VoiceManager
-from core.integrations.voice.models import VoiceRequest, ProviderType
-from core.integrations.voice.exceptions import SynthesisFailedError, VoiceProviderOfflineError
+from core.integrations.voice.models import ProviderType, VoiceRequest
+
 
 class TestVoiceManager:
     

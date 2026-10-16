@@ -1,16 +1,20 @@
 """
 Tests for the Multimodal Perception Engine.
 """
-import pytest
 from core.perception.models import (
-    SceneGraph, SpatialBounds, TextObservation, UIObservation, 
-    UIComponentRole, ObservationType, DocumentObservation
+    DocumentObservation,
+    ObservationType,
+    SpatialBounds,
+    TextObservation,
+    UIComponentRole,
+    UIObservation,
 )
 from core.perception.ocr import OCRPerception
-from core.perception.ui_understanding import UIUnderstanding
 from core.perception.scene_graph import SceneGraphBuilder
-from core.vision.models import OCRResult, BoundingBox, UIElement
+from core.perception.ui_understanding import UIUnderstanding
 from core.vision.enums import UIElementType
+from core.vision.models import BoundingBox, OCRResult, UIElement
+
 
 class TestOCRPerception:
     def test_extract_text_observations(self):

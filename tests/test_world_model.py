@@ -11,33 +11,30 @@ Covers:
   - Executive Brain integration: world state injected as system note
 """
 import os
-import pytest
 from unittest.mock import MagicMock, patch
 
-from core.world.manager import WorldManager
-from core.world.workspace import WorkspaceRegistry
-from core.world.git_monitor import GitMonitor
-from core.world.process_monitor import ProcessMonitor
-from core.world.window_monitor import WindowMonitor
-from core.world.observers import WorldObservers
-from core.world.snapshot import WorldSnapshot
-from core.world.models import (
-    ActiveMissionRef,
-    GitStatus,
-    GitRepoStatus,
-    ProcessInfo,
-    ProcessStatus,
-    RegisteredWorkspace,
-    WindowInfo,
-    WindowFocusState,
-    WorldState,
-)
+import pytest
+
+from core.cognition.context import ShortTermContext
 from core.world.exceptions import (
     WorkspaceAlreadyRegisteredError,
     WorkspaceNotFoundError,
 )
-from core.world.browser_monitor import BrowserMonitor
-from core.cognition.context import ShortTermContext
+from core.world.git_monitor import GitMonitor
+from core.world.manager import WorldManager
+from core.world.models import (
+    ActiveMissionRef,
+    GitRepoStatus,
+    GitStatus,
+    ProcessInfo,
+    RegisteredWorkspace,
+    WorldState,
+)
+from core.world.observers import WorldObservers
+from core.world.process_monitor import ProcessMonitor
+from core.world.snapshot import WorldSnapshot
+from core.world.window_monitor import WindowMonitor
+from core.world.workspace import WorkspaceRegistry
 
 # Path to the actual Jarvis workspace (always exists in this test env)
 JARVIS_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -124,7 +121,6 @@ class TestGitMonitor:
     def test_non_repo_returns_none(self):
         """Test that a path outside any git repo returns None.
         Uses os.path.splitdrive root (e.g., C:\\) which is never a git repo."""
-        import sys
         # Use the drive root (e.g., C:\) — never a git repo
         drive = os.path.splitdrive(JARVIS_ROOT)[0] + os.sep
         monitor = GitMonitor()

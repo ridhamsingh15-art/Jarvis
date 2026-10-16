@@ -9,19 +9,19 @@ run fast with zero network calls.
 """
 
 import json
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, patch, call
 
-from providers.provider_models import ModelResponse
-from core.cognition.conversation import ConversationEngine, ConversationResponse
-from core.cognition.context_builder import ContextBuilder
-from core.cognition.context_models import ProviderType, ContextPackage
-from core.cognition.context_orchestrator import ContextOrchestrator
 from core.cognition.context import ShortTermContext
-from core.cognition.retrieval import MemoryRetriever
-from core.cognition.manager import CognitiveManager
+from core.cognition.context_builder import ContextBuilder
+from core.cognition.context_models import ContextPackage, ProviderType
+from core.cognition.context_orchestrator import ContextOrchestrator
+from core.cognition.conversation import ConversationEngine, ConversationResponse
 from core.cognition.dialogue import DialogueState
-
+from core.cognition.manager import CognitiveManager
+from core.cognition.retrieval import MemoryRetriever
+from providers.provider_models import ModelResponse
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
 

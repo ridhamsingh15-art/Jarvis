@@ -4,20 +4,31 @@ Tests for the AI Content Factory: Consistency Engine.
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from applications.content_factory.consistency_engine.asset_matcher import AssetMatcher
-from applications.content_factory.consistency_engine.character_library import CharacterLibrary
-from applications.content_factory.consistency_engine.environment_library import EnvironmentLibrary
-from applications.content_factory.consistency_engine.exceptions import ConsistencyValidationError
-from applications.content_factory.consistency_engine.manager import ConsistencyEngineManager
-from applications.content_factory.consistency_engine.models import CharacterProfile, EnvironmentProfile
+from applications.content_factory.consistency_engine.character_library import (
+    CharacterLibrary,
+)
+from applications.content_factory.consistency_engine.environment_library import (
+    EnvironmentLibrary,
+)
+from applications.content_factory.consistency_engine.exceptions import (
+    ConsistencyValidationError,
+)
+from applications.content_factory.consistency_engine.manager import (
+    ConsistencyEngineManager,
+)
 from applications.content_factory.consistency_engine.object_library import ObjectLibrary
-from applications.content_factory.consistency_engine.prompt_enricher import PromptEnricher
+from applications.content_factory.consistency_engine.prompt_enricher import (
+    PromptEnricher,
+)
 from applications.content_factory.consistency_engine.registry import ConsistencyRegistry
-from applications.content_factory.consistency_engine.telemetry import ConsistencyTelemetry
+from applications.content_factory.consistency_engine.telemetry import (
+    ConsistencyTelemetry,
+)
 from applications.content_factory.consistency_engine.validator import ProfileValidator
 from applications.content_factory.storyboard_engine.models import StoryboardScene
-
-import pytest
 
 
 @pytest.fixture

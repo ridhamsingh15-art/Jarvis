@@ -1,18 +1,21 @@
-import pytest
 from unittest.mock import MagicMock
-from core.models.primitives import Identifier
+
+import pytest
+
 from core.creator import (
     CreatorManager,
     CreatorObjective,
-    ObjectiveParser,
     GraphBuilder,
-    WorkflowCompiler,
-    RecoveryManager,
-    ProgressTracker,
-    WorkflowNode,
+    ObjectiveParser,
     ProductionState,
-    WorkflowResolutionError
+    ProgressTracker,
+    RecoveryManager,
+    WorkflowCompiler,
+    WorkflowNode,
+    WorkflowResolutionError,
 )
+from core.models.primitives import Identifier
+
 
 @pytest.fixture
 def mock_llm_client():
@@ -138,9 +141,11 @@ def test_progress_tracker():
 @pytest.mark.asyncio
 async def test_creator_manager_orchestration(creator_manager, mock_agent_manager):
     from unittest.mock import AsyncMock
+
+    from core.agents.enums import TaskState
+
     # Setup mock to return dummy AgentResults for 9 stages
     from core.agents.models import AgentResult
-    from core.agents.enums import TaskState
     from core.models.primitives import Timestamp
     
     dummy_results = [

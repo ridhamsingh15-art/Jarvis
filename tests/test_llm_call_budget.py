@@ -14,15 +14,12 @@ These tests verify the agent does NOT make unnecessary LLM calls.
 The reflection subsystem is NOT removed — just not called for simple turns.
 """
 
-import json
-import pytest
-from unittest.mock import MagicMock, call, patch, Mock
-from providers.provider_models import ModelResponse
+from unittest.mock import MagicMock
+
 from core.agent import Agent
 from core.cognition.conversation import ConversationResponse
 from core.routing.intent_classifier import IntentType
-from core.task import TaskStatus
-
+from providers.provider_models import ModelResponse
 
 # ─── Test utilities ────────────────────────────────────────────────────────
 
@@ -125,7 +122,6 @@ class TestIntentClassifierBudget:
 
     def test_greeting_zero_llm_calls(self):
         """Stage 1 matches 'Hi' → zero LLM calls."""
-        from core.cognition.context_builder import ContextBuilder
         from core.routing.intent_classifier import IntentClassifier
         llm = _mock_llm("CHAT")
         classifier = IntentClassifier(llm_client=llm)

@@ -11,10 +11,15 @@ Tests:
 7. repeated identical tool call (loop detection)
 8. LLM correction on retry
 """
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, call
-from core.task import Task, TaskStatus
-from core.tool_feedback_loop import ToolFeedbackLoop, MAX_TOOL_ITERATIONS, _task_fingerprint
+
+from core.task import Task
+from core.tool_feedback_loop import (
+    ToolFeedbackLoop,
+    _task_fingerprint,
+)
 
 
 def _pending_task(tool="windows", action="open_app", args=None):

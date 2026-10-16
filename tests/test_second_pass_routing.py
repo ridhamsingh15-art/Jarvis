@@ -14,24 +14,28 @@ Tests:
 11. Bug 3 Regression: Multi-threaded SQLite access to SqliteMissionRepository without thread affinity error.
 """
 
-import threading
-import tempfile
 import os
-from unittest.mock import Mock, MagicMock, patch
+import tempfile
+import threading
+from unittest.mock import Mock, patch
+
 import pytest
 
 from core.agent import Agent
-from core.routing.intent_classifier import IntentClassifier, IntentType
-from core.task import Task
 from core.cognition.conversation import ConversationEngine, ConversationResponse
 from core.cognition.dialogue import DialogueState
-from core.identity.manager import IdentityManager
-from tools.browser import BrowserTool
+from core.cognition.retrieval import MemoryRetriever
 from core.exceptions import ExecutionError
-from core.mission.repository import SqliteMissionRepository
+from core.identity.manager import IdentityManager
+from core.knowledge.indexer.registry import (
+    KnowledgeChunk,
+    KnowledgeDocument,
+    KnowledgeSearchResult,
+)
 from core.mission.models import Mission
-from core.cognition.retrieval import MemoryRetriever, RetrievedMemory
-from core.knowledge.indexer.registry import KnowledgeDocument, KnowledgeChunk, KnowledgeSearchResult
+from core.mission.repository import SqliteMissionRepository
+from core.routing.intent_classifier import IntentClassifier, IntentType
+from tools.browser import BrowserTool
 
 
 class TestSecondPassAcceptance:

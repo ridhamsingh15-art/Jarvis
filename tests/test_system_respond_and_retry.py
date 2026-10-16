@@ -23,22 +23,22 @@ Phase 4 Tests:
 """
 
 from unittest.mock import MagicMock
+
 import pytest
 
 from core.agent import Agent
-from core.cognition.conversation import ConversationEngine, ConversationResponse
+from core.cognition.conversation import ConversationResponse
 from core.exceptions import InvalidStateError, JarvisError
 from core.execution_policy import (
+    CapabilitySource,
     ExecutionPolicy,
     PolicyContext,
-    CapabilitySource,
     PolicyVerdict,
 )
 from core.registry import Registry
 from core.task import Task, TaskStatus
 from core.validator import Validator
 from tools.base_tool import BaseTool
-
 
 # ---------------------------------------------------------------------------
 # Mocks & Helpers

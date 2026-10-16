@@ -4,22 +4,36 @@ Tests for the AI Content Factory: Animation Engine.
 
 import os
 from unittest.mock import MagicMock
-import pytest
-import shutil
 
-from applications.content_factory.project.models import ProjectBundle, ProjectBundleMetadata
-from applications.content_factory.project.manager import ProjectManager
-from applications.content_factory.project.asset_manager import AssetManager
-from applications.content_factory.project.storage import ProjectStorage
-from applications.content_factory.storyboard_engine.models import StoryboardPackage, StoryboardScene
+import pytest
+
+from applications.content_factory.animation_engine.asset_pipeline import (
+    AnimationAssetPipeline,
+)
 from applications.content_factory.animation_engine.manager import AnimationEngineManager
-from applications.content_factory.animation_engine.planner import AnimationGenerationPlanner
-from applications.content_factory.animation_engine.scheduler import AnimationScheduler
-from applications.content_factory.animation_engine.asset_pipeline import AnimationAssetPipeline
+from applications.content_factory.animation_engine.planner import (
+    AnimationGenerationPlanner,
+)
+from applications.content_factory.animation_engine.quality import (
+    AnimationQualityEvaluator,
+)
 from applications.content_factory.animation_engine.renderer import AnimationRenderer
-from applications.content_factory.animation_engine.quality import AnimationQualityEvaluator
+from applications.content_factory.animation_engine.scheduler import AnimationScheduler
+from applications.content_factory.animation_engine.telemetry import (
+    AnimationEngineTelemetry,
+)
 from applications.content_factory.animation_engine.validator import AnimationValidator
-from applications.content_factory.animation_engine.telemetry import AnimationEngineTelemetry
+from applications.content_factory.project.asset_manager import AssetManager
+from applications.content_factory.project.manager import ProjectManager
+from applications.content_factory.project.models import (
+    ProjectBundle,
+    ProjectBundleMetadata,
+)
+from applications.content_factory.project.storage import ProjectStorage
+from applications.content_factory.storyboard_engine.models import (
+    StoryboardPackage,
+    StoryboardScene,
+)
 
 
 @pytest.fixture

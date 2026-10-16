@@ -25,31 +25,20 @@ Covers the 18 specific requirements:
 from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
-import pytest
 
-from core.agent import Agent
+from core.cognition.context_models import ContextPackage
+from core.cognition.conversation import ConversationEngine
 from core.context_budget import (
     ContextBudget,
     ContextBudgetManager,
     estimate_tokens,
-    DEFAULT_MAX_CONTEXT_TOKENS,
-    DEFAULT_MAX_TOOL_RESULT_CHARS,
 )
-from core.cognition.context import ShortTermContext
-from core.cognition.context_models import ContextChunk, ContextPackage, ProviderType
-from core.cognition.context_orchestrator import ContextOrchestrator
-from core.cognition.conversation import ConversationEngine, ConversationResponse
-from core.cognition.dialogue import DialogueState
-from core.cognition.manager import CognitiveManager
-from core.identity.manager import IdentityManager
-from core.routing.intent_classifier import IntentClassifier, IntentType
-from core.task import Task, TaskStatus
-from core.tool_feedback_loop import ToolFeedbackLoop, format_untrusted_tool_result
+from core.task import Task
+from core.tool_feedback_loop import format_untrusted_tool_result
 from providers.base_provider import BaseProvider
 from providers.capabilities import Capability
 from providers.ollama_provider import OllamaProvider
 from providers.provider_models import InferenceRequirements, ModelResponse, TokenUsage
-
 
 # ---------------------------------------------------------------------------
 # Test Helpers

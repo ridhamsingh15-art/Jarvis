@@ -1,14 +1,23 @@
 """
 Tests for the Federation subsystem.
 """
-import pytest
 import time
-from core.federation.models import NodeType, NodeCapabilities, FederationNode, FederatedMission, NodeState
+
+import pytest
+
+from core.federation.exceptions import DelegationFailedError, FederationAuthError
+from core.federation.models import (
+    FederatedMission,
+    FederationNode,
+    NodeCapabilities,
+    NodeState,
+    NodeType,
+)
 from core.federation.node import LocalNode
 from core.federation.registry import NodeRegistry
 from core.federation.scheduler import FederationScheduler
 from core.federation.security import SecurityManager
-from core.federation.exceptions import DelegationFailedError, FederationAuthError
+
 
 class TestLocalNode:
     def test_node_initialization(self):

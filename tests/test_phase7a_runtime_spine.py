@@ -29,24 +29,17 @@ import logging
 import time
 from unittest.mock import MagicMock
 
-import pytest
-
 from core.action_definition import ActionDefinition
 from core.agent import Agent
 from core.cognition.conversation import ConversationResponse
 from core.execution_policy import (
-    CapabilitySource,
     ExecutionPolicy,
-    PolicyContext,
-    PolicyVerdict,
 )
-from core.execution_summary import ExecutionSummary
 from core.registry import Registry
 from core.task import Task, TaskStatus
 from core.validator import Validator
 from main import build_agent
 from tools.base_tool import BaseTool
-
 
 # ---------------------------------------------------------------------------
 # Test Helpers & Safe Fakes

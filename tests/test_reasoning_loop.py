@@ -1,8 +1,8 @@
-import pytest
 from unittest.mock import MagicMock
-from core.reasoning.loop import ReasoningLoop
-from core.reasoning.execution_plan import ExecutionPlan
+
 from core.cognition.context import ShortTermContext
+from core.reasoning.loop import ReasoningLoop
+
 
 def test_reasoning_loop_success():
     # Setup

@@ -1,7 +1,8 @@
 """
 Tests for ModelManager health checks, role mapping, and table formatting.
 """
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from config.config import JarvisConfig
 from core.model_manager import ModelManager
 

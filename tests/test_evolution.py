@@ -1,13 +1,15 @@
 """
 Tests for the Self-Evolution Framework.
 """
-import pytest
 from unittest.mock import Mock
 
-from core.evolution.models import ProposalState, Priority, RiskLevel, EvolutionProposal
-from core.evolution.proposal import ProposalManager
-from core.evolution.manager import EvolutionManager
+import pytest
+
 from core.evolution.exceptions import ApprovalRequiredError
+from core.evolution.manager import EvolutionManager
+from core.evolution.models import EvolutionProposal, Priority, ProposalState, RiskLevel
+from core.evolution.proposal import ProposalManager
+
 
 class TestProposalManager:
     def test_deduplication(self):

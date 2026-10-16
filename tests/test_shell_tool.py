@@ -13,10 +13,9 @@ Tests:
 9. empty command handled
 10. path traversal blocked
 """
-import os
 import sys
-import pytest
-from tools.shell import ShellTool, ShellResult, _HIGH_RISK_PATTERNS
+
+from tools.shell import _HIGH_RISK_PATTERNS, ShellResult, ShellTool
 
 
 def _tool(workspace=".", timeout=10.0, allowed_commands=None):
@@ -168,7 +167,6 @@ class TestShellToolHighRiskPatterns:
             assert p.pattern  # has a pattern string
 
     def test_patterns_match_expected_commands(self):
-        import re
         test_cases = [
             ("rm -rf /tmp", True),
             ("del /s /q C:\\files", True),

@@ -25,8 +25,6 @@ Verifies the 20 production-path requirements:
 """
 
 import json
-import sqlite3
-import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -38,11 +36,10 @@ from core.agent import Agent
 from core.cognition.context import ShortTermContext
 from core.cognition.conversation import ConversationResponse
 from core.context_budget import ContextBudget
-from core.execution_policy import ExecutionPolicy, PolicyVerdict
+from core.execution_policy import ExecutionPolicy
 from core.routing.intent_classifier import IntentType
-from core.session import Session, SessionRepository, SessionStatus
+from core.session import SessionRepository, SessionStatus
 from core.task import Task, TaskStatus
-
 
 # ---------------------------------------------------------------------------
 # Test Helpers & Fixtures

@@ -1,7 +1,8 @@
 """
 Tests for OllamaProvider multi-model role routing and fallback.
 """
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from providers.capabilities import Capability
 from providers.ollama_provider import OllamaProvider
 from providers.provider_models import InferenceRequirements

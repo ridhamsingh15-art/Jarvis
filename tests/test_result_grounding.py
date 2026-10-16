@@ -21,14 +21,11 @@ Verifies:
 
 from unittest.mock import MagicMock
 
-import pytest
-
 from core.agent import Agent
 from core.cognition.conversation import ConversationResponse
-from core.execution_summary import ExecutionSummary, TaskExecutionRecord
+from core.execution_summary import ExecutionSummary
 from core.mission_verifier import VerificationResult, VerificationStatus
 from core.task import Task, TaskStatus
-
 
 # ===========================================================================
 # Unit Tests — ExecutionSummary and Grounding Contract

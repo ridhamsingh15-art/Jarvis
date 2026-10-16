@@ -4,21 +4,28 @@ Tests for the AI Content Factory: Voice Engine.
 
 import os
 from unittest.mock import MagicMock
+
 import pytest
 
-from applications.content_factory.project.models import ProjectBundle, ProjectBundleMetadata
-from applications.content_factory.project.manager import ProjectManager
 from applications.content_factory.project.asset_manager import AssetManager
+from applications.content_factory.project.manager import ProjectManager
+from applications.content_factory.project.models import (
+    ProjectBundle,
+    ProjectBundleMetadata,
+)
 from applications.content_factory.project.storage import ProjectStorage
-from applications.content_factory.storyboard_engine.models import StoryboardPackage, StoryboardScene
+from applications.content_factory.storyboard_engine.models import (
+    StoryboardPackage,
+    StoryboardScene,
+)
+from applications.content_factory.voice_engine.asset_pipeline import VoiceAssetPipeline
 from applications.content_factory.voice_engine.manager import VoiceEngineManager
 from applications.content_factory.voice_engine.planner import VoiceGenerationPlanner
-from applications.content_factory.voice_engine.scheduler import VoiceScheduler
-from applications.content_factory.voice_engine.asset_pipeline import VoiceAssetPipeline
-from applications.content_factory.voice_engine.renderer import VoiceRenderer
 from applications.content_factory.voice_engine.quality import VoiceQualityEvaluator
-from applications.content_factory.voice_engine.validator import VoiceValidator
+from applications.content_factory.voice_engine.renderer import VoiceRenderer
+from applications.content_factory.voice_engine.scheduler import VoiceScheduler
 from applications.content_factory.voice_engine.telemetry import VoiceEngineTelemetry
+from applications.content_factory.voice_engine.validator import VoiceValidator
 
 
 @pytest.fixture

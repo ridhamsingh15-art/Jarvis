@@ -4,22 +4,29 @@ Tests for the AI Content Factory: Video Engine.
 
 import os
 from unittest.mock import MagicMock
+
 import pytest
 
-from applications.content_factory.project.models import ProjectBundle, ProjectBundleMetadata
-from applications.content_factory.project.manager import ProjectManager
 from applications.content_factory.project.asset_manager import AssetManager
+from applications.content_factory.project.manager import ProjectManager
+from applications.content_factory.project.models import (
+    ProjectBundle,
+    ProjectBundleMetadata,
+)
 from applications.content_factory.project.storage import ProjectStorage
-from applications.content_factory.storyboard_engine.models import StoryboardPackage, StoryboardScene
-from applications.content_factory.video_engine.manager import VideoEngineManager
-from applications.content_factory.video_engine.planner import VideoGenerationPlanner
-from applications.content_factory.video_engine.timeline import TimelineBuilder
+from applications.content_factory.storyboard_engine.models import (
+    StoryboardPackage,
+    StoryboardScene,
+)
 from applications.content_factory.video_engine.assembler import SceneSequencer
 from applications.content_factory.video_engine.ffmpeg_adapter import FFmpegAdapter
-from applications.content_factory.video_engine.renderer import VideoRenderer
-from applications.content_factory.video_engine.validator import VideoValidator
-from applications.content_factory.video_engine.telemetry import VideoEngineTelemetry
+from applications.content_factory.video_engine.manager import VideoEngineManager
 from applications.content_factory.video_engine.models import VideoParameters
+from applications.content_factory.video_engine.planner import VideoGenerationPlanner
+from applications.content_factory.video_engine.renderer import VideoRenderer
+from applications.content_factory.video_engine.telemetry import VideoEngineTelemetry
+from applications.content_factory.video_engine.timeline import TimelineBuilder
+from applications.content_factory.video_engine.validator import VideoValidator
 
 
 @pytest.fixture

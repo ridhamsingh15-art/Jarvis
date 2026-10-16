@@ -11,29 +11,28 @@ Covers:
   - Plugin lifecycle (initialize → start → stop)
   - DefaultPluginValidator manifest and graph validation
 """
-import pytest
 from unittest.mock import MagicMock
 
+import pytest
+
 from core.models.primitives import Identifier
-from core.plugins.enums import PluginCapability, PluginState, PluginType
+from core.plugins.enums import PluginCapability, PluginState
 from core.plugins.exceptions import (
+    PluginLifecycleError,
     PluginSecurityError,
     PluginValidationError,
-    PluginLifecycleError,
 )
+from core.plugins.lifecycle import DefaultPluginLifecycle
 from core.plugins.manifest import ManifestBuilder, ManifestParser
 from core.plugins.models import (
     PluginDescriptor,
-    PluginHealth,
     PluginManifest,
     PluginMetadata,
 )
 from core.plugins.permissions import PermissionManager, PermissionType
 from core.plugins.registry import ThreadSafePluginRegistry
 from core.plugins.sandbox import PolicySandbox
-from core.plugins.sdk import PluginSDK, PluginContext, PluginEventAdapter
-from core.plugins.lifecycle import DefaultPluginLifecycle
-
+from core.plugins.sdk import PluginSDK
 
 # ---------------------------------------------------------------------------
 # Helpers

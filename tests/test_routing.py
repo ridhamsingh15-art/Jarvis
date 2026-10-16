@@ -1,12 +1,12 @@
 """
 Tests for Fast Intent Router and optimized execution pipeline.
 """
-import pytest
 from unittest.mock import Mock, patch
 
-from core.routing.intent_classifier import IntentClassifier, IntentType
 from core.agent import Agent
+from core.routing.intent_classifier import IntentClassifier, IntentType
 from core.task import Task
+
 
 class TestIntentClassifier:
     

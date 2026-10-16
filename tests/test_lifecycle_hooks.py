@@ -12,9 +12,9 @@ Tests:
 8. hook failure isolation (bad handler doesn't crash primary)
 9. no bus → no error (graceful noop)
 """
-import pytest
-from unittest.mock import MagicMock, call
-from core.lifecycle_hooks import LifecycleHooks, LifecycleEvent
+from unittest.mock import MagicMock
+
+from core.lifecycle_hooks import LifecycleEvent, LifecycleHooks
 
 
 def _make_bus_and_hooks():

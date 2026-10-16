@@ -1,12 +1,16 @@
 """
 Tests for Production ComfyUI Integration.
 """
-import pytest
 from unittest.mock import Mock, patch
 
+import pytest
+
 from core.integrations.comfyui.client import ComfyUIClient
-from core.integrations.comfyui.exceptions import ComfyUIServerOfflineError, WorkflowExecutionError
+from core.integrations.comfyui.exceptions import (
+    ComfyUIServerOfflineError,
+)
 from core.integrations.comfyui.models import ComfyUIWorkflow
+
 
 class TestComfyUIClient:
     

@@ -11,29 +11,27 @@ Covers:
   - Executive Brain integration: context enriched with prior lessons
   - Two-project scenario: second project uses first project's lessons
 """
+
 import pytest
-from unittest.mock import MagicMock
 
-from core.agents.models import AgentResult
 from core.agents.enums import TaskState
-from core.models.primitives import Identifier, Timestamp
-from core.mission.models import Mission
-from core.mission.enums import MissionStatus, MissionPriority
+from core.agents.models import AgentResult
 from core.cognition.context import ShortTermContext
-
-from core.experience.manager import ExperienceManager
-from core.experience.extractor import ExperienceExtractor
 from core.experience.evaluator import ExperienceEvaluator
+from core.experience.exceptions import DuplicateExperienceError
+from core.experience.extractor import ExperienceExtractor
 from core.experience.learner import ExperienceLearner
-from core.experience.repository import InMemoryExperienceRepository
-from core.experience.retrieval import ExperienceRetriever
+from core.experience.manager import ExperienceManager
 from core.experience.models import (
     AnalyticsSnapshot,
     ExperienceType,
     LessonCategory,
-    StageOutcome,
 )
-from core.experience.exceptions import DuplicateExperienceError
+from core.experience.repository import InMemoryExperienceRepository
+from core.experience.retrieval import ExperienceRetriever
+from core.mission.enums import MissionPriority
+from core.mission.models import Mission
+from core.models.primitives import Identifier, Timestamp
 
 # ---------------------------------------------------------------------------
 # Helpers
