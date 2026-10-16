@@ -50,8 +50,12 @@ class ComfyUIWebSocket:
                         logger.info(f"Prompt {prompt_id} completed successfully.")
                         return
                         
-            except Exception:
-                # Ignore errors during polling, it might just not be ready or server is busy
-                pass
+            except Exception as exc:  # noqa: BLE001 - polling retries until completion or timeout
+                # The prompt may not be visible in history yet, or the server may be temporarily busy.
+                logger.debug(
+                    "ComfyUI history poll failed for prompt %s (%s); retrying",
+                    prompt_id,
+                    type(exc).__name__,
+                )
                 
             time.sleep(1.0)

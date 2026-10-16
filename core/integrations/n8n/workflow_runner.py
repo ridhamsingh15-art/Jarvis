@@ -123,11 +123,19 @@ class N8nWorkflowRunner:
             logger.error("Workflow run failed for mission %s: %s", mission_id, e)
             try:
                 self._mission_manager.fail(mission_id)
-            except Exception as inner_e:
-                logger.error("Failed to mark mission as failed: %s", inner_e)
+            except Exception as inner_e:  # noqa: BLE001 - preserve the original workflow failure
+                logger.error(
+                    "Failed to mark mission %s as failed (%s)",
+                    mission_id,
+                    type(inner_e).__name__,
+                )
         except Exception:
             logger.exception("Unexpected error in workflow runner")
             try:
                 self._mission_manager.fail(mission_id)
-            except Exception:
-                pass
+            except Exception as inner_e:  # noqa: BLE001 - preserve the original workflow failure
+                logger.error(
+                    "Failed to mark mission %s as failed (%s)",
+                    mission_id,
+                    type(inner_e).__name__,
+                )

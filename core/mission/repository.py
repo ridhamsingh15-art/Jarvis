@@ -1,8 +1,11 @@
+import logging
 import threading
 
 from .exceptions import MissionNotFoundError
 from .interfaces import MissionRepository
 from .models import Mission
+
+logger = logging.getLogger(__name__)
 
 
 class InMemoryMissionRepository(MissionRepository):
@@ -72,8 +75,11 @@ class SqliteMissionRepository(MissionRepository):
                     if len(row) >= 3 and row[1] == "main" and row[2]:
                         self._db_path = str(row[2])
                         break
-            except Exception:
-                pass
+            except Exception as exc:  # noqa: BLE001 - fall back to the supplied connection
+                logger.debug(
+                    "Could not inspect SQLite connection database path (%s); using supplied connection",
+                    type(exc).__name__,
+                )
             if not self._db_path:
                 self._conn = connection
         else:

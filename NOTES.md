@@ -117,3 +117,7 @@ Applied Ruff safe F401/I001 fixes under `tests/`, `agents/`, `gui/`, and `tools/
 ## Item 23 — entrypoint and scripts safe lint cleanup
 
 Applied Ruff's safe F401/I001 fixes to `main.py`, tracked `scripts/`, and tracked `workspace/` helpers only. The pre-existing untracked `jarvis_test_workspace/` remains untouched; its 3 import-order/unused-import findings are still included in an unfiltered `ruff check .`. Verification: `git diff --check` passed; targeted F401/I001 passed; `compileall` passed for `main.py scripts workspace`; `python main.py --help` succeeded; startup/evaluation/phase regression tests → **152 passed in 6.47s**.
+
+## Observability follow-up
+
+Completed three optional-failure logging edits that were left unstaged after the earlier core-observability item: ComfyUI history polling now logs a debug retry diagnostic; n8n failure-reporting logs the exception type if marking a mission failed itself fails; SQLite mission-repository path discovery logs a safe debug diagnostic before falling back to the supplied connection. Verification: `pytest -q tests/test_comfyui.py tests/test_mission_persistence.py tests/test_mission_control.py` → **12 passed**; Ruff `F821,F811,S110,S112` on the three modules → all checks passed.
