@@ -187,3 +187,16 @@ Added `ProjectManager.get_asset_absolute_path()` as a public delegation to the e
 ## Capability and marker audit
 
 The current-source scan found one actionable `# Hack` in `applications/content_factory/image_engine/asset_pipeline.py`, now removed by Task 4. Other `NotImplementedError` paths are explicit, truthful refusals for still-unimplemented architecture design, automated documentation writing, release-summary generation, automated security review, and automated test generation. These are real capability blockers for those workflows, but their code does not falsely claim success; they remain limitations rather than safe candidates for speculative implementation in this audit. The one test skip is the Windows-only shell expansion case and is correctly guarded by `skipif`. No active first-party TODO/FIXME marker was confirmed in current source; the marker scan also sees historical backup copies, which are not current code.
+
+
+## Task 5 ? final regression gate
+
+Final verification after all code changes: `python -m pytest -q --basetemp %TEMP%\pytest-jarvis-final-<unique>` ? **1037 passed, 1 skipped in 32.63s**, exit 0. `ruff check . --statistics` ? **242 findings**, down from **275** at the session baseline (33 fewer). `ruff check . --select E722,B019,S110` ? all checks passed; first-party `compileall` passed; `git diff --check` passed. The one skip remains the expected OS-conditional Windows shell-expansion test. Current-source final review shows no remaining bare `except:`, no `B019` cache finding, and no `S110` silent except/pass findings in the audited production paths. Final tracked worktree is clean after the documentation commit; the pre-existing untracked `jarvis_test_workspace/` remains untouched.
+
+## Remaining audit findings / limits
+
+The global Ruff backlog remains **242 findings**, mainly `BLE001` 102, `RUF059` 41, `F841` 31, `RUF022` 15, `SIM102` 12, `PIE790` 10, and 46 `UP035` findings included in the broader rule set/output. These were not bulk-autofixed: broad exception handlers and unused assignments require call-site review to avoid changing failure semantics, while import ordering/typing/style items are lower priority than demonstrated correctness issues. They are recorded for a future focused lint pass rather than claimed clean. No live authenticated provider/API or desktop end-to-end test was run; those require external services and are not represented by the local pytest suite.
+
+## Worktree preservation note
+
+At initial audit, `core/applications/installer.py` and `core/applications/permissions.py` were modified in the worktree. They were not staged by this audit's commits. By final review, their changes appeared in the repository history as `ad2fe74 fix(security): enforce application permission grants`; the current worktree has no tracked modifications. The pre-existing untracked `jarvis_test_workspace/` directory was never modified or added to commits.

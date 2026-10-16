@@ -12,7 +12,7 @@
 - [x] **Remove bare exception handlers from environment probing:** replace the two bare `except:` clauses in `scripts/evaluate_intelligence.py` with the expected subprocess/OS exception types; compile the script and run relevant evaluation tests.
 - [x] **Make best-effort failures observable without leaking exception payloads:** replace production `except Exception: pass` sites reported by Ruff `S110` with safe debug diagnostics that log only exception type, and remove the broad swallowed cleanup exception in `tests/test_second_pass_routing.py`; verify targeted `S110` and focused affected tests.
 - [x] **Remove private storage access from image asset ingestion:** expose `ProjectManager.get_asset_absolute_path()` through its existing asset-manager facade, use it in `AssetPipeline`, and assert the resolved asset path in the image pipeline test.
-- [ ] **Final regression gate:** run the complete test suite, full Ruff statistics, `git diff --check`, compile checks, and review the final staged diff; record actual outcomes in `NOTES.md`.
+- [x] **Final regression gate:** run the complete test suite, full Ruff statistics, `git diff --check`, compile checks, and review the final staged diff; record actual outcomes in `NOTES.md`.
 
 ## Scope guard
 The remaining Ruff findings are an audit backlog, not permission for blind auto-fixes. Broad exception handling and unused-variable findings require per-call-site review; only change them when behavior can be preserved and verified. Third-party content and the untracked local benchmark workspace must not be modified as part of this pass.
