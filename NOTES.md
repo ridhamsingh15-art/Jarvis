@@ -89,3 +89,7 @@ Expanded shell subprocess filtering beyond a few named API keys to generic `TOKE
 ## Item 17 — immutable shared defaults
 
 Changed image/prompt adapter registry dictionaries to `MappingProxyType`, project required-directory defaults to a tuple, and mission-verifier default checks to a tuple. Added regressions verifying registry lookup remains functional, registry maps cannot be mutated, storage defaults cannot be appended to, and verifier instances don't share mutable per-instance checks. Verification: `pytest -q tests/test_immutable_shared_defaults.py tests/test_phase7c_mission_verification.py` → **22 passed**; `ruff check . --select RUF012` → all checks passed (0 findings).
+
+## Item 18 — core failure observability
+
+Optional runtime tracing previously swallowed exceptions without a diagnostic, and malformed persisted experience records were silently skipped at startup. The core agent's malformed-script fallback, context-budget/policy tracing, both ModelRouter trace paths, LLM observability export, tool-loop tracing, and persisted-experience loading now emit safe debug/warning entries containing only exception type or record index—not raw prompts, tokens, or corrupted payloads. Optional telemetry remains non-fatal. Verification: `pytest -q` on seven related suites → **82 passed**; targeted Ruff `S110,S112` across the touched core modules → all checks passed.

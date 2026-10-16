@@ -232,8 +232,8 @@ class ToolFeedbackLoop:
                         "max_iterations": self._max_iterations,
                         "task_count": len(current_tasks),
                     })
-            except Exception:
-                pass
+            except Exception as exc:  # noqa: BLE001 - telemetry must not break tool execution
+                logger.debug("Could not record tool-loop start trace (%s)", type(exc).__name__)
 
             exec_tasks = [t for t in current_tasks if t.tool != "system"]
             system_tasks = [t for t in current_tasks if t.tool == "system"]
@@ -351,8 +351,8 @@ class ToolFeedbackLoop:
                 trace = get_current_trace()
                 if trace is not None:
                     trace.record_context_budget(budget)
-            except Exception:
-                pass
+            except Exception as exc:  # noqa: BLE001 - telemetry must not break tool execution
+                logger.debug("Could not record tool-loop budget trace (%s)", type(exc).__name__)
 
             try:
                 response = self._cognitive_manager.process_fast(observe_prompt, intent="tool")

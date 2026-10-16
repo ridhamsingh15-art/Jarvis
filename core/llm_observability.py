@@ -250,8 +250,8 @@ class LLMObservability:
                         error_category=record.error_type,
                         error_message=record.error_message,
                     )
-            except Exception:
-                pass
+            except Exception as exc:  # noqa: BLE001 - optional tracing cannot interrupt inference
+                logger.debug("Could not export LLM runtime trace (%s)", type(exc).__name__)
 
     # ------------------------------------------------------------------
     # Budget enforcement

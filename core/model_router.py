@@ -124,8 +124,8 @@ class ModelRouter(ModelGateway):
                             truncated=bool(trace.context_budget.get("truncated")) if trace.context_budget else False,
                             success=True,
                         )
-                except Exception:
-                    pass
+                except Exception as exc:  # noqa: BLE001 - tracing is best-effort
+                    logger.debug("Could not record successful LLM trace (%s)", type(exc).__name__)
                 
                 # Inject fallback count into response envelope
                 # Create a new instance because ModelResponse is frozen
@@ -160,8 +160,8 @@ class ModelRouter(ModelGateway):
                             error_category=type(exc).__name__,
                             error_message=str(exc),
                         )
-                except Exception:
-                    pass
+                except Exception as trace_exc:  # noqa: BLE001 - tracing must not mask provider failures
+                    logger.debug("Could not record failed LLM trace (%s)", type(trace_exc).__name__)
                 logger.warning(
                     "Provider %s failed: %s. Initiating fallback...",
                     provider.provider_id,

@@ -121,7 +121,7 @@ class SqliteExperienceRepository(InMemoryExperienceRepository):
         """Populate the in-memory cache from SQLite on startup."""
         import dataclasses
         cur = self._conn.execute("SELECT data FROM experience_records")
-        for (blob,) in cur.fetchall():
+        for record_index, (blob,) in enumerate(cur.fetchall(), start=1):
             try:
                 data = json.loads(blob)
                 # Reconstruct ExperienceRecord from dict (shallow)
@@ -130,8 +130,12 @@ class SqliteExperienceRepository(InMemoryExperienceRepository):
                     if k in {f.name for f in dataclasses.fields(ExperienceRecord)}
                 })
                 self._records[record.id] = record
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception as exc:  # noqa: BLE001 - skip only the damaged persisted record
+                logger.warning(
+                    "Skipping malformed persisted experience record #%d (%s)",
+                    record_index,
+                    type(exc).__name__,
+                )
 
     def save_record(self, record: ExperienceRecord) -> None:
         super().save_record(record)

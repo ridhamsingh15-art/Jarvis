@@ -128,8 +128,8 @@ class ConversationEngine:
             trace = get_current_trace()
             if trace is not None:
                 trace.record_context_budget(self._last_budget)
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001 - tracing must not break conversation processing
+            logger.debug("Could not record context-budget trace (%s)", type(exc).__name__)
 
         # Determine optimal inference requirements for the task
         reqs = requirements or self._model_selector.select_requirements(user_input)

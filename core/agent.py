@@ -1019,8 +1019,11 @@ class Agent:
                             try:
                                 script_package = format_script(m.metadata.annotations["script_package"])
                                 break
-                            except Exception:
-                                continue
+                            except Exception as exc:  # noqa: BLE001 - skip one malformed metadata record
+                                logger.debug(
+                                    "Skipping malformed script package metadata (%s)",
+                                    type(exc).__name__,
+                                )
                                 
                     if not script_package:
                         return [Task(tool="system", action="respond", args={"message": "I couldn't find a recently generated script to storyboard. Please generate a script first."})]
@@ -1289,8 +1292,8 @@ class Agent:
         try:
             from core.runtime_trace import get_current_trace
             trace = get_current_trace()
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001 - tracing must never block tool validation
+            logger.debug("Could not initialize runtime trace (%s)", type(exc).__name__)
 
         try:
             if self._tool_intelligence:

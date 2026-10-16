@@ -279,8 +279,8 @@ class ExecutionPolicy:
                     verdict=verdict,
                     reason=reason,
                 )
-        except Exception:
-            pass
+        except Exception as exc:  # noqa: BLE001 - policy decisions must not depend on telemetry
+            logger.debug("Could not record policy trace (%s)", type(exc).__name__)
 
     @classmethod
     def _allow(cls, ctx: PolicyContext, reason: str) -> PolicyResult:
