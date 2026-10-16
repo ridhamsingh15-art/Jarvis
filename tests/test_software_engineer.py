@@ -1,18 +1,24 @@
 """
 Tests for the Autonomous Software Engineering Framework.
 """
-import pytest
-import os
 from unittest.mock import Mock, patch
-from applications.software_engineer.models import (
-    EngineeringPhase, EngineeringMissionContext, RepositoryAnalysis,
-    DependencyGraph, ImplementationResult, CodeReviewReport, TestResult,
-    EngineeringReport
-)
+
+import pytest
+
 from applications.software_engineer.coordinator import SoftwareEngineeringCoordinator
-from applications.software_engineer.git_manager import GitManager
-from applications.software_engineer.quality_manager import QualityManager
 from applications.software_engineer.exceptions import QualityGateError
+from applications.software_engineer.git_manager import GitManager
+from applications.software_engineer.models import (
+    CodeReviewReport,
+    DependencyGraph,
+    EngineeringMissionContext,
+    EngineeringPhase,
+    ImplementationResult,
+    RepositoryAnalysis,
+    TestResult,
+)
+from applications.software_engineer.quality_manager import QualityManager
+
 
 class TestQualityManager:
     def test_quality_gate_fails_without_checkpoint(self):
@@ -54,6 +60,108 @@ class TestGitManager:
         assert mock_run.call_count == 4
 
 class TestCoordinator:
+    @patch("applications.software_engineer.coordinator.GitManager")
+    @patch("applications.software_engineer.coordinator.QualityManager")
+    def test_execute_mission_fails_and_stops_when_tests_fail(self, MockQuality, MockGit):
+        coordinator = SoftwareEngineeringCoordinator(
+            llm_client=Mock(),
+            workspace_path="/fake/path",
+            git_manager=MockGit.return_value,
+            quality_manager=MockQuality.return_value,
+        )
+        coordinator._planner.plan_phases = Mock(return_value=[
+            EngineeringPhase.ANALYSIS,
+            EngineeringPhase.DESIGN,
+            EngineeringPhase.GENERATION,
+            EngineeringPhase.REVIEW,
+            EngineeringPhase.TESTING,
+            EngineeringPhase.DOCUMENTATION,
+        ])
+        coordinator._analyzer.analyze = Mock(return_value=RepositoryAnalysis(
+            dependency_graph=DependencyGraph(modules=[], imports={}),
+            primary_language="Python",
+            detected_frameworks=[],
+            entry_points=[],
+            relevant_files=[],
+        ))
+        coordinator._designer.design = Mock(return_value=Mock())
+        coordinator._generator.generate = Mock(return_value=ImplementationResult(
+            diffs=[], files_touched=[], compile_success=True,
+        ))
+        coordinator._reviewer.review = Mock(return_value=CodeReviewReport(
+            approved=True, comments=[],
+        ))
+        coordinator._tester.run_tests = Mock(return_value=TestResult(
+            passed=False,
+            total_tests=4,
+            passed_tests=3,
+            failed_tests=1,
+            failure_messages=["test_checkout failed"],
+        ))
+        coordinator._documenter.document_changes = Mock()
+        MockGit.return_value.create_checkpoint.return_value = "checkpoint-hash"
+
+        report = coordinator.execute_mission(
+            EngineeringMissionContext(workspace_path="/fake/path", goal="Test goal")
+        )
+
+        assert report.success is False
+        assert "test_checkout failed" in report.summary
+        assert report.phases_executed[-1] == EngineeringPhase.TESTING
+        assert EngineeringPhase.DOCUMENTATION not in report.phases_executed
+        assert coordinator._documenter.document_changes.call_count == 0
+        assert MockGit.return_value.create_checkpoint.call_count == 1
+
+    @patch("applications.software_engineer.coordinator.GitManager")
+    @patch("applications.software_engineer.coordinator.QualityManager")
+    def test_execute_mission_continues_after_passing_tests(self, MockQuality, MockGit):
+        coordinator = SoftwareEngineeringCoordinator(
+            llm_client=Mock(),
+            workspace_path="/fake/path",
+            git_manager=MockGit.return_value,
+            quality_manager=MockQuality.return_value,
+        )
+        coordinator._planner.plan_phases = Mock(return_value=[
+            EngineeringPhase.ANALYSIS,
+            EngineeringPhase.DESIGN,
+            EngineeringPhase.GENERATION,
+            EngineeringPhase.REVIEW,
+            EngineeringPhase.TESTING,
+            EngineeringPhase.DOCUMENTATION,
+        ])
+        coordinator._analyzer.analyze = Mock(return_value=RepositoryAnalysis(
+            dependency_graph=DependencyGraph(modules=[], imports={}),
+            primary_language="Python",
+            detected_frameworks=[],
+            entry_points=[],
+            relevant_files=[],
+        ))
+        coordinator._designer.design = Mock(return_value=Mock())
+        coordinator._generator.generate = Mock(return_value=ImplementationResult(
+            diffs=[], files_touched=[], compile_success=True,
+        ))
+        coordinator._reviewer.review = Mock(return_value=CodeReviewReport(
+            approved=True, comments=[],
+        ))
+        coordinator._tester.run_tests = Mock(return_value=TestResult(
+            passed=True,
+            total_tests=4,
+            passed_tests=4,
+            failed_tests=0,
+            failure_messages=[],
+        ))
+        coordinator._documenter.document_changes = Mock()
+        MockGit.return_value.create_checkpoint.return_value = "checkpoint-hash"
+
+        report = coordinator.execute_mission(
+            EngineeringMissionContext(workspace_path="/fake/path", goal="Test goal")
+        )
+
+        assert report.success is True
+        assert report.phases_executed[-1] == EngineeringPhase.DOCUMENTATION
+        assert coordinator._documenter.document_changes.call_count == 1
+        assert MockGit.return_value.create_checkpoint.call_count == 2
+
     @patch("applications.software_engineer.coordinator.GitManager")
     @patch("applications.software_engineer.coordinator.QualityManager")
     def test_execute_mission_success(self, MockQuality, MockGit):

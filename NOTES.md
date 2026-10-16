@@ -47,3 +47,7 @@ Removed two redundant local `core.context_budget` imports from `ConversationEngi
 ## Item 7 — subprocess exit-code policy
 
 Added explicit `check=False` to all six `subprocess.run` sites flagged by Ruff. These call sites intentionally inspect `.returncode` and handle test failures, missing Git repos, or shell failures themselves, so raising `CalledProcessError` would change intended behavior. Verification: `ruff check . --select PLW1510` → all checks passed; `py_compile` passed for all six edited files; focused tests `tests/test_software_engineer.py`, `tests/test_world_model.py`, `tests/test_shell_tool.py` → **52 passed, 1 existing warning** using a unique repository-local pytest basetemp after the default temp cleanup hit a Windows access-denied error (`pytest-current`).
+
+## Item 8 — truthful software-engineering mission results
+
+A failed test phase previously only logged a warning, then continued documentation, committed a final checkpoint, and returned `success=True`. The coordinator now raises `TestFailureError` with test counts and failure detail, which the mission boundary reports as `success=False` and stops before docs/final checkpoint. Added regressions for both a failing test phase (no docs/final commit) and a passing phase (normal flow continues). Verification: `pytest -q tests/test_software_engineer.py` → **6 passed, 1 existing collection warning**; Ruff on the coordinator and its tests → all checks passed.

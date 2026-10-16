@@ -6,20 +6,21 @@ Orchestrates the execution of child engineering missions across specialized agen
 import logging
 from typing import Any
 
-from .models import (
-    EngineeringMissionContext, EngineeringPhase, EngineeringReport, 
-    RepositoryAnalysis, ArchitectureDesign, ImplementationResult, CodeReviewReport
-)
-from .exceptions import QualityGateError, ReviewRejectionError
-from .planner import SoftwareEngineeringPlanner
-from .repository_analyzer import RepositoryAnalyzer
 from .architecture_designer import ArchitectureDesigner
 from .code_generator import CodeGenerator
 from .code_reviewer import CodeReviewer
-from .test_engine import TestEngine
 from .documentation_engine import DocumentationEngine
+from .exceptions import ReviewRejectionError, TestFailureError
 from .git_manager import GitManager
+from .models import (
+    EngineeringMissionContext,
+    EngineeringPhase,
+    EngineeringReport,
+)
+from .planner import SoftwareEngineeringPlanner
 from .quality_manager import QualityManager
+from .repository_analyzer import RepositoryAnalyzer
+from .test_engine import TestEngine
 
 logger = logging.getLogger(__name__)
 
@@ -86,8 +87,21 @@ class SoftwareEngineeringCoordinator:
                 elif phase == EngineeringPhase.TESTING:
                     test_result = self._tester.run_tests()
                     if not test_result.passed:
-                        # Real implementation might loop back to DEBUGGING phase
-                        logger.warning("Tests failed!")
+                        details = "; ".join(
+                            message.strip()
+                            for message in test_result.failure_messages[:5]
+                            if message.strip()
+                        )
+                        if not details:
+                            details = (
+                                f"{test_result.failed_tests} failed out of "
+                                f"{test_result.total_tests} tests"
+                            )
+                        raise TestFailureError(
+                            "Automated tests failed "
+                            f"({test_result.passed_tests}/{test_result.total_tests} passed): "
+                            f"{details[:2000]}"
+                        )
                         
                 elif phase == EngineeringPhase.DOCUMENTATION:
                     self._documenter.document_changes(implementation, analysis)
@@ -107,7 +121,8 @@ class SoftwareEngineeringCoordinator:
                 summary=f"Successfully completed {len(executed_phases)} phases."
             )
             
-        except Exception as e:
+        # This boundary must convert any phase failure into a failed mission report.
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Mission failed during phase {executed_phases[-1] if executed_phases else 'init'}: {e}")
             return EngineeringReport(
                 mission_id=context.mission_id,

@@ -9,3 +9,6 @@ Baseline: clean `feature/jarvis-control-center` HEAD, commit `9fd4956`. On 2026-
 - [x] **Retry validation:** reject `WorkflowNode.retries < 1` at construction; test zero and negative retry counts and preserve normal retries.
 - [x] **Duplicate definitions:** remove the four Ruff `F811` redefinition findings in `core/cognition/conversation.py` and `tests/test_world_model.py`; run the focused tests and `ruff check . --select F811`.
 - [x] **Subprocess result handling:** add an explicit `check=` policy to all six Ruff `PLW1510` call sites; preserve intentionally handled non-zero return codes and test affected behavior.
+- [x] **Truthful mission outcome:** make `SoftwareEngineeringCoordinator.execute_mission()` fail the mission when its test phase reports failures, and prevent documentation/final commit from running afterward; add success/failure regressions.
+- [ ] **Truthful test telemetry:** replace fabricated `TestResult` counts and hardcoded coverage in `TestEngine.run_tests()` with parsed pytest results, use `sys.executable`, and bound subprocess duration; add tests for pass/fail/collection error/timeout.
+- [ ] **Pytest collection warning:** prevent the imported domain model `TestResult` from being collected as a test class; verify the full suite no longer emits the warning.
