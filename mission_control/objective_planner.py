@@ -2,27 +2,22 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 from pathlib import Path
 
+from tools.known_folders import known_folder_path
+
 
 def _documents_path() -> Path:
-    home = Path.home()
-    # Match the explicit profile-relative Documents path when it exists.
-    # Some Windows profiles redirect the Known Folder to OneDrive separately.
-    candidates = [
-        home / "Documents",
-        Path(os.environ.get("OneDrive", str(home / "OneDrive"))).expanduser() / "Documents",
-    ]
-    for candidate in candidates:
-        if candidate.is_dir():
-            return candidate.resolve()
-    return candidates[0].resolve()
+    return known_folder_path("documents")
 
 
 def _downloads_path() -> Path:
-    return (Path.home() / "Downloads").resolve()
+    return known_folder_path("downloads")
+
+
+def _desktop_path() -> Path:
+    return known_folder_path("desktop")
 
 
 def _step(tool: str, action: str, args: dict) -> str:
@@ -35,16 +30,43 @@ def build_objective_plan(objective: str) -> list[str]:
     if not text:
         raise ValueError("Objective cannot be empty")
 
+    # Explicit destructive file requests still become structured steps; the crash-safe
+    # ExecutionPolicy records the denial before FileTool can run.
+    delete_match = re.match(r"\s*(?:please\s+)?delete\s+(?:the\s+)?(?:file\s+)?(.+?)\s*[.!]?\s*$", text, re.IGNORECASE)
+    if delete_match:
+        raw_path = delete_match.group(1).strip().strip("'\"")
+        if raw_path:
+            return [_step("file", "delete", {"path": str(Path(raw_path).expanduser())})]
+
+    # General bounded list/summarize objectives use only explicitly named paths.
+    largest_match = re.search(
+        r"\blist\s+(?:the\s+)?(\d+)\s+largest\s+files?\s+in\s+(.+?)(?:\s+and\s+summarize\s+them)?[.!]?\s*$",
+        text, re.IGNORECASE,
+    )
+    if largest_match:
+        limit = int(largest_match.group(1))
+        if not 1 <= limit <= 100:
+            raise ValueError("Requested largest-file count must be between 1 and 100")
+        raw_path = largest_match.group(2).strip().strip("'\"")
+        if not raw_path:
+            raise ValueError("A directory path is required for largest-file objectives")
+        path = str(Path(raw_path).expanduser())
+        steps = [_step("file", "list_largest_files", {"path": path, "limit": limit})]
+        if re.search(r"\band\s+summarize\s+them\b", text, re.IGNORECASE):
+            steps.append(_step("file", "summarize_files", {"path": path, "limit": limit}))
+        return steps
+
     # Explicit shell commands are sent through the shell policy gate, never executed here.
     shell_match = re.search(
         r"\b(?:run|execute)\s+(?:the\s+)?command\s+(.+?)\s+"
-        r"(?:on|against)\s+(?:my\s+)?(?P<folder>downloads|documents)(?:\s+folder)?(?:\s+to\s+.+)?$",
+        r"(?:on|against)\s+(?:my\s+)?(?P<folder>downloads|documents|desktop)(?:\s+folder)?(?:\s+to\s+.+)?$",
         text,
         flags=re.IGNORECASE,
     )
     if shell_match:
         command = shell_match.group(1).strip().strip('"')
-        folder = _downloads_path() if shell_match.group("folder").casefold() == "downloads" else _documents_path()
+        folder_name = shell_match.group("folder").casefold()
+        folder = {"downloads": _downloads_path, "documents": _documents_path, "desktop": _desktop_path}[folder_name]()
         if re.match(r"^(?:rmdir|rd|del|erase)\b", command, re.IGNORECASE) and not re.search(r"[A-Za-z]:\\|%[A-Za-z_]", command):
             command = f'{command} "{folder}"'
         return [_step("shell", "run", {"command": command, "cwd": str(Path.home()), "timeout": 30})]
@@ -63,10 +85,13 @@ def build_objective_plan(objective: str) -> list[str]:
     if (
         re.search(r"\b(?:total\s+number|how\s+many|count)\b", text, re.IGNORECASE)
         and re.search(r"\bfiles?\b", text, re.IGNORECASE)
-        and re.search(r"\bdocuments\b", text, re.IGNORECASE)
+        and re.search(r"\b(?:documents|desktop|downloads)\b", text, re.IGNORECASE)
         and re.search(r"\blargest\b", text, re.IGNORECASE)
     ):
-        return [_step("file", "directory_file_stats", {"path": str(_documents_path())})]
+        folder_match = re.search(r"\b(documents|desktop|downloads)\b", text, re.IGNORECASE)
+        folder_name = folder_match.group(1).casefold() if folder_match else "documents"
+        folder_path = {"documents": _documents_path, "desktop": _desktop_path, "downloads": _downloads_path}[folder_name]()
+        return [_step("file", "directory_file_stats", {"path": str(folder_path)})]
 
     # Top extension frequencies, grouped case-insensitively by suffix.
     if (
