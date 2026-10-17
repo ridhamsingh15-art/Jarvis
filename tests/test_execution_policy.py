@@ -89,6 +89,18 @@ class TestExecutionPolicyPluginSource:
         assert result.verdict == PolicyVerdict.DENY
 
 
+class TestExecutionPolicyEmptyAllowlists:
+    def test_explicitly_empty_plugin_allowlist_denies_every_tool(self):
+        policy = ExecutionPolicy(restricted_plugin_tools=frozenset())
+        result = policy.check(_ctx("browser", "open_url", source=CapabilitySource.PLUGIN))
+        assert result.verdict == PolicyVerdict.DENY
+
+    def test_explicitly_empty_mcp_allowlist_denies_every_tool(self):
+        policy = ExecutionPolicy(restricted_mcp_tools=frozenset())
+        result = policy.check(_ctx("browser", "open_url", source=CapabilitySource.MCP))
+        assert result.verdict == PolicyVerdict.DENY
+
+
 class TestExecutionPolicyMCPSource:
     def test_mcp_allowed_tool_allowed(self):
         policy = ExecutionPolicy(restricted_mcp_tools=frozenset({"browser", "system"}))

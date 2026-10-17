@@ -154,8 +154,16 @@ class ExecutionPolicy:
                 Defaults to {"system", "browser"}.
         """
         self._allow_destructive_from_core = allow_destructive_from_core
-        self._restricted_plugin_tools: frozenset[str] = restricted_plugin_tools or frozenset({"system", "browser"})
-        self._restricted_mcp_tools: frozenset[str] = restricted_mcp_tools or frozenset({"system", "browser"})
+        self._restricted_plugin_tools: frozenset[str] = (
+            restricted_plugin_tools
+            if restricted_plugin_tools is not None
+            else frozenset({"system", "browser"})
+        )
+        self._restricted_mcp_tools: frozenset[str] = (
+            restricted_mcp_tools
+            if restricted_mcp_tools is not None
+            else frozenset({"system", "browser"})
+        )
 
     # ------------------------------------------------------------------
     # Public API
@@ -175,21 +183,19 @@ class ExecutionPolicy:
             return self._deny(ctx, f"Unknown tool '{ctx.tool}' — only registered tools are permitted")
 
         # 2. Source-specific restrictions
-        if ctx.source == CapabilitySource.PLUGIN:
-            if ctx.tool not in self._restricted_plugin_tools:
-                return self._deny(
-                    ctx,
-                    f"Plugin '{ctx.source_id}' may not invoke tool '{ctx.tool}'. "
-                    f"Permitted plugin tools: {sorted(self._restricted_plugin_tools)}",
-                )
+        if ctx.source == CapabilitySource.PLUGIN and ctx.tool not in self._restricted_plugin_tools:
+            return self._deny(
+                ctx,
+                f"Plugin '{ctx.source_id}' may not invoke tool '{ctx.tool}'. "
+                f"Permitted plugin tools: {sorted(self._restricted_plugin_tools)}",
+            )
 
-        if ctx.source == CapabilitySource.MCP:
-            if ctx.tool not in self._restricted_mcp_tools:
-                return self._deny(
-                    ctx,
-                    f"MCP server '{ctx.source_id}' may not invoke tool '{ctx.tool}'. "
-                    f"Permitted MCP tools: {sorted(self._restricted_mcp_tools)}",
-                )
+        if ctx.source == CapabilitySource.MCP and ctx.tool not in self._restricted_mcp_tools:
+            return self._deny(
+                ctx,
+                f"MCP server '{ctx.source_id}' may not invoke tool '{ctx.tool}'. "
+                f"Permitted MCP tools: {sorted(self._restricted_mcp_tools)}",
+            )
 
         # 3. Shell-specific execution policy
         if ctx.tool == "shell":

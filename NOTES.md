@@ -247,3 +247,11 @@ Final full suite after task snapshot isolation and future tracking: `python -m p
 - Full-suite gate after all three code tasks and the legacy-checkpoint regression: `pytest -q --basetemp <unique-temp>` passed **1046 passed, 1 skipped in 32.53s**, exit 0. The skip remains the expected platform-conditional test.
 - Whole-repository Ruff remains **242 findings** (102 BLE001, 41 RUF059, 31 F841, and smaller groups). This is a recorded backlog, not a clean global lint result. The selected critical rules and changed files are clean.
 - An initial focused pytest invocation without a dedicated `--basetemp` completed the assertions but encountered a Windows `PermissionError` during pytest temporary-directory cleanup. Re-running with a unique temporary base succeeded; the final full-suite run also succeeded with a unique base.
+
+
+## Execution-policy allowlist configuration - 2026-10-17
+
+- Found a fail-open configuration bug: `restricted_plugin_tools or defaults` and its MCP equivalent treated an explicitly empty `frozenset()` as if the caller had omitted the setting, silently re-enabling `system` and `browser` for untrusted sources.
+- Changed initialization to use secure defaults only when the argument is `None`. An explicitly empty set now denies all tools. Added plugin and MCP regression tests; both failed before the fix with `ALLOW` and pass after the fix.
+- Verification: `pytest -q tests\test_execution_policy.py --basetemp <unique-temp>` -> **23 passed**; Ruff on `core/execution_policy.py` and `tests/test_execution_policy.py` -> all checks passed; `ruff check . --select E722,B019,S110` -> all checks passed; `compileall -q core/execution_policy.py` and `git diff --check` passed.
+- The two existing `SIM102` nested-if findings in this same source file were simplified as part of the source-specific allowlist check, preserving the same branch conditions and making changed-file Ruff clean. No full-suite rerun was required by the current three-task cadence; the immediately preceding full-suite gate passed **1046 passed, 1 skipped** before this isolated policy change.

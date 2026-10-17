@@ -34,3 +34,8 @@ The remaining Ruff findings are an audit backlog, not permission for blind auto-
 - [x] **Verify and document:** run focused mission-control tests, relevant Ruff and compile checks, inspect diff, update NOTES with actual results, and commit only scoped files if all checks pass.
 - [x] **Preserve approval state through recovery:** checkpoint and restore pending and approved steps, with backward-compatible defaults for older checkpoints and a crash-recovery regression.
 - [x] **Fail closed on unresolved mission dependencies:** treat missing dependency IDs as blocked rather than silently skipping them; test that registration of the dependency allows the mission to proceed later.
+
+
+## Next execution pass - execution policy configuration
+- [x] **Honor explicitly empty plugin/MCP allowlists:** distinguish `None` (use secure defaults) from an empty set (deny every tool), and add regressions for both sources.
+- [x] **Verify and document:** run policy tests, changed-file Ruff, critical policy lint, compile checks and diff review; record actual results and commit only scoped files.
