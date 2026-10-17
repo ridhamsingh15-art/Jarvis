@@ -72,6 +72,7 @@ _HIGH_RISK_ACTIONS: frozenset[str] = frozenset({
     "delete_file",
     "delete_dir",
     "overwrite_file",
+    "append_line",      # durable filesystem side effect; explicit approval required
     "format_disk",
     # System
     "shutdown",

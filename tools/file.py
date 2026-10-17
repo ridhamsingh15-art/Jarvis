@@ -184,6 +184,11 @@ class FileTool(BaseTool):
                 description="Writes text to a file, replacing existing contents.",
                 required_args=["path", "content"],
             ),
+            "append_line": ActionDefinition(
+                name="append_line",
+                description="Appends one UTF-8 line to an existing or new file. This is a side-effecting action requiring explicit policy approval.",
+                required_args=["path", "line"],
+            ),
             "list_directory": ActionDefinition(
                 name="list_directory",
                 description="Lists contents of a directory.",
@@ -277,6 +282,7 @@ class FileTool(BaseTool):
         dispatch: dict[str, Callable] = {
             "create_file": self._create_file,
             "write_file": self._write_file,
+            "append_line": self._append_line,
             "patch_file": self._patch_file,
             "edit_file": self._patch_file,
             "list_directory": self._list_directory,
@@ -333,6 +339,25 @@ class FileTool(BaseTool):
 
         logger.info("Wrote file: %s", path)
         return f"Wrote {len(content)} character(s) to: {path}"
+
+    @staticmethod
+    def _append_line(args: dict) -> str:
+        """Append exactly one UTF-8 line after path validation."""
+        path = _resolve_path(args.get("path", ""))
+        line = args.get("line")
+        if not isinstance(line, str) or "\n" in line or "\r" in line:
+            raise ExecutionError("Argument 'line' must be a single-line string")
+        _validate_path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            with path.open("a", encoding="utf-8", newline="\n") as stream:
+                stream.write(line + "\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+        except OSError as exc:
+            raise ExecutionError(f"Failed to append to '{path}': {exc}") from exc
+        logger.info("Appended one line to: %s", path)
+        return f"Appended one line to: {path}"
 
     @staticmethod
     def _patch_file(args: dict) -> str:
