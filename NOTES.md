@@ -200,3 +200,8 @@ The global Ruff backlog remains **242 findings**, mainly `BLE001` 102, `RUF059` 
 ## Worktree preservation note
 
 At initial audit, `core/applications/installer.py` and `core/applications/permissions.py` were modified in the worktree. They were not staged by this audit's commits. By final review, their changes appeared in the repository history as `ad2fe74 fix(security): enforce application permission grants`; the current worktree has no tracked modifications. The pre-existing untracked `jarvis_test_workspace/` directory was never modified or added to commits.
+
+
+## Executor lifecycle task 1 ? preserve queued tasks on shutdown
+
+The new regression reproduced task loss: the dispatcher dequeued a task, found no worker, and discarded the task when shutdown set its stop event. Added a dispatch critical section shared with shutdown and explicit requeueing whenever a task has been dequeued but no worker accepted it. This keeps its persisted status QUEUED and leaves it available for a later dispatcher start. Verification: the regression failed before the fix because the queue was empty; `pytest -q tests/test_dispatcher_lifecycle.py` and targeted Ruff are recorded after the scoped commit.

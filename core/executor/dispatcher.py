@@ -25,6 +25,7 @@ class TaskDispatcher:
         self._engine = engine
         
         self._stop = threading.Event()
+        self._dispatch_lock = threading.Lock()
         self._thread: threading.Thread | None = None
 
     def start(self):
@@ -35,9 +36,15 @@ class TaskDispatcher:
         self._thread.start()
 
     def stop(self):
-        self._stop.set()
+        # Serialize shutdown with the status-transition/assignment critical section.
+        with self._dispatch_lock:
+            self._stop.set()
         if self._thread:
             self._thread.join(timeout=2.0)
+
+    def _requeue_unassigned(self, task) -> None:
+        """Return a dequeued task to the queue if no worker accepted it."""
+        self._task_manager._queue.enqueue(task)
 
     def _dispatch_loop(self):
         while not self._stop.is_set():
@@ -49,25 +56,40 @@ class TaskDispatcher:
                 continue
                 
             if self._stop.is_set():
+                self._requeue_unassigned(task)
                 break
-                
-            # 2. Block until a worker is available (Backpressure handling)
+
+            # 2. Block until a worker is available (Backpressure handling).
             worker = None
             while worker is None and not self._stop.is_set():
                 worker = self._pool.acquire_idle_worker()
                 if not worker:
-                    time.sleep(0.05) # Wait for a busy worker to free up
-                    
+                    time.sleep(0.05)
+
             if not worker:
-                break # We stopped while waiting for a worker
-                
-            # 3. Transition to RUNNING, build context and assign
-            running_task = self._task_manager.transition_task(task.task_id.value, TaskStatus.RUNNING)
-            effective_timeout = self._engine.timeout_for_task(
-                running_task, running_task.timeout_seconds
-            )
-            if effective_timeout != running_task.timeout_seconds:
-                running_task = running_task.copy(timeout_seconds=effective_timeout)
-            context = ExecutionContext(task=running_task)
-            self._timeout_enforcer.track(running_task.task_id.value, context)
-            worker.assign(context)
+                # dequeue() already removed this task. Never lose it merely because
+                # shutdown won the race while the dispatcher was waiting for capacity.
+                self._requeue_unassigned(task)
+                break
+
+            # 3. Make shutdown mutually exclusive with transition + assignment.
+            with self._dispatch_lock:
+                if self._stop.is_set():
+                    self._requeue_unassigned(task)
+                    break
+                running_task = self._task_manager.transition_task(
+                    task.task_id.value, TaskStatus.RUNNING
+                )
+                effective_timeout = self._engine.timeout_for_task(
+                    running_task, running_task.timeout_seconds
+                )
+                if effective_timeout != running_task.timeout_seconds:
+                    running_task = running_task.copy(timeout_seconds=effective_timeout)
+                context = ExecutionContext(task=running_task)
+                self._timeout_enforcer.track(running_task.task_id.value, context)
+                try:
+                    worker.assign(context)
+                except Exception:
+                    self._timeout_enforcer.untrack(running_task.task_id.value)
+                    self._task_manager.fail(running_task.task_id.value)
+                    raise
