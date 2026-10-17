@@ -19,5 +19,5 @@ The remaining Ruff findings are an audit backlog, not permission for blind auto-
 
 ## Next execution pass ? executor lifecycle
 - [x] **Preserve queued work during dispatcher shutdown:** add a regression proving a dequeued task is re-enqueued if shutdown begins before a worker accepts it; make dispatch assignment and shutdown mutually exclusive.
-- [ ] **Cancel and join executor workers on shutdown:** have worker shutdown cooperatively cancel its active context, ensure pending assignments receive a terminal callback, add bounded worker joins without losing references to still-alive threads, and test cancellation plus timeout behavior.
+- [x] **Cancel and join executor workers on shutdown:** have worker shutdown cooperatively cancel its active context, ensure pending assignments receive a terminal callback, add bounded worker joins without losing references to still-alive threads, and test cancellation plus timeout behavior.
 - [ ] **Full regression gate and commit:** run executor/runtime focused tests, the complete pytest suite, targeted Ruff, compileall and diff check; update NOTES with actual output and commit only the scoped lifecycle changes.
