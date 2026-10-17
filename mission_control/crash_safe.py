@@ -20,6 +20,8 @@ from .crash_store import CrashSafeMissionStore
 _READ_ONLY_ACTIONS = frozenset({
     ("file", "read_file"), ("file", "list_directory"),
     ("file", "list_largest_files"), ("file", "summarize_files"),
+    ("file", "directory_file_stats"), ("file", "extension_counts"),
+    ("file", "list_directory_details"),
 })
 
 

@@ -160,3 +160,24 @@ def test_destructive_action_is_denied_and_persisted_without_mutation(tmp_path: P
     assert mission and mission["state"] == "FAILED"
     assert step and step["status"] == "blocked" and "Execution policy deny" in step["error"]
     print("DESTRUCTIVE_POLICY=PASS status=FAILED step=blocked file_unchanged=true")
+
+
+def test_destructive_shell_command_is_denied_before_target_mutation(tmp_path: Path) -> None:
+    target = tmp_path / "Downloads"
+    target.mkdir()
+    sentinel = target / "keep.txt"
+    sentinel.write_text("must survive", encoding="utf-8")
+    db = tmp_path / "shell-policy.sqlite3"
+    command = f'rmdir /s /q "{target}"'
+    steps = [{"tool": "shell", "action": "run", "args": {"command": command, "cwd": str(tmp_path)}}]
+
+    result = _command(*_args(db, "deny-shell-delete", tmp_path, steps))
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "MISSION_STATE=FAILED" in result.stdout
+    assert "Execution policy deny" in result.stdout
+    assert target.is_dir()
+    assert sentinel.read_text(encoding="utf-8") == "must survive"
+    step = CrashSafeMissionStore(db).step("deny-shell-delete", 0)
+    assert step and step["status"] == "blocked"
+    assert "high-risk shell command" in step["error"].lower()
+    print("SHELL_DESTRUCTIVE_DENIAL=PASS status=FAILED step=blocked target_unchanged=true")

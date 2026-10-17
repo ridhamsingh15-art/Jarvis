@@ -12,10 +12,11 @@ from core.exceptions import ExecutionError
 from core.execution_policy import ExecutionPolicy
 from core.executor.action_registry import ActionRegistry
 from core.executor.executor import ExecutionEngine
-from mission_control.cli import build_plan
 from mission_control.crash_safe import CrashSafeMissionRunner
 from mission_control.crash_store import CrashSafeMissionStore
+from mission_control.objective_planner import build_objective_plan
 from tools.file import FileTool
+from tools.filesystem_queries import FileSystemQueryTool
 from tools.shell import ShellTool
 
 
@@ -26,6 +27,12 @@ def _engine(workspace_root: str | Path) -> ExecutionEngine:
         def file_handler(_context, _action=action_name, **kwargs):
             return file_tool.execute(_action, kwargs)
         registry.register(f"file.{action_name}", file_handler)
+
+    query_tool = FileSystemQueryTool()
+    for action_name in query_tool.get_actions():
+        def query_handler(_context, _action=action_name, **kwargs):
+            return query_tool.execute(_action, kwargs)
+        registry.register(f"file.{action_name}", query_handler)
 
     shell_tool = ShellTool(workspace_root=workspace_root, timeout_seconds=120)
 
@@ -66,7 +73,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             objective = args.mission or "Structured diagnostic mission"
         else:
             objective = args.mission
-            steps = build_plan(objective)
+            steps = build_objective_plan(objective)
     except (ValueError, TypeError) as exc:
         print(json.dumps({"state": "FAILED", "failure_class": "planner", "failure_reason": str(exc)}, ensure_ascii=False), flush=True)
         return 2
