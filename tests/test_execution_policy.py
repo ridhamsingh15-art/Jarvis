@@ -88,6 +88,11 @@ class TestExecutionPolicyPluginSource:
         result = policy.check(_ctx("file", "delete_file", source=CapabilitySource.PLUGIN, source_id="evil_plugin"))
         assert result.verdict == PolicyVerdict.DENY
 
+    def test_skill_high_risk_action_denied(self):
+        policy = ExecutionPolicy(allow_destructive_from_core=True)
+        result = policy.check(_ctx("file", "delete_file", source=CapabilitySource.SKILL, source_id="skill-file"))
+        assert result.verdict == PolicyVerdict.DENY
+
 
 class TestExecutionPolicyEmptyAllowlists:
     def test_explicitly_empty_plugin_allowlist_denies_every_tool(self):

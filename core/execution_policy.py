@@ -228,8 +228,8 @@ class ExecutionPolicy:
 
         # 4. High-risk action check
         if ctx.action in _HIGH_RISK_ACTIONS:
-            # Untrusted source always denied
-            if ctx.source in (CapabilitySource.PLUGIN, CapabilitySource.MCP):
+            # Non-core sources cannot use a high-risk action to bypass confirmation.
+            if ctx.source in (CapabilitySource.PLUGIN, CapabilitySource.MCP, CapabilitySource.SKILL):
                 return self._deny(
                     ctx,
                     f"High-risk action '{ctx.action}' is not permitted from source '{ctx.source}'",

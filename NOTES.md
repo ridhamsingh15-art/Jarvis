@@ -255,3 +255,10 @@ Final full suite after task snapshot isolation and future tracking: `python -m p
 - Changed initialization to use secure defaults only when the argument is `None`. An explicitly empty set now denies all tools. Added plugin and MCP regression tests; both failed before the fix with `ALLOW` and pass after the fix.
 - Verification: `pytest -q tests\test_execution_policy.py --basetemp <unique-temp>` -> **23 passed**; Ruff on `core/execution_policy.py` and `tests/test_execution_policy.py` -> all checks passed; `ruff check . --select E722,B019,S110` -> all checks passed; `compileall -q core/execution_policy.py` and `git diff --check` passed.
 - The two existing `SIM102` nested-if findings in this same source file were simplified as part of the source-specific allowlist check, preserving the same branch conditions and making changed-file Ruff clean. No full-suite rerun was required by the current three-task cadence; the immediately preceding full-suite gate passed **1046 passed, 1 skipped** before this isolated policy change.
+
+
+## Skill-source high-risk enforcement - 2026-10-17
+
+- Added a regression demonstrating that `CapabilitySource.SKILL` could reach the final default ALLOW for a destructive action such as `file.delete_file`, even with the core destructive option enabled. The test failed before the fix (`ALLOW` instead of `DENY`).
+- High-risk actions now explicitly deny plugin, MCP, and skill sources; only CORE follows the explicit confirmation policy. This closes the skill-source fall-through without broadening permissions for other sources.
+- Verification: `pytest -q tests\test_execution_policy.py --basetemp <unique-temp>` -> **24 passed**; changed-file Ruff and `ruff check . --select E722,B019,S110` passed; `compileall -q core/execution_policy.py` and `git diff --check` passed. Full suite remains due after the third task in this execution pass.

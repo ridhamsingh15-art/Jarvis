@@ -39,3 +39,8 @@ The remaining Ruff findings are an audit backlog, not permission for blind auto-
 ## Next execution pass - execution policy configuration
 - [x] **Honor explicitly empty plugin/MCP allowlists:** distinguish `None` (use secure defaults) from an empty set (deny every tool), and add regressions for both sources.
 - [x] **Verify and document:** run policy tests, changed-file Ruff, critical policy lint, compile checks and diff review; record actual results and commit only scoped files.
+
+
+## Next execution pass - skill-source risk enforcement
+- [x] **Deny high-risk actions from skill-originated requests:** ensure SKILL cannot fall through the high-risk policy branch and inherit an implicit allow; add regression coverage.
+- [x] **Verify and document:** run execution-policy tests, changed-file Ruff, critical lint, compile and diff checks; document and commit the scoped fix.
