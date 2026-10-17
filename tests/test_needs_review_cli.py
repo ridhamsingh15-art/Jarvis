@@ -83,6 +83,12 @@ def test_needs_review_list_show_and_abandon_end_to_end(tmp_path: Path) -> None:
     assert store.mission(mission_id)["state"] == "ABANDONED"
     assert store.step(mission_id, 0)["status"] == "abandoned"
     assert "outcome is unknown" in store.step(mission_id, 0)["error"]
+    # An abandoned mission is terminal; a later resume must not execute it again.
+    step = {"tool": "shell", "action": "run", "args": {"command": "python -c \"print('RETRY_OUTPUT')\"", "cwd": str(tmp_path)}}
+    resumed = _cli(db, tmp_path, "--steps-json", json.dumps([step]), "--mission-id", mission_id, "--resume")
+    assert resumed.returncode == 1
+    assert CrashSafeMissionStore(db).mission(mission_id)["state"] == "ABANDONED"
+    assert CrashSafeMissionStore(db).step(mission_id, 0)["status"] == "abandoned"
 
 
 def test_needs_review_retry_replays_only_after_explicit_operator_choice(tmp_path: Path) -> None:

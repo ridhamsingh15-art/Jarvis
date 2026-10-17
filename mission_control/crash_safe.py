@@ -79,7 +79,7 @@ class CrashSafeMissionRunner:
             return self.result(mission_id)
         self.store.create_mission(mission_id, objective, steps)
         mission = self.store.mission(mission_id)
-        if mission and mission["state"] in {"COMPLETED", "FAILED"}:
+        if mission and mission["state"] in {"COMPLETED", "FAILED", "ABANDONED"}:
             return self.result(mission_id)
 
         for index, step_text in enumerate(steps):
