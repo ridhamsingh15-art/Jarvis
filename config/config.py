@@ -15,6 +15,9 @@ _DEFAULT_MEMORY_DB = str(
 _DEFAULT_KNOWLEDGE_DB = str(
     Path.home() / ".jarvis" / "knowledge.db"
 )
+_DEFAULT_AUTONOMY_DB = str(
+    Path.home() / ".jarvis" / "autonomy.sqlite3"
+)
 
 
 @dataclass(frozen=True)
@@ -28,6 +31,8 @@ class JarvisConfig:
     request_timeout: int = 30
     retry_backoff_seconds: float = 1.0
     memory_db_path: str = _DEFAULT_MEMORY_DB
+    autonomy_persistence_backend: str = "sqlite"
+    autonomy_db_path: str = _DEFAULT_AUTONOMY_DB
     
     # Specialized Model Roles
     model_general: str = "qwen3:8b"
@@ -71,6 +76,10 @@ def load_config() -> JarvisConfig:
         JARVIS_MAX_RETRIES: Max LLM retry attempts (default: 3)
         JARVIS_TIMEOUT: Request timeout in seconds (default: 30)
         JARVIS_MEMORY_DB: Path to memory database (default: ~/.jarvis/memory.db)
+        JARVIS_AUTONOMY_PERSISTENCE: Goal persistence backend, sqlite or memory
+            (default: sqlite; in-memory remains useful for tests/development).
+        JARVIS_AUTONOMY_DB: Path to the autonomy goal database
+            (default: ~/.jarvis/autonomy.sqlite3)
 
     Returns:
         JarvisConfig: Frozen configuration instance.
@@ -91,6 +100,8 @@ def load_config() -> JarvisConfig:
             os.environ.get("JARVIS_RETRY_BACKOFF_SECONDS", "1.0")
         ),
         memory_db_path=os.environ.get("JARVIS_MEMORY_DB", _DEFAULT_MEMORY_DB),
+        autonomy_persistence_backend=os.environ.get("JARVIS_AUTONOMY_PERSISTENCE", "sqlite"),
+        autonomy_db_path=os.environ.get("JARVIS_AUTONOMY_DB", _DEFAULT_AUTONOMY_DB),
         embedding_model=os.environ.get("JARVIS_EMBEDDING_MODEL", "nomic-embed-text"),
         knowledge_db_path=os.environ.get("JARVIS_KNOWLEDGE_DB", _DEFAULT_KNOWLEDGE_DB),
         knowledge_scan_interval_seconds=int(os.environ.get("JARVIS_KNOWLEDGE_SCAN_INTERVAL", "300")),
