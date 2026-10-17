@@ -63,7 +63,16 @@ class AutonomousGoalManager(RuntimeComponent):
         self._state = ComponentState.STARTING
         self._logger.info("Starting Autonomous Goal Manager...")
         
-        # Load running/queued goals from persistence in a real app here.
+        # Reconcile interrupted durable goals before accepting new work. Never replay
+        # RUNNING work automatically: its last external side effect may be unknown.
+        recover = getattr(self._persistence, "recover_interrupted_goals", None)
+        if callable(recover):
+            recovered = recover()
+            if recovered:
+                self._logger.warning(
+                    "Recovered %d interrupted goal(s) as PAUSED; explicit resume required.",
+                    len(recovered),
+                )
         
         self._state = ComponentState.RUNNING
         self._logger.info("Autonomous Goal Manager started.")

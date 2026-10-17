@@ -54,3 +54,7 @@ __all__ = [
     "SchedulingError",
     "StepState",
 ]
+
+from .sqlite_persistence import SQLiteGoalPersistence
+
+__all__.append("SQLiteGoalPersistence")
