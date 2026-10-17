@@ -392,6 +392,7 @@ The side-effect test uses a real subprocess, the real FileTool append action and
 - `main.py` now imports `run_objective` from `mission_control.crash_cli`; `main.py` review commands import `main as crash_safe_main` from the same module.
 - `core/agent.py` mission handler imports `execute_objective` from `mission_control.crash_cli`; both shared functions instantiate `CrashSafeMissionRunner`. `mission_control/cli.py` is no longer imported by supported entrypoints.
 - `mission_control/cli.py` remains modified by another writer and was not edited. It contains legacy executor code but has no active entrypoint reference in the current source tree; direct third-party imports of that module are not covered by the single-route guarantee.
+- GUI integration routes objectives recognized by `build_objective_plan` through `execute_objective`; unsupported/specialized GUI mission intents still use the pre-existing agent workflow. Universal GUI routing for arbitrary objectives is a blocker because the crash-safe objective planner does not yet represent all existing specialized workflows. This is recorded rather than claiming full coverage.
 
 ### Needs-review operator workflow
 - `--needs-review` lists uncertain steps and their stored reasons; `--show-needs-review MISSION_ID` shows the reason and step; `--resolve-needs-review MISSION_ID --step N --resolution retry|abandon` requires an explicit decision.
