@@ -368,3 +368,5 @@ The side-effect test uses a real subprocess, the real FileTool append action and
 
 - Crash-safe implementation commit: 693ad7b feat(missions): add crash-safe WAL execution.
 - Committed-only full suite after that commit, executed from a fresh git-archive snapshot: **1064 passed, 1 skipped in 42.95s**. The committed count is baseline 1060 plus four committed crash-safe tests; uncommitted/untracked tests are excluded from this after number.
+
+- Final post-commit status audit also found untracked workspace/OfficeForge/; it was not created or modified by this milestone and was left untouched. The private HELDOUT.md path check reported HELDOUT_FILE_NOT_FOUND; this checked only path existence and did not read file contents.
