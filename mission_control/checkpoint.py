@@ -14,7 +14,9 @@ class CheckpointEngine:
             # We mock full workspace serialization here
             self.storage[mission.id] = json.dumps({
                 "state": mission.state.value,
-                "completed": mission.completed_steps
+                "completed": mission.completed_steps,
+                "pending_approvals": mission.pending_approvals,
+                "approved_steps": mission.approved_steps,
             })
 
     def load(self, mission_id: str) -> dict | None:

@@ -27,3 +27,10 @@ The remaining Ruff findings are an audit backlog, not permission for blind auto-
 - [x] **Prevent late executor completion from mutating timed-out tasks:** execute a detached task snapshot, copy terminal results back only when the future finishes within its timeout, and cancel futures when possible after timeout.
 - [x] **Track execution futures through Agent shutdown:** prevent submit/close races, cancel queued futures during close, and ensure completed futures are removed from tracking.
 - [x] **Regression gate:** test late completion after timeout, Agent close with queued/running work, run focused Agent tests plus the full suite, Ruff, compileall and diff check; record any non-cooperative running-tool limitation.
+
+
+## Next execution pass - mission approval correctness
+- [x] **Make deploy approval genuinely pending until explicit approval:** have the executor register pending approval without pre-approving the step; make approval manager updates idempotent; cover the real approval round-trip with regressions.
+- [x] **Verify and document:** run focused mission-control tests, relevant Ruff and compile checks, inspect diff, update NOTES with actual results, and commit only scoped files if all checks pass.
+- [x] **Preserve approval state through recovery:** checkpoint and restore pending and approved steps, with backward-compatible defaults for older checkpoints and a crash-recovery regression.
+- [x] **Fail closed on unresolved mission dependencies:** treat missing dependency IDs as blocked rather than silently skipping them; test that registration of the dependency allows the mission to proceed later.

@@ -16,7 +16,8 @@ class MissionExecutor:
         
         # Simulate approval required for "deploy"
         if "deploy" in current_step and current_step not in mission.approved_steps:
-            mission.approved_steps.append(current_step)
+            if current_step not in mission.pending_approvals:
+                mission.pending_approvals.append(current_step)
             mission.state = MissionState.WAITING_APPROVAL
             return
             

@@ -236,3 +236,14 @@ Verification: the regression failed before the fix because the executor received
 ## Agent timeout isolation ? final regression gate
 
 Final full suite after task snapshot isolation and future tracking: `python -m pytest -q --basetemp %TEMP%\pytest-jarvis-agent-final-<unique>` ? **1043 passed, 1 skipped in 32.76s**, exit 0. `ruff check core/agent.py tests/test_agent_timeout_isolation.py --select I001` passed; `ruff check . --select E722,B019,S110` passed; `compileall -q core/agent.py` passed; `git diff --check` passed. Whole-repository Ruff remains **242 findings**; changed-file checks were scoped to import ordering because `core/agent.py` has pre-existing broad-catch/unused-variable/style findings outside this task. The OS-conditional skip remains expected.
+
+
+## Mission-control approval and dependency pass - 2026-10-17
+
+- Fixed a real approval-state inversion in `MissionExecutor.step`: deployment steps now enter `pending_approvals` and `WAITING_APPROVAL` without being added to `approved_steps` before the user approves them. `ApprovalManager.approve` records the explicit approval, clears the pending reason, and resumes execution only when no approvals remain. Requiring the same approval repeatedly is idempotent.
+- Extended checkpoints to serialize `pending_approvals` and `approved_steps`; recovery restores both lists. `data.get(..., [])` keeps older checkpoints compatible. Added a regression for recovering an approval-waiting mission and a legacy checkpoint without approval fields.
+- Changed dependency checks to fail closed when a referenced mission is not registered or is not yet `COMPLETED`. Added a regression showing a dependent mission remains blocked until its dependency is registered and completed.
+- Focused verification: `pytest -q tests\test_mission_control.py tests\test_mission.py tests\test_mission_persistence.py --basetemp <unique-temp>` passed **15 tests** before the final legacy-checkpoint regression was added. Latest mission-control focused run passed **7 tests**. Changed-file Ruff passed; `ruff check . --select E722,B019,S110` passed; `compileall -q mission_control` passed; `git diff --check` passed.
+- Full-suite gate after all three code tasks and the legacy-checkpoint regression: `pytest -q --basetemp <unique-temp>` passed **1046 passed, 1 skipped in 32.53s**, exit 0. The skip remains the expected platform-conditional test.
+- Whole-repository Ruff remains **242 findings** (102 BLE001, 41 RUF059, 31 F841, and smaller groups). This is a recorded backlog, not a clean global lint result. The selected critical rules and changed files are clean.
+- An initial focused pytest invocation without a dedicated `--basetemp` completed the assertions but encountered a Windows `PermissionError` during pytest temporary-directory cleanup. Re-running with a unique temporary base succeeded; the final full-suite run also succeeded with a unique base.
