@@ -1,43 +1,43 @@
-"""Dark theme preset — GitHub Dark-inspired palette."""
+"""Dark neon theme preset for the JARVIS control center."""
 
 from gui.themes.theme import Theme
 
 DARK_THEME = Theme(
     name="Dark",
     # Backgrounds
-    background="#0d1117",
-    surface="#161b22",
-    surface_alt="#1c2333",
-    sidebar="#0d1117",
+    background="#080D14",
+    surface="#0C1420",
+    surface_alt="#101D2A",
+    sidebar="#080D14",
     # Borders
-    border="#30363d",
-    border_light="#21262d",
+    border="#172B3D",
+    border_light="#203548",
     # Text
-    text="#e6edf3",
-    text_secondary="#c9d1d9",
-    text_muted="#8b949e",
+    text="#E7F7FF",
+    text_secondary="#BED0DD",
+    text_muted="#8298AA",
     # Accent
-    accent="#58a6ff",
-    accent_hover="#79c0ff",
-    accent_muted="rgba(88,166,255,0.15)",
+    accent="#00D9FF",
+    accent_hover="#57E7FF",
+    accent_muted="rgba(0,217,255,0.13)",
     # Bubbles
-    user_bubble="#1a3a5c",
-    bot_bubble="#161b22",
-    error_bubble="rgba(248,81,73,0.1)",
-    system_bubble="rgba(139,148,158,0.08)",
+    user_bubble="#0D2A3A",
+    bot_bubble="#0C1420",
+    error_bubble="rgba(255,102,122,0.10)",
+    system_bubble="rgba(130,152,170,0.08)",
     # Status
-    success="#3fb950",
-    warning="#d29922",
-    error="#f85149",
+    success="#20DCA0",
+    warning="#FFC857",
+    error="#FF667A",
     # Input
-    input_bg="#0d1117",
-    input_border="#30363d",
+    input_bg="#080D14",
+    input_border="#244052",
     # Cards
-    card_bg="#161b22",
-    card_border="#30363d",
+    card_bg="#0C1420",
+    card_border="#172B3D",
     # Misc
     scrollbar_bg="transparent",
-    scrollbar_handle="#30363d",
-    hover_overlay="rgba(177,186,196,0.08)",
-    shadow="rgba(0,0,0,0.3)",
+    scrollbar_handle="#244052",
+    hover_overlay="rgba(0,217,255,0.07)",
+    shadow="rgba(0,0,0,0.36)",
 )

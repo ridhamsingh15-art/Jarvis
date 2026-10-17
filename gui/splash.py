@@ -17,7 +17,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-
 _STEPS = [
     "Loading modules…",
     "Loading Memory…",

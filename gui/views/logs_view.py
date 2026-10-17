@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 
-from PySide6.QtCore import Qt, Signal, Slot, QObject
+from PySide6.QtCore import QObject, Signal, Slot
 from PySide6.QtWidgets import (
     QLabel,
     QTextEdit,
@@ -48,6 +48,7 @@ class _QtLogHandler(logging.Handler):
             text = self.format(record)
             self._emitter.log_record.emit(text, record.levelname)
         except Exception:
+            logging.getLogger(__name__).exception("Error formatting log record")
             self.handleError(record)
 
 

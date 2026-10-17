@@ -8,7 +8,7 @@ calls this module and handles everything downstream.
 
 import logging
 
-from ollama import chat, ResponseError, RequestError
+from ollama import RequestError, ResponseError, chat, embeddings
 
 from config.config import JarvisConfig
 from core.exceptions import LLMConnectionError
@@ -27,7 +27,29 @@ class LLMClient:
 
     def __init__(self, config: JarvisConfig) -> None:
         self._model = config.model
+        self._embedding_model = config.embedding_model
         self._host = config.ollama_host
+
+    def get_embeddings(self, text: str) -> list[float]:
+        """Get vector embeddings for a given text using Ollama.
+        
+        Args:
+            text: The input string.
+            
+        Returns:
+            List of floats representing the embedding vector.
+        """
+        try:
+            # We use the embedding_model configured (e.g. nomic-embed-text)
+            resp = embeddings(model=self._embedding_model, prompt=text)
+            return resp.embedding
+        except RequestError as exc:
+            logger.error("Ollama connection failed for embeddings: %s", exc)
+            raise LLMConnectionError(f"Cannot reach Ollama: {exc}") from exc
+        except ResponseError as exc:
+            logger.error("Ollama response error for embeddings: %s", exc)
+            # If the embedding model isn't pulled, this might throw
+            raise LLMConnectionError(f"Ollama returned an error: {exc}") from exc
 
     def generate(self, system_prompt: str, user_prompt: str) -> str:
         """Send prompts to Ollama and return the raw response text.
@@ -64,7 +86,7 @@ class LLMClient:
                 f"Ollama returned an error: {exc}"
             ) from exc
 
-        raw_text = response.message.content
+        raw_text = response.message.content or ""
         logger.debug("LLM response length: %d chars", len(raw_text))
 
         return raw_text

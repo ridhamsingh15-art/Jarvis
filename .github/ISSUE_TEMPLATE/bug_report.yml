@@ -1,0 +1,46 @@
+name: Bug report
+description: Report a reproducible JARVIS defect
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: "Do not include API keys, tokens, cookies, personal documents, or private logs. Redact sensitive details before submitting."
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the actual behavior and the expected behavior.
+      placeholder: Expected ...; actual ...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Start JARVIS ...\n2. Request ...\n3. Observe ..."
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python version, JARVIS mode, and relevant provider (no secrets).
+      placeholder: "Windows 11, Python 3.12, local mode, Ollama"
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Test or error evidence
+      description: Include a minimal sanitized traceback or test result.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Before submitting
+      options:
+        - label: I removed secrets and personal data from this report.
+          required: true
+        - label: I included reproducible steps or explained why reproduction is not possible.
+          required: true

@@ -11,11 +11,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Qt, Slot
+from PySide6.QtCore import Slot
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QMainWindow,
+    QMessageBox,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -26,6 +27,7 @@ from gui.header import Header
 from gui.sidebar import Sidebar
 from gui.themes.theme import ThemeManager, build_stylesheet
 from gui.views.chat_view import ChatView
+from gui.views.dashboard_view import DashboardView
 from gui.views.history_view import HistoryView
 from gui.views.logs_view import LogsView
 from gui.views.memory_view import MemoryView
@@ -34,18 +36,17 @@ from gui.views.settings_view import SettingsView
 
 if TYPE_CHECKING:
     from core.agent import Agent
-    from core.registry import Registry
-    from memory.sqlite_memory import SqliteMemory
 
 
 # Page key → stack index
 _PAGE_INDEX: dict[str, int] = {
-    "chat":     0,
-    "memory":   1,
-    "history":  2,
-    "logs":     3,
-    "plugins":  4,
+    "chat": 0,
+    "memory": 1,
+    "history": 2,
+    "logs": 3,
+    "plugins": 4,
     "settings": 5,
+    "dashboard": 6,
 }
 
 
@@ -59,7 +60,7 @@ class MainWindow(QMainWindow):
 
     def __init__(
         self,
-        agent: "Agent",
+        agent: Agent,
         config_ctx: dict | None = None,
     ) -> None:
         super().__init__()
@@ -100,6 +101,16 @@ class MainWindow(QMainWindow):
         tool_count = self._ctx.get("tool_count", 0)
         registry = self._ctx.get("registry")
         memory = self._ctx.get("memory")
+        config = self._ctx.get("config")
+        mode = "assistant"
+        workspace = ""
+        if config is not None:
+            mode = getattr(config, "mode", "hybrid")
+            if mode == "developer":
+                workspace = getattr(config, "workspace_root", "")
+        model_state = self._ctx.get("model_state") or getattr(
+            self._agent, "model_state", None
+        )
 
         # Header
         self._header = Header(
@@ -108,30 +119,42 @@ class MainWindow(QMainWindow):
         )
         right.addWidget(self._header)
 
-        # Stacked pages
+        # Stacked pages. Keep legacy page indices stable; new pages are appended.
         self._stack = QStackedWidget()
 
         self._chat_view = ChatView(self._agent)
-        self._stack.addWidget(self._chat_view)       # 0
+        self._stack.addWidget(self._chat_view)       # 0 (legacy)
 
         self._memory_view = MemoryView(memory=memory)
-        self._stack.addWidget(self._memory_view)      # 1
+        self._stack.addWidget(self._memory_view)      # 1 (legacy)
 
         self._history_view = HistoryView(memory=memory)
-        self._stack.addWidget(self._history_view)     # 2
+        self._stack.addWidget(self._history_view)     # 2 (legacy)
 
         self._logs_view = LogsView()
-        self._stack.addWidget(self._logs_view)        # 3
+        self._stack.addWidget(self._logs_view)        # 3 (legacy)
 
         self._plugins_view = PluginsView(registry=registry)
-        self._stack.addWidget(self._plugins_view)     # 4
+        self._stack.addWidget(self._plugins_view)     # 4 (legacy)
 
         self._settings_view = SettingsView(
             model_name=model_name,
             memory_backend=memory_backend,
             tool_count=tool_count,
         )
-        self._stack.addWidget(self._settings_view)    # 5
+        self._stack.addWidget(self._settings_view)    # 5 (legacy)
+
+        self._dashboard_view = DashboardView(
+            model_name=model_name,
+            memory_backend=memory_backend,
+            tool_count=tool_count,
+            mode=mode,
+            workspace=str(workspace),
+            model_state=model_state,
+        )
+        self._stack.addWidget(self._dashboard_view)    # 6 (original dashboard slot)
+
+        self._stack.setCurrentIndex(_PAGE_INDEX["dashboard"])
 
         right.addWidget(self._stack, stretch=1)
 
@@ -147,6 +170,8 @@ class MainWindow(QMainWindow):
     def _connect_signals(self) -> None:
         # Sidebar navigation
         self._sidebar.page_changed.connect(self._on_page_changed)
+        self._dashboard_view.navigate_requested.connect(self._navigate_to)
+        self._dashboard_view.federation_requested.connect(self._show_federation_unavailable)
 
         # Header settings button → navigate to settings
         self._header.settings_clicked.connect(
@@ -155,6 +180,7 @@ class MainWindow(QMainWindow):
 
         # Chat view status → footer
         self._chat_view.status_changed.connect(self._footer.set_status)
+        self._chat_view.status_changed.connect(self._dashboard_view.set_runtime_status)
         self._chat_view.response_time.connect(
             self._footer.set_response_time
         )
@@ -192,6 +218,14 @@ class MainWindow(QMainWindow):
         """Switch to chat and focus the input."""
         self._navigate_to("chat")
         self._chat_view.focus_input()
+
+    def _show_federation_unavailable(self) -> None:
+        """Explain that the legacy federation UI is not present in this checkout."""
+        QMessageBox.information(
+            self,
+            "Device Federation",
+            "Device Federation is not available in this checkout.",
+        )
 
     # ── Theme ────────────────────────────────────────────────
 

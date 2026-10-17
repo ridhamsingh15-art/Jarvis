@@ -1,0 +1,233 @@
+"""
+Phase B Tests — Execution Policy Boundary
+
+Tests:
+1. allowed capability
+2. denied capability (unknown tool)
+3. unknown tool → DENY
+4. destructive capability → DENY / REQUIRE_CONFIRMATION
+5. plugin capability — restricted tool set
+6. plugin attempting high-risk action → DENY
+7. MCP capability — restricted tool set
+8. core source + user_confirmed → ALLOW destructive
+9. enforce() raises PolicyDeniedError on DENY
+"""
+import pytest
+
+from core.execution_policy import (
+    CapabilitySource,
+    ExecutionPolicy,
+    PolicyConfirmationRequired,
+    PolicyContext,
+    PolicyDeniedError,
+    PolicyVerdict,
+)
+
+
+def _ctx(tool: str, action: str, source: CapabilitySource = CapabilitySource.CORE, **kwargs) -> PolicyContext:
+    return PolicyContext(tool=tool, action=action, source=source, **kwargs)
+
+
+class TestExecutionPolicyAllowed:
+    def test_safe_tool_core_allowed(self):
+        policy = ExecutionPolicy()
+        result = policy.check(_ctx("windows", "open_app"))
+        assert result.verdict == PolicyVerdict.ALLOW
+
+    def test_browser_core_allowed(self):
+        policy = ExecutionPolicy()
+        result = policy.check(_ctx("browser", "open_url"))
+        assert result.verdict == PolicyVerdict.ALLOW
+
+    def test_file_core_allowed(self):
+        policy = ExecutionPolicy()
+        result = policy.check(_ctx("file", "read_file"))
+        assert result.verdict == PolicyVerdict.ALLOW
+
+    def test_system_tool_allowed(self):
+        policy = ExecutionPolicy()
+        result = policy.check(_ctx("system", "respond"))
+        assert result.verdict == PolicyVerdict.ALLOW
+
+
+class TestExecutionPolicyDenied:
+    def test_unknown_tool_denied(self):
+        policy = ExecutionPolicy()
+        result = policy.check(_ctx("rogue_tool", "do_thing"))
+        assert result.verdict == PolicyVerdict.DENY
+
+    def test_destructive_action_denied_by_default(self):
+        policy = ExecutionPolicy()
+        result = policy.check(_ctx("file", "delete_file"))
+        assert result.verdict == PolicyVerdict.DENY
+
+    def test_shutdown_denied(self):
+        policy = ExecutionPolicy()
+        result = policy.check(_ctx("windows", "shutdown"))
+        assert result.verdict == PolicyVerdict.DENY
+
+    def test_registry_write_denied(self):
+        policy = ExecutionPolicy()
+        result = policy.check(_ctx("windows", "write_registry"))
+        assert result.verdict == PolicyVerdict.DENY
+
+
+class TestExecutionPolicyPluginSource:
+    def test_plugin_allowed_tool_allowed(self):
+        policy = ExecutionPolicy(restricted_plugin_tools=frozenset({"browser", "system"}))
+        result = policy.check(_ctx("browser", "open_url", source=CapabilitySource.PLUGIN, source_id="my_plugin"))
+        assert result.verdict == PolicyVerdict.ALLOW
+
+    def test_plugin_disallowed_tool_denied(self):
+        policy = ExecutionPolicy(restricted_plugin_tools=frozenset({"browser"}))
+        result = policy.check(_ctx("windows", "open_app", source=CapabilitySource.PLUGIN, source_id="my_plugin"))
+        assert result.verdict == PolicyVerdict.DENY
+
+    def test_plugin_high_risk_action_denied(self):
+        policy = ExecutionPolicy(restricted_plugin_tools=frozenset({"file"}))
+        result = policy.check(_ctx("file", "delete_file", source=CapabilitySource.PLUGIN, source_id="evil_plugin"))
+        assert result.verdict == PolicyVerdict.DENY
+
+    def test_skill_high_risk_action_denied(self):
+        policy = ExecutionPolicy(allow_destructive_from_core=True)
+        result = policy.check(_ctx("file", "delete_file", source=CapabilitySource.SKILL, source_id="skill-file"))
+        assert result.verdict == PolicyVerdict.DENY
+
+
+class TestExecutionPolicyPackageInstallVariants:
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "pip3 install example-package",
+            "python -m pip install example-package",
+            "npm ci",
+            "pnpm add example-package",
+            "yarn add example-package",
+            "uv add example-package",
+        ],
+    )
+    def test_package_install_variants_are_high_risk(self, command):
+        result = ExecutionPolicy().check(
+            _ctx("shell", "run", args={"command": command})
+        )
+        assert result.verdict == PolicyVerdict.DENY
+        assert "high-risk shell command" in result.reason.lower()
+
+
+class TestExecutionPolicyShellArgumentNormalization:
+    def test_cmd_and_args_alias_cannot_hide_high_risk_install(self):
+        policy = ExecutionPolicy()
+        result = policy.check(
+            _ctx(
+                "shell",
+                "run",
+                args={"cmd": "pip", "args": ["install", "example-package"]},
+            )
+        )
+        assert result.verdict == PolicyVerdict.DENY
+        assert "high-risk shell command" in result.reason.lower()
+
+
+class TestExecutionPolicyShellConfirmationBoundary:
+    @pytest.mark.parametrize("source", [CapabilitySource.PLUGIN, CapabilitySource.MCP])
+    def test_untrusted_high_risk_shell_command_denied_even_when_confirmed(self, source):
+        policy = ExecutionPolicy(
+            allow_destructive_from_core=True,
+            restricted_plugin_tools=frozenset({"shell"}),
+            restricted_mcp_tools=frozenset({"shell"}),
+        )
+        result = policy.check(
+            _ctx(
+                "shell",
+                "shell_run",
+                source=source,
+                source_id="external-source",
+                user_confirmed=True,
+                args={"command": "pip install example-package"},
+            )
+        )
+        assert result.verdict == PolicyVerdict.DENY
+        assert "not permitted" in result.reason.lower() or "denied" in result.reason.lower()
+
+
+class TestExecutionPolicyEmptyAllowlists:
+    def test_explicitly_empty_plugin_allowlist_denies_every_tool(self):
+        policy = ExecutionPolicy(restricted_plugin_tools=frozenset())
+        result = policy.check(_ctx("browser", "open_url", source=CapabilitySource.PLUGIN))
+        assert result.verdict == PolicyVerdict.DENY
+
+    def test_explicitly_empty_mcp_allowlist_denies_every_tool(self):
+        policy = ExecutionPolicy(restricted_mcp_tools=frozenset())
+        result = policy.check(_ctx("browser", "open_url", source=CapabilitySource.MCP))
+        assert result.verdict == PolicyVerdict.DENY
+
+
+class TestExecutionPolicyMCPSource:
+    def test_mcp_allowed_tool_allowed(self):
+        policy = ExecutionPolicy(restricted_mcp_tools=frozenset({"browser", "system"}))
+        result = policy.check(_ctx("browser", "search_google", source=CapabilitySource.MCP, source_id="mcp_search"))
+        assert result.verdict == PolicyVerdict.ALLOW
+
+    def test_mcp_disallowed_tool_denied(self):
+        policy = ExecutionPolicy(restricted_mcp_tools=frozenset({"browser"}))
+        result = policy.check(_ctx("file", "read_file", source=CapabilitySource.MCP, source_id="mcp_files"))
+        assert result.verdict == PolicyVerdict.DENY
+
+    def test_mcp_high_risk_always_denied(self):
+        policy = ExecutionPolicy(restricted_mcp_tools=frozenset({"file"}))
+        result = policy.check(_ctx("file", "delete_file", source=CapabilitySource.MCP, source_id="mcp_evil"))
+        assert result.verdict == PolicyVerdict.DENY
+
+
+class TestExecutionPolicyConfirmation:
+    def test_destructive_with_user_confirmed_allowed(self):
+        policy = ExecutionPolicy(allow_destructive_from_core=True)
+        result = policy.check(_ctx("file", "delete_file", user_confirmed=True))
+        assert result.verdict == PolicyVerdict.ALLOW
+
+    def test_destructive_without_confirmation_requires_confirmation(self):
+        policy = ExecutionPolicy(allow_destructive_from_core=True)
+        result = policy.check(_ctx("file", "delete_file", user_confirmed=False))
+        assert result.verdict == PolicyVerdict.REQUIRE_CONFIRMATION
+
+    def test_enforce_raises_on_deny(self):
+        policy = ExecutionPolicy()
+        with pytest.raises(PolicyDeniedError):
+            policy.enforce(_ctx("unknown_tool", "do_thing"))
+
+    def test_enforce_blocks_when_confirmation_is_required(self):
+        policy = ExecutionPolicy(allow_destructive_from_core=True)
+        with pytest.raises(PolicyConfirmationRequired, match="requires user confirmation"):
+            policy.enforce(_ctx("file", "delete_file", user_confirmed=False))
+
+    def test_enforce_allows_destructive_action_after_explicit_confirmation(self):
+        policy = ExecutionPolicy(allow_destructive_from_core=True)
+        policy.enforce(_ctx("file", "delete_file", user_confirmed=True))
+
+    def test_enforce_passes_on_allow(self):
+        policy = ExecutionPolicy()
+        policy.enforce(_ctx("windows", "open_app"))  # must not raise
+
+
+class TestExecutionPolicyUnknownSource:
+    def test_unknown_source_cannot_use_high_risk_action(self):
+        policy = ExecutionPolicy(allow_destructive_from_core=True)
+        result = policy.check(_ctx("file", "delete_file", source="unregistered-source"))
+        assert result.verdict == PolicyVerdict.DENY
+        assert "Unknown capability source" in result.reason
+
+
+class TestExecutionPolicyDefaultSafety:
+    def test_default_policy_safe_posture(self):
+        """Out-of-the-box policy: unknown → DENY, destructive → DENY."""
+        policy = ExecutionPolicy()
+        dangerous = [
+            ("file", "delete_file"),
+            ("windows", "shutdown"),
+            ("windows", "reboot"),
+            ("windows", "write_registry"),
+            ("shell", "shell_run"),
+        ]
+        for tool, action in dangerous:
+            result = policy.check(_ctx(tool, action))
+            assert result.verdict == PolicyVerdict.DENY, f"{tool}.{action} should be DENY"

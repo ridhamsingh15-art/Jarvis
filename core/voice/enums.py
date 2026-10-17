@@ -1,0 +1,16 @@
+from enum import StrEnum
+
+
+class AudioState(StrEnum):
+    ACTIVE = "ACTIVE"
+    MUTED = "MUTED"
+    RECORDING = "RECORDING"
+    PLAYING = "PLAYING"
+    IDLE = "IDLE"
+    INTERRUPTED = "INTERRUPTED"
+
+class ConversationState(StrEnum):
+    WAITING_FOR_WAKEWORD = "WAITING_FOR_WAKEWORD"
+    LISTENING = "LISTENING"
+    PROCESSING = "PROCESSING"
+    RESPONDING = "RESPONDING"

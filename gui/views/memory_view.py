@@ -13,7 +13,6 @@ from typing import TYPE_CHECKING
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFrame,
-    QHBoxLayout,
     QLabel,
     QLineEdit,
     QScrollArea,
@@ -36,7 +35,7 @@ class MemoryView(QWidget):
 
     def __init__(
         self,
-        memory: "SqliteMemory | None" = None,
+        memory: SqliteMemory | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
@@ -90,8 +89,10 @@ class MemoryView(QWidget):
         # Clear existing
         while self._list_layout.count() > 1:
             item = self._list_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+            if item is not None:
+                widget = item.widget()
+                if widget is not None:
+                    widget.deleteLater()
 
         if self._memory is None:
             self._add_empty_state("No memory backend available.")
@@ -102,8 +103,8 @@ class MemoryView(QWidget):
                 entries = self._memory.search(query, limit=50)
             else:
                 entries = self._memory.get_recent(limit=50)
-        except Exception as exc:
-            logger.warning("Failed to load memories: %s", exc)
+        except Exception:
+            logger.exception("Failed to load memories")
             self._add_empty_state("Failed to load memories.")
             return
 

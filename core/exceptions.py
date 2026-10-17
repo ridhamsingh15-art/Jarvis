@@ -33,3 +33,15 @@ class InvalidStateError(JarvisError):
 
 class MemoryError(JarvisError):
     """Raised when a memory storage or retrieval operation fails."""
+
+
+class RegistryError(JarvisError):
+    """Base exception for all Tool Registry errors."""
+
+
+class ToolRegistrationError(RegistryError):
+    """Raised when tool registration fails (e.g. duplicates, invalid type)."""
+
+
+class ToolNotFoundError(RegistryError):
+    """Raised when attempting to access a tool that is not registered."""

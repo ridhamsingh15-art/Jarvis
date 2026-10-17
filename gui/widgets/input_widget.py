@@ -44,7 +44,7 @@ class _AutoGrowTextEdit(QTextEdit):
         self.textChanged.connect(self._adjust_height)
         self.setAcceptRichText(False)
 
-    def keyPressEvent(self, event: QKeyEvent) -> None:  # noqa: N802
+    def keyPressEvent(self, event: QKeyEvent) -> None:
         """Handle Enter (send) vs Shift+Enter (newline)."""
         if (
             event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter)

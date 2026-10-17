@@ -1,0 +1,19 @@
+from enum import StrEnum
+
+
+class ReasoningType(StrEnum):
+    DEDUCTIVE = "DEDUCTIVE"
+    INDUCTIVE = "INDUCTIVE"
+    ABDUCTIVE = "ABDUCTIVE"
+    PROBABILISTIC = "PROBABILISTIC"
+    TEMPORAL = "TEMPORAL"
+    CAUSAL = "CAUSAL"
+    COUNTERFACTUAL = "COUNTERFACTUAL"
+    GOAL_ORIENTED = "GOAL_ORIENTED"
+
+class EntityType(StrEnum):
+    OBJECT = "OBJECT"
+    PERSON = "PERSON"
+    GOAL = "GOAL"
+    RESOURCE = "RESOURCE"
+    ACTION = "ACTION"

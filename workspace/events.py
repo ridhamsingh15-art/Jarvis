@@ -1,0 +1,8 @@
+WORKSPACE_UPDATED = "workspace.updated"
+WORKSPACE_APP_OPENED = "workspace.application.opened"
+WORKSPACE_APP_CLOSED = "workspace.application.closed"
+WORKSPACE_WINDOW_CHANGED = "workspace.window.changed"
+WORKSPACE_FILES_CHANGED = "workspace.files.changed"
+WORKSPACE_GIT_CHANGED = "workspace.git.changed"
+WORKSPACE_BROWSER_UPDATED = "workspace.browser.updated"
+WORKSPACE_SNAPSHOT_CREATED = "workspace.snapshot.created"

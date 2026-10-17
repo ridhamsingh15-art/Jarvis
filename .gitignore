@@ -1,4 +1,38 @@
+# Virtual environments (including any accidentally nested ones)
 .venv/
+**/.venv/
+venv/
+**/venv/
+
+# Python cache
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Environment
 .env
+
+# CI / tooling artifacts
+mypy_errors.txt
+pytest_errors.txt
+ruff_errors.json
+test_report.txt
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Editor
+.vscode/
+
+# Transient test workspaces and evaluation scratch scripts
+.jarvis_test_workspace/
+scratch/
+
+# Build and packaging artifacts
+build/
+dist/
+*.egg-info/
+
+# External tools and clones
+tools/toutatis/

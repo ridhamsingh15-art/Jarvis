@@ -1,0 +1,251 @@
+{
+  "E-MULTI": {
+    "scenario_id": "E-MULTI",
+    "route": "TOOL",
+    "status": "COMPLETED",
+    "success": true,
+    "verification": "PASS",
+    "latency_s": 84.56,
+    "llm_calls": 1,
+    "tool_calls": 1,
+    "retries": 0,
+    "tokens_generated": 24,
+    "tokens_per_sec": 0.28,
+    "tools_selected": [
+      "file.create_file"
+    ],
+    "raw_tasks": [
+      {
+        "tool": "system",
+        "action": "respond",
+        "status": "completed",
+        "result": "Done \u2014 Created file: C:\\Users\\ridha\\AppData\\Local\\Temp\\jarvis_phase6_qhl4ybuf\\jarvis_e2e_test.txt.",
+        "error": "",
+        "retry_count": 0
+      },
+      {
+        "tool": "file",
+        "action": "create_file",
+        "status": "completed",
+        "result": "Created file: C:\\Users\\ridha\\AppData\\Local\\Temp\\jarvis_phase6_qhl4ybuf\\jarvis_e2e_test.txt",
+        "error": "",
+        "retry_count": 0
+      }
+    ],
+    "response": "Done \u2014 Created file: C:\\Users\\ridha\\AppData\\Local\\Temp\\jarvis_phase6_qhl4ybuf\\jarvis_e2e_test.txt.",
+    "notes": "file_exists=True correct_content=True in_response=True tool_calls=1",
+    "emitted_tool_call": true,
+    "normalized": false,
+    "validation_passed": true,
+    "tool_executed": true,
+    "physical_state_changed": true,
+    "verification_passed": true,
+    "final_response_reported": true,
+    "grounded_in_facts": true,
+    "swe_metrics": {}
+  },
+  "F-RECOVER": {
+    "scenario_id": "F-RECOVER",
+    "route": "TOOL",
+    "status": "PARTIAL_FAIL",
+    "success": true,
+    "verification": "PASS",
+    "latency_s": 22.82,
+    "llm_calls": 1,
+    "tool_calls": 1,
+    "retries": 0,
+    "tokens_generated": 46,
+    "tokens_per_sec": 2.02,
+    "tools_selected": [
+      "file.read_file"
+    ],
+    "raw_tasks": [
+      {
+        "tool": "system",
+        "action": "respond",
+        "status": "completed",
+        "result": "I couldn't complete file.read_file on 'C:/Users/ridha/AppData/Local/Temp/jarvis_phase6_qhl4ybuf/definitely_not_exist_xyz.txt': I couldn't access that path. Please check it and try again.",
+        "error": "",
+        "retry_count": 0
+      },
+      {
+        "tool": "file",
+        "action": "read_file",
+        "status": "failed",
+        "result": "None",
+        "error": "I couldn't access that path. Please check it and try again.",
+        "retry_count": 0
+      }
+    ],
+    "response": "I couldn't complete file.read_file on 'C:/Users/ridha/AppData/Local/Temp/jarvis_phase6_qhl4ybuf/definitely_not_exist_xyz.txt': I couldn't access that path. Please check it and try again.",
+    "notes": "graceful_recovery=True failure_reported=True response_len=186",
+    "emitted_tool_call": true,
+    "normalized": false,
+    "validation_passed": true,
+    "tool_executed": false,
+    "physical_state_changed": false,
+    "verification_passed": true,
+    "final_response_reported": true,
+    "grounded_in_facts": true,
+    "swe_metrics": {}
+  },
+  "H-SWE": {
+    "scenario_id": "H-SWE",
+    "route": "TOOL",
+    "status": "COMPLETED",
+    "success": false,
+    "verification": "FAIL",
+    "latency_s": 147.34,
+    "llm_calls": 1,
+    "tool_calls": 2,
+    "retries": 0,
+    "tokens_generated": 55,
+    "tokens_per_sec": 0.37,
+    "tools_selected": [
+      "file.open_file",
+      "file.read_file"
+    ],
+    "raw_tasks": [
+      {
+        "tool": "system",
+        "action": "respond",
+        "status": "completed",
+        "result": "Done \u2014 completed all actions:\n- file.open_file on C:/Users/ridha/AppData/Local/Temp/jarvis_phase6_qhl4ybuf/swe_project/calc.py\n- file.read_file on C:/Users/ridha/AppData/Local/Temp/jarvis_phase6_qhl4y",
+        "error": "",
+        "retry_count": 0
+      },
+      {
+        "tool": "file",
+        "action": "open_file",
+        "status": "completed",
+        "result": "Opened 'calc.py'",
+        "error": "",
+        "retry_count": 0
+      },
+      {
+        "tool": "file",
+        "action": "read_file",
+        "status": "completed",
+        "result": "def add(a, b):\n    return a - b  # BUG\n",
+        "error": "",
+        "retry_count": 0
+      },
+      {
+        "tool": "system",
+        "action": "respond",
+        "status": "completed",
+        "result": "Done \u2014 completed all actions:\n- file.open_file on C:/Users/ridha/AppData/Local/Temp/jarvis_phase6_qhl4ybuf/swe_project/calc.py\n- file.read_file on C:/Users/ridha/AppData/Local/Temp/jarvis_phase6_qhl4y",
+        "error": "",
+        "retry_count": 0
+      }
+    ],
+    "response": "Done \u2014 completed all actions:\n- file.open_file on C:/Users/ridha/AppData/Local/Temp/jarvis_phase6_qhl4ybuf/swe_project/calc.py\n- file.read_file on C:/Users/ridha/AppData/Local/Temp/jarvis_phase6_qhl4ybuf/swe_project/calc.py",
+    "notes": "fixed=False syntax=True disk_tests_pass=False reported=True",
+    "emitted_tool_call": true,
+    "normalized": false,
+    "validation_passed": true,
+    "tool_executed": true,
+    "physical_state_changed": false,
+    "verification_passed": false,
+    "final_response_reported": true,
+    "grounded_in_facts": true,
+    "swe_metrics": {
+      "calc_modified": false,
+      "operator_fixed": false,
+      "syntax_valid": true,
+      "tests_invoked_by_jarvis": false,
+      "tests_pass_on_disk": false,
+      "result_reported": true
+    }
+  },
+  "L-VERIFY": {
+    "scenario_id": "L-VERIFY",
+    "route": "TOOL",
+    "status": "COMPLETED",
+    "success": true,
+    "verification": "PASSED",
+    "latency_s": 17.4,
+    "llm_calls": 1,
+    "tool_calls": 1,
+    "retries": 0,
+    "tokens_generated": 23,
+    "tokens_per_sec": 1.32,
+    "tools_selected": [
+      "file.create_file"
+    ],
+    "raw_tasks": [
+      {
+        "tool": "system",
+        "action": "respond",
+        "status": "completed",
+        "result": "Done \u2014 Created file: C:\\Users\\ridha\\AppData\\Local\\Temp\\jarvis_phase6_qhl4ybuf\\mission_out.txt.",
+        "error": "",
+        "retry_count": 0
+      },
+      {
+        "tool": "file",
+        "action": "create_file",
+        "status": "completed",
+        "result": "Created file: C:\\Users\\ridha\\AppData\\Local\\Temp\\jarvis_phase6_qhl4ybuf\\mission_out.txt",
+        "error": "",
+        "retry_count": 0
+      }
+    ],
+    "response": "Done \u2014 Created file: C:\\Users\\ridha\\AppData\\Local\\Temp\\jarvis_phase6_qhl4ybuf\\mission_out.txt.",
+    "notes": "file_exists=True correct_content=True verifier=passed",
+    "emitted_tool_call": true,
+    "normalized": false,
+    "validation_passed": true,
+    "tool_executed": true,
+    "physical_state_changed": true,
+    "verification_passed": true,
+    "final_response_reported": true,
+    "grounded_in_facts": true,
+    "swe_metrics": {}
+  },
+  "N-ESCALATE": {
+    "scenario_id": "N-ESCALATE",
+    "route": "TOOL",
+    "status": "COMPLETED",
+    "success": true,
+    "verification": "PASS",
+    "latency_s": 76.6,
+    "llm_calls": 1,
+    "tool_calls": 1,
+    "retries": 0,
+    "tokens_generated": 31,
+    "tokens_per_sec": 0.4,
+    "tools_selected": [
+      "file.list_directory"
+    ],
+    "raw_tasks": [
+      {
+        "tool": "system",
+        "action": "respond",
+        "status": "completed",
+        "result": "Done \u2014 Contents of C:\\Users\\ridha\\AppData\\Local\\Temp\\jarvis_phase6_qhl4ybuf\\escalation:         main.py         test_main.py",
+        "error": "",
+        "retry_count": 0
+      },
+      {
+        "tool": "file",
+        "action": "list_directory",
+        "status": "completed",
+        "result": "Contents of C:\\Users\\ridha\\AppData\\Local\\Temp\\jarvis_phase6_qhl4ybuf\\escalation:\n        main.py\n        test_main.py",
+        "error": "",
+        "retry_count": 0
+      }
+    ],
+    "response": "Done \u2014 Contents of C:\\Users\\ridha\\AppData\\Local\\Temp\\jarvis_phase6_qhl4ybuf\\escalation:         main.py         test_main.py",
+    "notes": "route=TOOL status=COMPLETED response_len=124",
+    "emitted_tool_call": true,
+    "normalized": false,
+    "validation_passed": true,
+    "tool_executed": true,
+    "physical_state_changed": false,
+    "verification_passed": true,
+    "final_response_reported": true,
+    "grounded_in_facts": true,
+    "swe_metrics": {}
+  }
+}

@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from PySide6.QtCore import QObject, Signal
+from typing_extensions import Self
 
 
 @dataclass(frozen=True)
@@ -81,12 +82,14 @@ class ThemeManager(QObject):
     theme_changed = Signal(object)
 
     _instance: ThemeManager | None = None
+    _initialized: bool = False
 
-    def __new__(cls) -> ThemeManager:
+    def __new__(cls) -> Self:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance._initialized = False
-        return cls._instance
+        from typing import cast
+        return cast(Self, cls._instance)
 
     def __init__(self) -> None:
         if self._initialized:
@@ -410,6 +413,148 @@ QLabel#thinkingText {{
 QLabel#thinkingDots {{
     color: {t.accent};
     font-size: {FONT_SIZE_LG};
+    background: transparent;
+}}
+
+/* ── Dashboard / Control Center ───────────────────────── */
+QLabel#dashboardEyebrow {{
+    color: {t.accent};
+    font-size: {FONT_SIZE_XS};
+    font-weight: 700;
+    background: transparent;
+}}
+QLabel#dashboardTitle {{
+    color: {t.text};
+    font-size: 27px;
+    font-weight: 700;
+    background: transparent;
+}}
+QLabel#dashboardSubtitle {{
+    color: {t.text_muted};
+    font-size: {FONT_SIZE_BASE};
+    background: transparent;
+}}
+QFrame#dashboardHero {{
+    background-color: {t.surface_alt};
+    border: 1px solid {t.border};
+    border-radius: 16px;
+}}
+QLabel#dashboardHeroKicker {{
+    color: {t.accent};
+    font-size: {FONT_SIZE_XS};
+    font-weight: 700;
+    background: transparent;
+}}
+QLabel#dashboardHeroTitle {{
+    color: {t.text};
+    font-size: 22px;
+    font-weight: 700;
+    background: transparent;
+}}
+QLabel#dashboardHeroDescription {{
+    color: {t.text_secondary};
+    font-size: {FONT_SIZE_BASE};
+    background: transparent;
+}}
+QLabel#dashboardHeroPill {{
+    color: {t.success};
+    background-color: {t.surface};
+    border: 1px solid {t.border};
+    border-radius: 17px;
+    padding: 7px 11px;
+    font-size: {FONT_SIZE_XS};
+    font-weight: 700;
+}}
+QFrame.dashboardMetricCard {{
+    background-color: {t.card_bg};
+    border: 1px solid {t.card_border};
+    border-radius: {BORDER_RADIUS_LG};
+}}
+QLabel#dashboardMetricLabel {{
+    color: {t.text_muted};
+    font-size: {FONT_SIZE_XS};
+    font-weight: 700;
+    background: transparent;
+}}
+QLabel#dashboardMetricValue {{
+    color: {t.text};
+    font-size: 18px;
+    font-weight: 600;
+    background: transparent;
+}}
+QFrame#dashboardWorkspace {{
+    background-color: {t.surface};
+    border: 1px solid {t.border};
+    border-radius: {BORDER_RADIUS_LG};
+}}
+QLabel#dashboardSectionLabel {{
+    color: {t.text_muted};
+    font-size: {FONT_SIZE_XS};
+    font-weight: 700;
+    background: transparent;
+}}
+QLabel#dashboardWorkspacePath {{
+    color: {t.text_secondary};
+    font-size: {FONT_SIZE_BASE};
+    background: transparent;
+}}
+QPushButton.dashboardActionBtn {{
+    background-color: {t.surface};
+    color: {t.text};
+    border: 1px solid {t.border};
+    border-radius: {BORDER_RADIUS};
+    padding: 12px 15px;
+    text-align: left;
+    font-size: {FONT_SIZE_BASE};
+    font-weight: 600;
+}}
+QPushButton.dashboardActionBtn:hover {{
+    background-color: {t.surface_alt};
+    border: 1px solid {t.accent};
+    color: {t.accent};
+}}
+QPushButton#dashboardRefreshBtn {{
+    background-color: {t.surface};
+    color: {t.text_secondary};
+    border: 1px solid {t.border};
+    border-radius: {BORDER_RADIUS};
+    padding: 9px 13px;
+    font-size: {FONT_SIZE_SM};
+    font-weight: 600;
+}}
+QPushButton#dashboardRefreshBtn:hover {{
+    border-color: {t.accent};
+    color: {t.accent};
+}}
+QLabel#dashboardStatusText {{
+    color: {t.text_muted};
+    font-size: {FONT_SIZE_SM};
+    background: transparent;
+}}
+QFrame#dashboardTelemetry {{
+    background-color: {t.surface};
+    border: 1px solid {t.border};
+    border-radius: {BORDER_RADIUS_LG};
+}}
+QLabel#dashboardTelemetryValue {{
+    color: {t.text_secondary};
+    font-size: {FONT_SIZE_SM};
+    background: transparent;
+}}
+QProgressBar#dashboardCpuBar, QProgressBar#dashboardRamBar {{
+    background-color: {t.surface_alt};
+    border: none;
+    border-radius: 2px;
+}}
+QProgressBar#dashboardCpuBar::chunk {{
+    background-color: {t.accent};
+    border-radius: 2px;
+}}
+QProgressBar#dashboardRamBar::chunk {{
+    background-color: {t.success};
+    border-radius: 2px;
+}}
+QWidget#dashboardCoreOrb {{
     background: transparent;
 }}
 

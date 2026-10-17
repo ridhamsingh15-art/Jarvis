@@ -24,7 +24,7 @@ __all__ = ["launch_gui"]
 
 
 def launch_gui(
-    agent: "Agent",
+    agent: Agent,
     config_ctx: dict | None = None,
 ) -> None:
     """Launch the Jarvis desktop GUI.

@@ -38,7 +38,7 @@ class PluginsView(QWidget):
 
     def __init__(
         self,
-        registry: "Registry | None" = None,
+        registry: Registry | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)

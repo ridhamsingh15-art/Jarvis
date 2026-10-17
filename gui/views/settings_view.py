@@ -18,10 +18,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from gui.themes.theme import ThemeManager
+from gui.themes.amoled import AMOLED_THEME
 from gui.themes.dark import DARK_THEME
 from gui.themes.light import LIGHT_THEME
-from gui.themes.amoled import AMOLED_THEME
+from gui.themes.theme import ThemeManager
 
 _THEMES = {
     "Dark": DARK_THEME,
