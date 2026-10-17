@@ -321,3 +321,50 @@ DEMO_RESULT=PASS all 5 tasks passed in one run
 - Known limit: the `exit_code` for FileTool actions is a normalized per-step status (0 on successful tool return, 1 on tool exception, 126 on policy block), not an OS subprocess exit code. Mission outputs are genuine FileTool results; the next milestone should add a real ShellTool action and provider-backed structured planning rather than claim broader autonomy.
 
 - Test-count reconciliation: the final +6 over baseline is one new end-to-end test from this milestone plus five tests in concurrently added, untracked `tests/test_sqlite_goal_persistence.py`; that unrelated file remains uncommitted.
+
+
+## Crash-safe execution + held-out harness — audit and implementation log, 2026-10-17
+
+### Initial audit (before implementation)
+- Branch: feature/jarvis-control-center; HEAD 01b33c8 docs(missions): record execution-backed demo evidence.
+- Full current working-tree suite: **1067 passed, 1 skipped in 40.42s**. This includes uncommitted/untracked tests and modified tracked test files, so it is not the committed baseline.
+- Committed-only snapshot created from git archive HEAD in a temporary directory: **1060 passed, 1 skipped in 40.09s**. This is the test count to compare against future committed code.
+- Initial MissionExecutor.step() had a running record before invoking the tool, but no deterministic idempotency key. On restart, a still-running side-effecting step could be selected again because the completed-step list had not advanced. The completion record and mission completed-step list were separate writes.
+- Pre-existing files not edited by this milestone: modified core/autonomy/__init__.py, core/autonomy/manager.py, main.py, mission_control/cli.py, mission_control/mission.py, mission_control/store.py, tests/test_execution_backed_mission.py; untracked core/autonomy/sqlite_persistence.py, docs/DOT_INSPIRED_AUTONOMY.md, jarvis_test_workspace/, tests/test_sqlite_goal_persistence.py. Preserved as found.
+
+### Crash-safe execution implementation
+- Added CrashSafeMissionStore with SQLite WAL journaling and synchronous=FULL. A step's started status and deterministic SHA-256 idempotency key are committed before the real tool call; terminal status and output are committed afterward.
+- Added CrashSafeMissionRunner. It replays only explicitly whitelisted read-only file actions after a crash, preserving the same idempotency key. An in-flight side-effecting/unknown action is recorded as needs_review and mission state FAILED; it is not blindly replayed.
+- Added FileTool.append_line, which appends exactly one UTF-8 line, flushes and fsyncs the file, and is classified as high-risk by ExecutionPolicy so explicit approval is required.
+- Shell steps use ShellTool.run and persist its real OS return code as exit_code. FileTool results use normalized_code; no FileTool-normalized value is written to the OS exit_code field.
+- Added mission_crash_safe.py / mission_control/crash_cli.py as a dedicated crash-safe CLI entry point. Existing main.py and the pre-modified mission_control/cli.py were not edited because they had pre-existing uncommitted changes. Integration of crash-safe execution into the original main.py remains blocked until those changes can be reviewed/merged without overwriting other work.
+- Added run_heldout.ps1 and HELDOUT_FORMAT.md. The harness reads the private HELDOUT.md only from inside the script, prints objective SHA-256 hashes instead of objective text, runs against the real filesystem (no generated fixtures), emits per-step output and evaluates declarative checks. It classifies failures as planner/tool/policy/persistence. The private file was not opened or read by this work, and the harness was syntax-parsed but intentionally not run against private objectives.
+
+### Real kill-test evidence
+Focused command:
+.venv\Scripts\python.exe -m pytest -q -s tests\test_crash_safe_missions.py --basetemp "$env:TEMP\jarvis-crash-focused-final-20261017"
+Output:
+~~~text
+KILL_AFTER_SIDE_EFFECT=PASS status=needs_review file_lines=1 attempts=1
+.KILL_DURING_LONG_SHELL=PASS status=needs_review launches=1 attempts=1
+.SHELL_OS_EXIT_CODE=PASS exit_code=7 normalized_code=None
+..
+4 passed in 2.39s
+~~~
+The side-effect test uses a real subprocess, the real FileTool append action and a durable SQLite record; it kills the mission process after the append but before result persistence, restarts, and verifies one line plus needs_review. The long-running test starts a real ShellTool subprocess, kills JARVIS while it is running, terminates the child process, restarts, and verifies no replay. The read-only crash test proves the same idempotency key is retried and the step completes.
+
+- PowerShell parser: RUN_HELDOUT_PARSE=PASS.
+- Python compile: PYTHON_COMPILE=PASS.
+- Ruff for milestone-owned Python files: All checks passed!
+- Do not claim held-out pass/fail yet; no private objective was executed. Failure classes the harness can emit are planner, tool, policy, and persistence.
+
+
+
+### Final validation before commit
+- Full working-tree suite after implementation: **1071 passed, 1 skipped in 43.27s**. This total includes the four new crash-safe tests plus seven tests from pre-existing uncommitted/untracked test changes; only the four crash-safe tests will be included in this milestone's commit.
+- Dedicated CLI smoke test against a real temporary directory: MISSION_STATE=COMPLETED, one real file listed, normalized_code=0, OS exit_code=null, CLI_EXIT=0.
+- The held-out script was parser-checked after its final change; it has not been run against C:\Users\ridha\jarvis_heldout\HELDOUT.md. No private objective text was read.
+- Remaining integration caveat: main.py is pre-modified by unowned working-tree changes, so the crash-safe CLI is currently exposed as mission_crash_safe.py rather than wired into main.py. The harness uses this dedicated crash-safe entry point to ensure it exercises the WAL behavior.
+
+- Crash-safe implementation commit: 693ad7b feat(missions): add crash-safe WAL execution.
+- Committed-only full suite after that commit, executed from a fresh git-archive snapshot: **1064 passed, 1 skipped in 42.95s**. The committed count is baseline 1060 plus four committed crash-safe tests; uncommitted/untracked tests are excluded from this after number.

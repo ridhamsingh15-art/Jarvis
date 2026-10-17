@@ -71,3 +71,11 @@ The remaining Ruff findings are an audit backlog, not permission for blind auto-
 - [ ] Add explicit step IDs and dependency edges so later steps can consume validated outputs from earlier steps instead of re-reading or recomputing the same data.
 - [ ] Implement recoverable replanning after a failed step, preserving prior verified outputs and requiring policy approval for gated actions.
 - [ ] Expose pending approvals and mission/step evidence in the existing GUI as well as the CLI; prove one cross-tool mission with real FileTool and ShellTool execution, policy decisions, persisted outputs, and process-restart recovery.
+
+
+## Crash-safe mission execution + held-out harness — 2026-10-17
+- [x] Add a durable write-ahead step record with deterministic idempotency key before tool invocation; persist verified output afterward, separating OS `exit_code` from tool `normalized_code` in the new crash-safe CLI path.
+- [x] On recovery, re-run only explicitly idempotent read-only actions; fail/needs-review side-effecting steps left `started` with a recorded unknown-outcome reason.
+- [x] Add real subprocess kill tests after a side effect but before result persistence, and during a long-running step; assert exactly-once-or-flagged semantics.
+- [x] Add `run_heldout.ps1` that reads `C:\Users\ridha\jarvis_heldout\HELDOUT.md` only inside the script, hashes objectives, runs the real crash-safe CLI against the real filesystem, evaluates adjacent declarative checks, and reports failure classes without special-casing objective text. Syntax-checked only; private objectives intentionally not run.
+- [x] Preserve unrelated working-tree changes and `jarvis_test_workspace/`; commit only milestone-owned files and report held-out as unverified until the user runs it with their private file. Blocker: wiring the crash-safe runner into `main.py` is deferred because `main.py` and related mission files have pre-existing uncommitted changes that were not edited.
