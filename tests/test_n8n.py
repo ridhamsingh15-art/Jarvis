@@ -1,3 +1,4 @@
+import threading
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -89,20 +90,18 @@ def test_n8n_workflow_runner(config, mission_manager, event_bus):
     
     telemetry = N8nTelemetry(event_bus)
     runner = N8nWorkflowRunner(client, mission_manager, telemetry)
-    
+    completed = threading.Event()
+    mission_manager.complete.side_effect = lambda _mission_id: completed.set()
+
     wf = N8nWorkflow(id="1", name="Test", description="Test")
-    
-    # Execute
+
+    # Exercise the actual background worker once and wait for its terminal state.
     mission_id = runner.execute_async(wf, {"test": "data"})
     assert mission_id == mission_manager.create.return_value.mission_id.value
-    
-    # Reset mocks since execute_async spawns a thread that might have already hit them
-    mission_manager.reset_mock()
-    
-    # Runner operates async. We mock the run_and_monitor synchronously to test logic.
-    runner._run_and_monitor(mission_id, wf, {"test": "data"})
-    
-    # Verify mission states
+    assert completed.wait(timeout=3), "background workflow did not complete in time"
+
+    # Verify mission states after the worker has reached completion.
     mission_manager.ready.assert_called_once_with(mission_id)
     mission_manager.resume.assert_called_once_with(mission_id)
     mission_manager.complete.assert_called_once_with(mission_id)
+    client.execute_workflow.assert_called_once_with("1", {"test": "data"})
