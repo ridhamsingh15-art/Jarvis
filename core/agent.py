@@ -18,6 +18,8 @@ import logging
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
+from copy import deepcopy
+from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -1401,15 +1403,34 @@ class Agent:
         is_timeout = False
         error_cat = None
         try:
-            future = self._executor_pool.submit(self._executor.execute, task)
-            result = future.result(timeout=timeout)
+            # Execute a detached snapshot so a tool that outlives its timeout cannot
+            # mutate the Task object already returned to the caller as FAILED.
+            execution_task = replace(
+                task,
+                args=deepcopy(task.args),
+                failure_history=list(task.failure_history),
+            )
+            future = self._executor_pool.submit(self._executor.execute, execution_task)
+            executed_task = future.result(timeout=timeout)
+            if isinstance(executed_task, Task):
+                task.status = executed_task.status
+                task.result = executed_task.result
+                task.error = executed_task.error
+                task.retry_count = executed_task.retry_count
+                task.failure_history = list(executed_task.failure_history)
+                task.args = executed_task.args
+                result = task
+            else:
+                result = executed_task
         except FuturesTimeoutError:
             is_timeout = True
             error_cat = "Timeout"
             logger.error("[TIMEOUT] Task %s.%s timed out after %.1fs", task.tool, task.action, timeout)
+            future.cancel()
             if task.status in (TaskStatus.PENDING, TaskStatus.RETRYING):
                 task.start()
-            task.fail(f"Tool execution timed out after {timeout} seconds")
+            if task.status == TaskStatus.RUNNING:
+                task.fail(f"Tool execution timed out after {timeout} seconds")
             result = task
         except Exception as exc:
             error_cat = type(exc).__name__

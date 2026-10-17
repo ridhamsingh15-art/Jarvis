@@ -224,3 +224,10 @@ Verification: the first full-suite gate after executor changes found **1 failure
 ## Executor lifecycle ? final regression gate
 
 Final full-suite run after dispatcher, worker-pool, and SQLite handle fixes: `python -m pytest -q --basetemp %TEMP%\pytest-jarvis-executor-final-<unique>` ? **1041 passed, 1 skipped in 32.60s**, exit 0. Targeted Ruff on executor lifecycle and mission repository files passed; `ruff check . --select E722,B019,S110` passed; `compileall -q core\executor core\mission` passed; `git diff --check` passed. Whole-repository Ruff remains **242 findings**, unchanged from the previous recorded baseline; no claim of a clean global lint run is made. The expected single platform-conditional skip remains. The temporary SQLite file-lock failure found at the first full-suite gate was fixed and the final full suite passes.
+
+
+## Agent timeout task 1 ? isolate late completions
+
+The new regression reproduced a timeout race: `_execute_task` submitted the same mutable `Task` object that it later marked FAILED on timeout. The still-running executor then attempted to complete that already-failed object. The execution path now submits a detached dataclass snapshot with a deep-copied argument dictionary and copied failure history. A result is copied back to the caller's task only if the future returns before the timeout; on timeout, `future.cancel()` is attempted and the returned task remains FAILED even if the underlying action finishes later. This prevents late completion from mutating the caller-visible status. It does **not** forcibly terminate an already-running Python thread or reverse external side effects; the executor API has no cooperative cancellation token for this path.
+
+Verification: the regression failed before the fix because the executor received the exact same task object; after the fix, `pytest -q tests/test_agent_timeout_isolation.py tests/test_phase7a_runtime_spine.py` ? **13 passed in 1.16s**. Targeted execution-path lint identified pre-existing findings in `core/agent.py`; only the newly introduced import-order issue was corrected. `git diff --check` is checked before commit.

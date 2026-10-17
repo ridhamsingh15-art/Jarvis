@@ -22,3 +22,8 @@ The remaining Ruff findings are an audit backlog, not permission for blind auto-
 - [x] **Cancel and join executor workers on shutdown:** have worker shutdown cooperatively cancel its active context, ensure pending assignments receive a terminal callback, add bounded worker joins without losing references to still-alive threads, and test cancellation plus timeout behavior.
 - [x] **Close every path-backed SQLite connection:** track per-thread SQLite handles and close them safely from `SqliteMissionRepository.close()`; verify the multi-thread repository regression and SQLite persistence tests.
 - [x] **Full regression gate and commit:** run executor/runtime focused tests, the complete pytest suite, targeted Ruff, compileall and diff check; update NOTES with actual output and commit only the scoped lifecycle changes.
+
+## Next execution pass ? Agent timeout isolation
+- [x] **Prevent late executor completion from mutating timed-out tasks:** execute a detached task snapshot, copy terminal results back only when the future finishes within its timeout, and cancel futures when possible after timeout.
+- [ ] **Track execution futures through Agent shutdown:** prevent submit/close races, cancel queued futures during close, and ensure completed futures are removed from tracking.
+- [ ] **Regression gate:** test late completion after timeout, Agent close with queued/running work, run focused Agent tests plus the full suite, Ruff, compileall and diff check; record any non-cooperative running-tool limitation.
