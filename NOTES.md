@@ -262,3 +262,11 @@ Final full suite after task snapshot isolation and future tracking: `python -m p
 - Added a regression demonstrating that `CapabilitySource.SKILL` could reach the final default ALLOW for a destructive action such as `file.delete_file`, even with the core destructive option enabled. The test failed before the fix (`ALLOW` instead of `DENY`).
 - High-risk actions now explicitly deny plugin, MCP, and skill sources; only CORE follows the explicit confirmation policy. This closes the skill-source fall-through without broadening permissions for other sources.
 - Verification: `pytest -q tests\test_execution_policy.py --basetemp <unique-temp>` -> **24 passed**; changed-file Ruff and `ruff check . --select E722,B019,S110` passed; `compileall -q core/execution_policy.py` and `git diff --check` passed. Full suite remains due after the third task in this execution pass.
+
+
+## Unknown capability source fail-closed - 2026-10-17
+
+- A regression reproduced another policy fall-through: `PolicyContext(source="unregistered-source")` with a destructive action returned `ALLOW`, because the source was neither CORE nor one of the explicitly denied sources.
+- `ExecutionPolicy.check` now rejects unrecognized source values before tool/action allow logic. Added a regression that failed before the fix and passes after it.
+- Verification: `pytest -q tests\test_execution_policy.py --basetemp <unique-temp>` -> **25 passed**; changed-file Ruff and `ruff check . --select E722,B019,S110` passed; compile and diff checks passed.
+- Mandatory full-suite gate after the three security tasks (empty allowlists, SKILL high-risk denial, and unknown-source validation): **1050 passed, 1 skipped in 33.79s**, exit 0. The expected platform-conditional skip remains.

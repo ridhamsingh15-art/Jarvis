@@ -44,3 +44,8 @@ The remaining Ruff findings are an audit backlog, not permission for blind auto-
 ## Next execution pass - skill-source risk enforcement
 - [x] **Deny high-risk actions from skill-originated requests:** ensure SKILL cannot fall through the high-risk policy branch and inherit an implicit allow; add regression coverage.
 - [x] **Verify and document:** run execution-policy tests, changed-file Ruff, critical lint, compile and diff checks; document and commit the scoped fix.
+
+
+## Next execution pass - unknown source fail-closed
+- [x] **Reject unrecognized capability source values:** deny invalid source labels before any tool/action allow logic; add a regression for a destructive request from an unknown source.
+- [x] **Verify and document:** run policy tests, full suite after this third task, changed-file Ruff, critical lint, compile and diff checks; record outcomes and commit scoped files.

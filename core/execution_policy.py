@@ -178,6 +178,13 @@ class ExecutionPolicy:
         """
         tool_action = f"{ctx.tool}.{ctx.action}"
 
+        # Unknown sources must be denied before any tool/action allow logic.
+        if ctx.source not in tuple(CapabilitySource):
+            return self._deny(
+                ctx,
+                f"Unknown capability source '{ctx.source}' - only registered sources are permitted",
+            )
+
         # 1. Unknown tool → DENY
         if ctx.tool not in _SAFE_TOOLS:
             return self._deny(ctx, f"Unknown tool '{ctx.tool}' — only registered tools are permitted")

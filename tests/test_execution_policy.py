@@ -153,6 +153,14 @@ class TestExecutionPolicyConfirmation:
         policy.enforce(_ctx("windows", "open_app"))  # must not raise
 
 
+class TestExecutionPolicyUnknownSource:
+    def test_unknown_source_cannot_use_high_risk_action(self):
+        policy = ExecutionPolicy(allow_destructive_from_core=True)
+        result = policy.check(_ctx("file", "delete_file", source="unregistered-source"))
+        assert result.verdict == PolicyVerdict.DENY
+        assert "Unknown capability source" in result.reason
+
+
 class TestExecutionPolicyDefaultSafety:
     def test_default_policy_safe_posture(self):
         """Out-of-the-box policy: unknown → DENY, destructive → DENY."""
