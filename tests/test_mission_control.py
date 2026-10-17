@@ -22,61 +22,47 @@ def mc(event_bus):
     return MissionControlManager(event_bus)
 
 @pytest.mark.asyncio
-async def test_mission_lifecycle(mc):
+async def test_unconfigured_executor_fails_closed_instead_of_simulating_success(mc):
     m = Mission(id="1", objective="test", steps=["step1", "step2"])
     mc.register_mission(m)
-    
+
     await mc.start_mission("1")
-    assert m.state == MissionState.RUNNING
-    assert "step1" in m.completed_steps
-    
+    assert m.state == MissionState.FAILED
+    assert m.completed_steps == []
+    assert "No real execution engine" in m.failure_reason
+
     await mc.tick("1")
-    assert m.state == MissionState.COMPLETED
-    assert "step2" in m.completed_steps
+    assert m.state == MissionState.FAILED
+    assert m.completed_steps == []
 
-@pytest.mark.asyncio
-async def test_approval_flow(mc):
-    m = Mission(id="2", objective="deploy", steps=["build", "deploy to prod"])
+def test_approval_state_transitions_without_fake_completion(mc):
+    m = Mission(id="2", objective="deploy", steps=["delete-step"], state=MissionState.WAITING_APPROVAL)
     mc.register_mission(m)
-    
-    await mc.start_mission("2")
-    # build completed
-    assert "build" in m.completed_steps
-    
-    await mc.tick("2")
-    # deploy triggers approval
-    assert m.state == MissionState.WAITING_APPROVAL
-    
-    assert m.pending_approvals == ["deploy to prod"]
-    assert "deploy to prod" not in m.approved_steps
 
-    # Requiring the same approval twice must not create duplicate pending entries.
-    mc.approvals.require_approval(m, "deploy to prod")
-    assert m.pending_approvals == ["deploy to prod"]
+    mc.approvals.require_approval(m, "delete-step")
+    assert m.pending_approvals == ["delete-step"]
+    assert m.completed_steps == []
 
-    await mc.approve_mission("2", "deploy to prod")
-    assert m.state == MissionState.COMPLETED
+    mc.approvals.approve(m, "delete-step")
+    assert m.state == MissionState.RUNNING
     assert m.pending_approvals == []
-    assert m.approved_steps == ["deploy to prod"]
+    assert m.approved_steps == ["delete-step"]
+    assert m.completed_steps == []
 
-@pytest.mark.asyncio
-async def test_crash_recovery(mc):
-    m = Mission(id="3", objective="test", steps=["a", "b", "c"])
+def test_checkpoint_recovery_restores_only_explicitly_verified_steps(mc):
+    m = Mission(id="3", objective="test", steps=["a", "b", "c"], state=MissionState.RUNNING, completed_steps=["a"])
     mc.register_mission(m)
-    
-    await mc.start_mission("3") # completes 'a'
-    
-    # Simulate crash: Create new MC
+    mc.checkpoints.checkpoint(m)
+
+    # Simulate restart with a new manager and the existing checkpoint storage.
     mc2 = MissionControlManager(mc.event_bus)
-    mc2.checkpoints.storage = mc.checkpoints.storage # Shared disk
-    
+    mc2.checkpoints.storage = mc.checkpoints.storage
     m_new = Mission(id="3", objective="test", steps=["a", "b", "c"])
     mc2.register_mission(m_new)
-    
     mc2.recover_mission("3")
-    
+
     assert m_new.state == MissionState.RUNNING
-    assert "a" in m_new.completed_steps
+    assert m_new.completed_steps == ["a"]
     assert "b" not in m_new.completed_steps
 
 @pytest.mark.asyncio
@@ -133,26 +119,30 @@ async def test_missing_dependency_stays_blocked_until_registered(mc):
 
     dependency = Mission(id="not-yet-registered", objective="dependency", steps=["prepare"])
     mc.register_mission(dependency)
-    await mc.start_mission(dependency.id)
+    assert mc.dependencies.is_blocked(mission, mc.missions)
+    dependency.state = MissionState.COMPLETED
 
     await mc.tick(mission.id)
-    assert mission.state == MissionState.COMPLETED
-    assert mission.completed_steps == ["run"]
+    assert mission.state == MissionState.FAILED
+    assert mission.completed_steps == []
+    assert "No real execution engine" in mission.failure_reason
 
 
 @pytest.mark.asyncio
 async def test_dependency_blocking(mc):
     m1 = Mission(id="m1", objective="dep", steps=["a"])
     m2 = Mission(id="m2", objective="main", steps=["b"], dependencies=["m1"])
-    
+
     mc.register_mission(m1)
     mc.register_mission(m2)
-    
+
     await mc.start_mission("m2")
     assert m2.state == MissionState.BLOCKED
-    
+
     await mc.start_mission("m1")
-    assert m1.state == MissionState.COMPLETED
-    
+    assert m1.state == MissionState.FAILED
+    assert m1.completed_steps == []
+
     await mc.tick("m2")
-    assert m2.state == MissionState.COMPLETED
+    assert m2.state == MissionState.BLOCKED
+    assert m2.completed_steps == []

@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from enum import StrEnum
+from typing import Any
 
 
 class MissionState(StrEnum):
@@ -11,7 +12,9 @@ class MissionState(StrEnum):
     BLOCKED = "BLOCKED"
     RECOVERING = "RECOVERING"
     COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
     ARCHIVED = "ARCHIVED"
+
 
 @dataclass
 class Mission:
@@ -23,3 +26,5 @@ class Mission:
     pending_approvals: list[str] = field(default_factory=list)
     dependencies: list[str] = field(default_factory=list)
     approved_steps: list[str] = field(default_factory=list)
+    step_results: list[dict[str, Any]] = field(default_factory=list)
+    failure_reason: str = ""

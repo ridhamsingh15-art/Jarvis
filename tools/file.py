@@ -6,6 +6,7 @@ shutil. Validates all paths before execution and blocks operations
 on Windows system directories and the Jarvis project directory.
 """
 
+import json
 import logging
 import os
 import shutil
@@ -223,6 +224,18 @@ class FileTool(BaseTool):
                 description="Reads and returns text content from a file.",
                 required_args=["path"]
             ),
+            "list_largest_files": ActionDefinition(
+                name="list_largest_files",
+                description="Lists the largest regular files in a directory with exact paths and byte sizes.",
+                required_args=["path"],
+                optional_args=["limit"],
+            ),
+            "summarize_files": ActionDefinition(
+                name="summarize_files",
+                description="Summarizes the largest text files in a directory using bounded local previews.",
+                required_args=["path"],
+                optional_args=["limit"],
+            ),
             "patch_file": ActionDefinition(
                 name="patch_file",
                 description="Surgically modifies a file by replacing old_text with new_text.",
@@ -274,6 +287,8 @@ class FileTool(BaseTool):
             "delete": self._delete,
             "open_file": self._open_file,
             "read_file": self._read_file,
+            "list_largest_files": self._list_largest_files,
+            "summarize_files": self._summarize_files,
         }
 
         handler = dispatch.get(action)
@@ -503,6 +518,74 @@ class FileTool(BaseTool):
         logger.info("Deleted: %s", path)
 
         return f"Deleted '{path.name}'"
+
+    @staticmethod
+    def _list_largest_files(args: dict) -> str:
+        """Return the largest non-sensitive regular files as JSON evidence."""
+        path = _resolve_path(args.get("path", ""))
+        _validate_path(path, must_exist=True, read_only=True)
+        if not path.is_dir():
+            raise ExecutionError(f"Not a directory: '{path}'")
+        try:
+            limit = int(args.get("limit", 10))
+        except (TypeError, ValueError) as exc:
+            raise ExecutionError("Argument 'limit' must be an integer") from exc
+        if not 1 <= limit <= 100:
+            raise ExecutionError("Argument 'limit' must be between 1 and 100")
+        files = []
+        for entry in path.iterdir():
+            try:
+                if not entry.is_file():
+                    continue
+                resolved = entry.resolve()
+                _validate_path(resolved, must_exist=True, read_only=True)
+                files.append({"path": str(resolved), "size_bytes": resolved.stat().st_size})
+            except (OSError, ExecutionError):
+                # Unreadable or sensitive entries are excluded, never treated as successful output.
+                continue
+        files.sort(key=lambda item: (-item["size_bytes"], item["path"].casefold()))
+        return json.dumps({"directory": str(path), "count": min(limit, len(files)), "files": files[:limit]}, ensure_ascii=False)
+
+    @staticmethod
+    def _summarize_files(args: dict) -> str:
+        """Produce bounded previews for the largest readable text files."""
+        path = _resolve_path(args.get("path", ""))
+        _validate_path(path, must_exist=True, read_only=True)
+        if not path.is_dir():
+            raise ExecutionError(f"Not a directory: '{path}'")
+        try:
+            limit = int(args.get("limit", 10))
+        except (TypeError, ValueError) as exc:
+            raise ExecutionError("Argument 'limit' must be an integer") from exc
+        if not 1 <= limit <= 100:
+            raise ExecutionError("Argument 'limit' must be between 1 and 100")
+        text_suffixes = {".txt", ".md", ".csv", ".json", ".log", ".py", ".html", ".css", ".js", ".xml", ".yaml", ".yml", ".ini", ".toml", ".rst"}
+        files = []
+        for entry in path.iterdir():
+            try:
+                if not entry.is_file():
+                    continue
+                resolved = entry.resolve()
+                _validate_path(resolved, must_exist=True, read_only=True)
+                files.append({"path": str(resolved), "size_bytes": resolved.stat().st_size})
+            except (OSError, ExecutionError):
+                continue
+        files.sort(key=lambda item: (-item["size_bytes"], item["path"].casefold()))
+        summaries = []
+        for item in files[:limit]:
+            file_path = Path(item["path"])
+            preview = ""
+            summary_status = "metadata_only"
+            if file_path.suffix.lower() in text_suffixes:
+                try:
+                    _validate_path(file_path, must_exist=True, read_only=True)
+                    with file_path.open("r", encoding="utf-8", errors="replace") as stream:
+                        preview = stream.read(2048)
+                    summary_status = "text_preview"
+                except (OSError, ExecutionError) as exc:
+                    summary_status = f"read_error: {type(exc).__name__}: {exc}"
+            summaries.append({**item, "summary_status": summary_status, "preview": preview})
+        return json.dumps({"directory": str(path), "summarized": len(summaries), "files": summaries}, ensure_ascii=False)
 
     @staticmethod
     def _read_file(args: dict) -> str:

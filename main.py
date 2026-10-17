@@ -696,6 +696,11 @@ def parse_args() -> argparse.Namespace:
         default=False,
         help="Display installed and configured AI models and their health status.",
     )
+    parser.add_argument("--mission", help="Run an execution-backed Mission Control objective.")
+    parser.add_argument("--mission-db", default=str(Path.home() / ".jarvis" / "missions.sqlite3"), help="SQLite mission persistence path.")
+    parser.add_argument("--mission-id", help="Mission ID for recovery or deterministic demos.")
+    parser.add_argument("--resume", action="store_true", help="Resume a persisted mission ID.")
+    parser.add_argument("--pause-after-step", type=int, default=0, help=argparse.SUPPRESS)
     return parser.parse_args()
 
 
@@ -727,6 +732,19 @@ def main() -> None:
     """Entry point — launches GUI by default, REPL with --cli, or models status with --models."""
     setup_logging()
     args = parse_args()
+
+    if args.mission or args.resume:
+        from mission_control.cli import run_objective
+        if args.resume and not args.mission_id:
+            print("ERROR: --resume requires --mission-id", file=sys.stderr)
+            sys.exit(2)
+        sys.exit(run_objective(
+            objective=args.mission or "",
+            db_path=args.mission_db,
+            mission_id=args.mission_id,
+            resume=args.resume,
+            pause_after_step=args.pause_after_step,
+        ))
 
     if args.models:
         from core.model_manager import display_model_status
