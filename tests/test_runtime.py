@@ -2,6 +2,7 @@ import time
 
 import pytest
 
+from core.autonomy import AutonomousGoalManager, GoalState
 from core.bootstrap import Bootstrap
 from core.runtime import (
     BaseComponent,
@@ -114,3 +115,25 @@ def test_heartbeat_service(runtime):
     # The first event might have been fired while STARTING, so we check the last one
     assert events[-1].payload["state"] == RuntimeState.RUNNING
     assert events[-1].payload["active_components"] == 1
+
+
+def test_runtime_caller_can_start_persistent_goal(runtime):
+    kernel = RuntimeKernel(runtime)
+    kernel.start()
+    try:
+        manager = runtime.container.resolve(AutonomousGoalManager)
+        goal = manager.create_goal("Run from the application caller thread")
+
+        # The manager's asyncio loop belongs to RuntimeKernel's worker thread;
+        # this synchronous test thread must still be able to submit goal work.
+        manager.start_goal(goal.id)
+        deadline = time.monotonic() + 3.0
+        while time.monotonic() < deadline:
+            state = manager.status(goal.id)
+            if state in (GoalState.COMPLETED, GoalState.FAILED):
+                break
+            time.sleep(0.01)
+
+        assert manager.status(goal.id) is GoalState.COMPLETED
+    finally:
+        kernel.stop()

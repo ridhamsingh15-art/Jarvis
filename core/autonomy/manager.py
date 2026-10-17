@@ -1,6 +1,7 @@
 import asyncio
 import builtins
 import threading
+from concurrent.futures import Future as ConcurrentFuture
 
 from core.events.bus import EventBus
 from core.models.domain import Event
@@ -37,8 +38,11 @@ class AutonomousGoalManager(RuntimeComponent):
         self._logger = logger
 
         self._lock = threading.RLock()
-        self._running_tasks: dict[str, asyncio.Task[None]] = {}
+        self._running_tasks: dict[
+            str, asyncio.Task[None] | ConcurrentFuture[None]
+        ] = {}
         self._active_contexts: dict[str, GoalContext] = {}
+        self._loop: asyncio.AbstractEventLoop | None = None
 
         self._state = ComponentState.INITIALIZED
         self._metadata = ComponentMetadata(
@@ -61,6 +65,7 @@ class AutonomousGoalManager(RuntimeComponent):
             return
 
         self._state = ComponentState.STARTING
+        self._loop = asyncio.get_running_loop()
         self._logger.info("Starting Autonomous Goal Manager...")
         
         # Reconcile interrupted durable goals before accepting new work. Never replay
@@ -83,14 +88,40 @@ class AutonomousGoalManager(RuntimeComponent):
 
         self._state = ComponentState.STOPPING
         self._logger.info("Stopping Autonomous Goal Manager...")
-        
-        # Cancel running background tasks cleanly
-        for task in self._running_tasks.values():
-            if not task.done():
-                task.cancel()
-                
-        self._running_tasks.clear()
-        
+
+        # Checkpoint active work before cancellation. A later start must not leave
+        # same-process goals stranded in RUNNING after their tasks were discarded.
+        with self._lock:
+            for goal_id, context in self._active_contexts.items():
+                if context.goal.state != GoalState.RUNNING:
+                    continue
+                context.set_state(GoalState.PAUSED)
+                try:
+                    self._persistence.save_goal(context.goal)
+                except Exception as exc:  # noqa: BLE001 - keep shutdown progressing
+                    self._logger.error(
+                        "Could not checkpoint goal %s during shutdown: %s",
+                        goal_id,
+                        exc,
+                    )
+
+            tasks = list(self._running_tasks.values())
+            for task in tasks:
+                if not task.done():
+                    self._cancel_task(task)
+
+        # Wrap thread-safe futures so shutdown awaits workers scheduled by callers
+        # outside the runtime's event-loop thread as well as native asyncio tasks.
+        awaitables = [
+            asyncio.wrap_future(task) if isinstance(task, ConcurrentFuture) else task
+            for task in tasks
+        ]
+        if awaitables:
+            await asyncio.gather(*awaitables, return_exceptions=True)
+
+        with self._lock:
+            self._running_tasks.clear()
+
         self._state = ComponentState.STOPPED
         self._logger.info("Autonomous Goal Manager stopped.")
 
@@ -123,6 +154,8 @@ class AutonomousGoalManager(RuntimeComponent):
 
     def start_goal(self, goal_id: Identifier) -> None:
         with self._lock:
+            if self._state != ComponentState.RUNNING:
+                raise GoalExecutionError("Goal manager must be running before starting a goal.")
             goal = self._persistence.get_goal(goal_id)
             if not goal:
                 raise GoalExecutionError(f"Goal {goal_id.value} not found.")
@@ -137,8 +170,7 @@ class AutonomousGoalManager(RuntimeComponent):
             
             self._publish_event("goal.started", {"goal_id": goal_id.value})
             
-            task = asyncio.create_task(self._execution_loop(goal_id))
-            self._running_tasks[goal_id.value] = task
+            self._running_tasks[goal_id.value] = self._schedule_execution(goal_id)
 
     def pause_goal(self, goal_id: Identifier) -> None:
         with self._lock:
@@ -152,10 +184,12 @@ class AutonomousGoalManager(RuntimeComponent):
             # Cancel the background runner
             task = self._running_tasks.get(goal_id.value)
             if task and not task.done():
-                task.cancel()
+                self._cancel_task(task)
 
     def resume_goal(self, goal_id: Identifier) -> None:
         with self._lock:
+            if self._state != ComponentState.RUNNING:
+                raise GoalExecutionError("Goal manager must be running before resuming a goal.")
             goal = self._persistence.get_goal(goal_id)
             if not goal or goal.state != GoalState.PAUSED:
                 raise GoalExecutionError("Goal is not paused.")
@@ -167,8 +201,7 @@ class AutonomousGoalManager(RuntimeComponent):
             
             self._publish_event("goal.started", {"goal_id": goal_id.value})
             
-            task = asyncio.create_task(self._execution_loop(goal_id))
-            self._running_tasks[goal_id.value] = task
+            self._running_tasks[goal_id.value] = self._schedule_execution(goal_id)
 
     def cancel_goal(self, goal_id: Identifier) -> None:
         with self._lock:
@@ -187,7 +220,7 @@ class AutonomousGoalManager(RuntimeComponent):
             
             task = self._running_tasks.get(goal_id.value)
             if task and not task.done():
-                task.cancel()
+                self._cancel_task(task)
 
     def status(self, goal_id: Identifier) -> GoalState | None:
         goal = self._persistence.get_goal(goal_id)
@@ -195,6 +228,41 @@ class AutonomousGoalManager(RuntimeComponent):
 
     def list_goals(self) -> builtins.list[Goal]:
         return self._persistence.list_goals()
+
+    def _schedule_execution(
+        self, goal_id: Identifier
+    ) -> asyncio.Task[None] | ConcurrentFuture[None]:
+        """Schedule goal work on the manager's runtime loop from any caller thread."""
+        loop = self._loop
+        if loop is None or loop.is_closed() or not loop.is_running():
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError as exc:
+                raise GoalExecutionError(
+                    "Goal manager must be started before a goal can be scheduled."
+                ) from exc
+            self._loop = loop
+
+        try:
+            caller_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            caller_loop = None
+
+        if caller_loop is loop:
+            return loop.create_task(self._execution_loop(goal_id))
+        return asyncio.run_coroutine_threadsafe(self._execution_loop(goal_id), loop)
+
+    def _cancel_task(
+        self, task: asyncio.Task[None] | ConcurrentFuture[None]
+    ) -> None:
+        if isinstance(task, ConcurrentFuture):
+            task.cancel()
+            return
+        loop = task.get_loop()
+        if loop.is_running():
+            loop.call_soon_threadsafe(task.cancel)
+        else:
+            task.cancel()
 
     async def _execution_loop(self, goal_id: Identifier) -> None:
         try:

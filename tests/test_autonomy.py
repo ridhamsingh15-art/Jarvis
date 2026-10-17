@@ -9,6 +9,7 @@ from core.autonomy import (
     DefaultGoalEvaluator,
     DefaultGoalPlanner,
     ExponentialBackoffPolicy,
+    GoalExecutionError,
     GoalPlan,
     GoalState,
     GoalStep,
@@ -135,4 +136,52 @@ async def test_goal_pause_resume(manager):
     
     assert manager.status(goal.id) == GoalState.COMPLETED
     
+    await manager.stop()
+
+
+@pytest.mark.asyncio
+async def test_duplicate_start_is_rejected(manager):
+    await manager.start()
+    goal = manager.create_goal("Only run once")
+
+    manager.start_goal(goal.id)
+    with pytest.raises(GoalExecutionError, match="Cannot start goal in state RUNNING"):
+        manager.start_goal(goal.id)
+
+    await asyncio.sleep(0.1)
+    assert manager.status(goal.id) is GoalState.COMPLETED
+    await manager.stop()
+
+
+@pytest.mark.asyncio
+async def test_planner_failure_marks_goal_failed(manager):
+    events = []
+    manager._event_bus.subscribe("goal.failed", lambda event: events.append(event.topic))
+    manager._planner.create_plan = MagicMock(side_effect=RuntimeError("planner failed"))
+
+    await manager.start()
+    goal = manager.create_goal("Fail during planning")
+    manager.start_goal(goal.id)
+    await asyncio.sleep(0.02)
+
+    assert manager.status(goal.id) is GoalState.FAILED
+    assert events == ["goal.failed"]
+    await manager.stop()
+
+
+@pytest.mark.asyncio
+async def test_stop_checkpoints_running_goal_and_same_manager_can_resume(manager):
+    await manager.start()
+    goal = manager.create_goal("Pause safely on shutdown")
+    manager.start_goal(goal.id)
+    await asyncio.sleep(0)
+
+    await manager.stop()
+    assert manager.status(goal.id) is GoalState.PAUSED
+    assert manager._running_tasks == {}
+
+    await manager.start()
+    manager.resume_goal(goal.id)
+    await asyncio.sleep(0.1)
+    assert manager.status(goal.id) is GoalState.COMPLETED
     await manager.stop()
