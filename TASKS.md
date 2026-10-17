@@ -49,3 +49,10 @@ The remaining Ruff findings are an audit backlog, not permission for blind auto-
 ## Next execution pass - unknown source fail-closed
 - [x] **Reject unrecognized capability source values:** deny invalid source labels before any tool/action allow logic; add a regression for a destructive request from an unknown source.
 - [x] **Verify and document:** run policy tests, full suite after this third task, changed-file Ruff, critical lint, compile and diff checks; record outcomes and commit scoped files.
+
+
+## Next execution pass - shell policy confirmation boundary
+- [x] **Prevent untrusted shell sources from reusing core confirmation:** when plugin/MCP requests reach a high-risk shell command, deny them even if `user_confirmed=True`; add regressions for both sources.
+- [x] **Verify and document:** run execution-policy and shell tests, then the full suite after the third task; run changed-file Ruff, critical lint, compile and diff checks, and commit only scoped files.
+- [x] **Normalize every supported shell argument alias before policy evaluation:** include `cmd`/`args` and equivalent aliases, so the policy evaluates the same effective command as `ShellTool`; add a regression using action `run`.
+- [x] **Recognize package-manager install variants as high-risk shell commands:** cover `pip3`, `python -m pip`, `npm ci`, `pnpm add`, `yarn add`, and `uv add` while preserving existing destructive-command decisions.

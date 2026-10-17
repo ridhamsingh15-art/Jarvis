@@ -23,6 +23,7 @@ Security boundaries must be structural, not prompt-based.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
@@ -207,8 +208,23 @@ class ExecutionPolicy:
         # 3. Shell-specific execution policy
         if ctx.tool == "shell":
             cmd = ""
-            if hasattr(ctx, "args") and isinstance(ctx.args, dict):
-                cmd = str(ctx.args.get("command", "") or ctx.args.get("executable", ""))
+            if isinstance(ctx.args, dict):
+                def _command_part(value: Any) -> str:
+                    if isinstance(value, (list, tuple)):
+                        return " ".join(str(part) for part in value)
+                    return str(value or "").strip()
+
+                command_value = next(
+                    (ctx.args[key] for key in ("command", "cmd", "executable") if ctx.args.get(key)),
+                    "",
+                )
+                cmd = _command_part(command_value)
+                extra_value = next(
+                    (ctx.args[key] for key in ("args", "arguments", "params", "parameters") if ctx.args.get(key)),
+                    "",
+                )
+                if extra_value:
+                    cmd = f"{cmd} {_command_part(extra_value)}".strip()
 
             from tools.shell import ShellTool
             blocked_reason = ShellTool.check_high_risk(cmd)
@@ -216,11 +232,25 @@ class ExecutionPolicy:
                 return self._deny(ctx, f"Execution policy denied high-risk shell command: {blocked_reason}")
 
             # Check for high-risk system commands
-            is_high_risk_cmd = any(
+            package_install = re.search(
+                r"\b(?:pip(?:\d+(?:\.\d+)?)?\s+install|"
+                r"(?:python(?:\d+(?:\.\d+)?)?|py)\s+-m\s+pip\s+install|"
+                r"npm\s+(?:install|i|ci)|pnpm\s+(?:add|install)|"
+                r"yarn\s+(?:add|install)|uv\s+(?:add|pip\s+install))\b",
+                cmd,
+                re.IGNORECASE,
+            )
+            is_high_risk_cmd = bool(package_install) or any(
                 k in cmd.lower()
-                for k in ("pip install", "npm install", "taskkill", "kill -9", "net stop", "sc stop", "icacls")
+                for k in ("taskkill", "kill -9", "net stop", "sc stop", "icacls")
             )
             if is_high_risk_cmd:
+                # A confirmation flag from an untrusted source is not user authorization.
+                if ctx.source != CapabilitySource.CORE:
+                    return self._deny(
+                        ctx,
+                        f"High-risk shell command is not permitted from source '{ctx.source}'",
+                    )
                 if ctx.user_confirmed:
                     return self._allow(ctx, f"High-risk shell command approved by user: {cmd[:60]}")
                 if self._allow_destructive_from_core:

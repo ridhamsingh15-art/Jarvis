@@ -94,6 +94,62 @@ class TestExecutionPolicyPluginSource:
         assert result.verdict == PolicyVerdict.DENY
 
 
+class TestExecutionPolicyPackageInstallVariants:
+    @pytest.mark.parametrize(
+        "command",
+        [
+            "pip3 install example-package",
+            "python -m pip install example-package",
+            "npm ci",
+            "pnpm add example-package",
+            "yarn add example-package",
+            "uv add example-package",
+        ],
+    )
+    def test_package_install_variants_are_high_risk(self, command):
+        result = ExecutionPolicy().check(
+            _ctx("shell", "run", args={"command": command})
+        )
+        assert result.verdict == PolicyVerdict.DENY
+        assert "high-risk shell command" in result.reason.lower()
+
+
+class TestExecutionPolicyShellArgumentNormalization:
+    def test_cmd_and_args_alias_cannot_hide_high_risk_install(self):
+        policy = ExecutionPolicy()
+        result = policy.check(
+            _ctx(
+                "shell",
+                "run",
+                args={"cmd": "pip", "args": ["install", "example-package"]},
+            )
+        )
+        assert result.verdict == PolicyVerdict.DENY
+        assert "high-risk shell command" in result.reason.lower()
+
+
+class TestExecutionPolicyShellConfirmationBoundary:
+    @pytest.mark.parametrize("source", [CapabilitySource.PLUGIN, CapabilitySource.MCP])
+    def test_untrusted_high_risk_shell_command_denied_even_when_confirmed(self, source):
+        policy = ExecutionPolicy(
+            allow_destructive_from_core=True,
+            restricted_plugin_tools=frozenset({"shell"}),
+            restricted_mcp_tools=frozenset({"shell"}),
+        )
+        result = policy.check(
+            _ctx(
+                "shell",
+                "shell_run",
+                source=source,
+                source_id="external-source",
+                user_confirmed=True,
+                args={"command": "pip install example-package"},
+            )
+        )
+        assert result.verdict == PolicyVerdict.DENY
+        assert "not permitted" in result.reason.lower() or "denied" in result.reason.lower()
+
+
 class TestExecutionPolicyEmptyAllowlists:
     def test_explicitly_empty_plugin_allowlist_denies_every_tool(self):
         policy = ExecutionPolicy(restricted_plugin_tools=frozenset())
