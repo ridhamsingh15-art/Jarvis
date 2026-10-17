@@ -15,8 +15,9 @@ directly. All dependencies are injected via the constructor.
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
 from copy import deepcopy
 from dataclasses import replace
@@ -136,6 +137,9 @@ class Agent:
         self._max_tool_iterations = max_tool_iterations
         self._mission_verifier = mission_verifier or MissionCompletionVerifier()
         self._executor_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix="jarvis-exec")
+        self._execution_futures: set[Future[Any]] = set()
+        self._execution_futures_lock = threading.Lock()
+        self._executor_closed = False
         
         # Fast Intent Router — Stage 1 deterministic, Stage 2 optional LLM for ambiguous inputs
         self._intent_classifier = IntentClassifier(llm_client=llm_client)
@@ -229,9 +233,36 @@ class Agent:
         return self._execution_policy
 
     def close(self) -> None:
-        """Release background execution resources."""
-        if hasattr(self, "_executor_pool"):
-            self._executor_pool.shutdown(wait=False)
+        """Cancel queued executions and release background executor resources.
+
+        Running Python threads cannot be forcibly stopped; detached task snapshots
+        prevent them from changing caller-visible timeout results.
+        """
+        with self._execution_futures_lock:
+            if self._executor_closed:
+                return
+            self._executor_closed = True
+            futures = tuple(self._execution_futures)
+        for future in futures:
+            future.cancel()
+        self._executor_pool.shutdown(wait=False, cancel_futures=True)
+
+    def _discard_execution_future(self, future: Future[Any]) -> None:
+        with self._execution_futures_lock:
+            self._execution_futures.discard(future)
+
+    def _submit_execution_task(self, task: Task) -> Future[Any]:
+        """Submit an isolated task snapshot without racing Agent.close()."""
+        execution_task = replace(
+            task, args=deepcopy(task.args), failure_history=list(task.failure_history)
+        )
+        with self._execution_futures_lock:
+            if self._executor_closed:
+                raise RuntimeError("Agent executor is closed")
+            future = self._executor_pool.submit(self._executor.execute, execution_task)
+            self._execution_futures.add(future)
+        future.add_done_callback(self._discard_execution_future)
+        return future
 
     def run(
         self,
@@ -1405,12 +1436,7 @@ class Agent:
         try:
             # Execute a detached snapshot so a tool that outlives its timeout cannot
             # mutate the Task object already returned to the caller as FAILED.
-            execution_task = replace(
-                task,
-                args=deepcopy(task.args),
-                failure_history=list(task.failure_history),
-            )
-            future = self._executor_pool.submit(self._executor.execute, execution_task)
+            future = self._submit_execution_task(task)
             executed_task = future.result(timeout=timeout)
             if isinstance(executed_task, Task):
                 task.status = executed_task.status

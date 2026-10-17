@@ -66,3 +66,37 @@ def test_late_executor_completion_cannot_mutate_timed_out_task() -> None:
     finally:
         executor.release.set()
         agent.close()
+
+
+
+def test_agent_close_cancels_queued_execution_future() -> None:
+    release = threading.Event()
+    executor_called = threading.Event()
+
+    class _NeverReachedExecutor:
+        def execute(self, task: Task) -> Task:
+            executor_called.set()
+            task.start()
+            task.complete("unexpected")
+            return task
+
+    agent = Agent(
+        planner=MagicMock(),
+        validator=MagicMock(),
+        executor=_NeverReachedExecutor(),
+        cognitive_manager=MagicMock(),
+    )
+    blockers = [agent._executor_pool.submit(release.wait, 2) for _ in range(4)]
+    queued = agent._submit_execution_task(Task(tool="windows", action="open_app"))
+    assert not queued.running()
+
+    agent.close()
+    try:
+        assert queued.cancelled()
+        assert not executor_called.is_set()
+        with agent._execution_futures_lock:
+            assert not agent._execution_futures
+    finally:
+        release.set()
+        for blocker in blockers:
+            blocker.result(timeout=1)
