@@ -25,7 +25,8 @@ from PySide6.QtWidgets import (
 
 # (key, emoji, label)
 _NAV_ITEMS: list[tuple[str, str, str]] = [
-    ("chat",     "💬", "Chat"),
+    ("dashboard", "◈",  "Overview"),
+    ("chat",      "💬", "Chat"),
     ("memory",   "🧠", "Memory"),
     ("history",  "📜", "History"),
     ("logs",     "📊", "Logs"),
@@ -48,7 +49,7 @@ class Sidebar(QFrame):
         self.setObjectName("sidebarFrame")
         self.setFixedWidth(220)
         self._buttons: dict[str, QPushButton] = {}
-        self._active_key: str = "chat"
+        self._active_key: str = "dashboard"
         self._build_ui()
 
     def _build_ui(self) -> None:
