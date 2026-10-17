@@ -57,6 +57,8 @@ class SqliteMissionRepository(MissionRepository):
         
         self._lock = threading.Lock()
         self._local = threading.local()
+        self._connections_lock = threading.Lock()
+        self._connections: dict[int, object] = {}
         self._factory = None
         self._db_path = None
         self._conn = None
@@ -89,35 +91,66 @@ class SqliteMissionRepository(MissionRepository):
 
     def _get_conn(self):
         import sqlite3
-        if hasattr(self._local, "conn") and self._local.conn is not None:
-            return self._local.conn
+
+        thread_id = threading.get_ident()
+        local_conn = getattr(self._local, "conn", None)
+        if local_conn is not None:
+            with self._connections_lock:
+                if self._connections.get(thread_id) is local_conn:
+                    return local_conn
+            # close() may have closed a connection owned by an exited worker;
+            # don't hand that stale thread-local handle back out.
+            del self._local.conn
 
         if self._db_path:
             conn = sqlite3.connect(self._db_path, check_same_thread=False)
             conn.row_factory = sqlite3.Row
             self._local.conn = conn
+            with self._connections_lock:
+                self._connections[thread_id] = conn
             return conn
-        elif self._factory:
+        if self._factory:
             conn = self._factory()
             self._local.conn = conn
+            with self._connections_lock:
+                self._connections[thread_id] = conn
             return conn
-        else:
-            return self._conn
+        return self._conn
 
     def close(self) -> None:
-        """Close the SQLite connection owned by the calling thread.
+        """Close owned SQLite handles, including path-backed worker connections.
 
-        Path-backed repositories create a connection per thread. Call this from
-        each long-lived worker's shutdown path; connections belonging to exited
-        threads are released with those threads.
+        Path-backed connections are created with ``check_same_thread=False``, so
+        the repository can close every registered handle even after its worker
+        thread has exited. For caller-supplied factories, close only this thread's
+        handle to respect factories that return thread-affine connections.
         """
-        conn = getattr(self._local, "conn", None)
-        if conn is not None:
-            conn.close()
-            del self._local.conn
-        elif self._conn is not None:
-            self._conn.close()
-            self._conn = None
+        thread_id = threading.get_ident()
+        with self._lock:
+            with self._connections_lock:
+                if self._db_path:
+                    connections = list(self._connections.values())
+                    self._connections.clear()
+                else:
+                    current = self._connections.pop(thread_id, None)
+                    connections = [current] if current is not None else []
+
+            local_conn = getattr(self._local, "conn", None)
+            if local_conn is not None:
+                del self._local.conn
+            if self._conn is not None:
+                connections.append(self._conn)
+                self._conn = None
+
+            seen: set[int] = set()
+            for conn in connections:
+                if conn is None or id(conn) in seen:
+                    continue
+                seen.add(id(conn))
+                try:
+                    conn.close()
+                except Exception as exc:  # noqa: BLE001
+                    logger.debug("Could not close SQLite connection (%s)", type(exc).__name__)
 
     def _ensure_table(self) -> None:
         with self._lock:
