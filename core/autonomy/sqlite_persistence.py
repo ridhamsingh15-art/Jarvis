@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 import sqlite3
 import threading
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -37,9 +38,19 @@ class SQLiteGoalPersistence(IGoalPersistence):
         db.execute("PRAGMA busy_timeout = 10000")
         return db
 
+    @contextmanager
+    def _connection(self):
+        """Commit or roll back a unit of work and always close its connection."""
+        db = self._connect()
+        try:
+            with db:
+                yield db
+        finally:
+            db.close()
+
     def _initialize(self) -> None:
         try:
-            with self._connect() as db:
+            with self._connection() as db:
                 db.execute("PRAGMA journal_mode = WAL")
                 db.executescript("""
                     CREATE TABLE IF NOT EXISTS autonomy_metadata (
@@ -97,7 +108,7 @@ class SQLiteGoalPersistence(IGoalPersistence):
         payload = json.dumps(goal.to_dict(), ensure_ascii=False, sort_keys=True)
         with self._lock:
             try:
-                with self._connect() as db:
+                with self._connection() as db:
                     db.execute("""INSERT INTO autonomy_goals(id, state, payload_json, updated_at)
                         VALUES(?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET
                         state=excluded.state, payload_json=excluded.payload_json,
@@ -110,7 +121,7 @@ class SQLiteGoalPersistence(IGoalPersistence):
             raise PersistenceError("get_goal expects an Identifier.")
         with self._lock:
             try:
-                with self._connect() as db:
+                with self._connection() as db:
                     row = db.execute("SELECT payload_json FROM autonomy_goals WHERE id=?", (goal_id.value,)).fetchone()
             except sqlite3.Error as exc:
                 raise PersistenceError(f"Could not load goal {goal_id.value}: {exc}") from exc
@@ -127,7 +138,7 @@ class SQLiteGoalPersistence(IGoalPersistence):
         payload = json.dumps(plan.to_dict(), ensure_ascii=False, sort_keys=True)
         with self._lock:
             try:
-                with self._connect() as db:
+                with self._connection() as db:
                     if db.execute("SELECT 1 FROM autonomy_goals WHERE id=?", (plan.goal_id.value,)).fetchone() is None:
                         raise PersistenceError(f"Cannot save a plan for unknown goal {plan.goal_id.value}.")
                     db.execute("""INSERT INTO autonomy_plans(goal_id, payload_json, updated_at)
@@ -141,7 +152,7 @@ class SQLiteGoalPersistence(IGoalPersistence):
             raise PersistenceError("get_plan expects an Identifier.")
         with self._lock:
             try:
-                with self._connect() as db:
+                with self._connection() as db:
                     row = db.execute("SELECT payload_json FROM autonomy_plans WHERE goal_id=?", (goal_id.value,)).fetchone()
             except sqlite3.Error as exc:
                 raise PersistenceError(f"Could not load plan for {goal_id.value}: {exc}") from exc
@@ -155,7 +166,7 @@ class SQLiteGoalPersistence(IGoalPersistence):
     def list_goals(self) -> list[Goal]:
         with self._lock:
             try:
-                with self._connect() as db:
+                with self._connection() as db:
                     rows = db.execute("SELECT payload_json FROM autonomy_goals ORDER BY updated_at, id").fetchall()
             except sqlite3.Error as exc:
                 raise PersistenceError(f"Could not list goals: {exc}") from exc

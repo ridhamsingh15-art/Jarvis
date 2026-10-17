@@ -23,6 +23,14 @@ class RuntimeKernel:
         self._event_bus = runtime.event_bus
         
         self._registry = ComponentRegistry()
+        # Import lazily to avoid the autonomy -> runtime interfaces import cycle.
+        from core.autonomy import AutonomousGoalManager
+
+        # Bootstrap owns construction and dependency wiring; the runtime kernel
+        # owns component lifecycle. Register autonomy when the service is present.
+        autonomy = runtime.container.try_resolve(AutonomousGoalManager)
+        if autonomy is not None:
+            self._registry.register(autonomy)
         self._health_monitor = HealthMonitor(self._registry)
         
         # Configure heartbeat interval based on config (or default to 5s)

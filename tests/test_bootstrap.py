@@ -1,5 +1,13 @@
+import pytest
+
+from core.autonomy import AutonomousGoalManager
 from core.bootstrap import Bootstrap, Runtime, StartupResult
 from core.models import Event
+
+
+@pytest.fixture(autouse=True)
+def isolated_autonomy_database(monkeypatch, tmp_path):
+    monkeypatch.setenv("JARVIS_AUTONOMY_DB", str(tmp_path / "autonomy.sqlite3"))
 
 
 def test_successful_startup():
@@ -13,6 +21,8 @@ def test_successful_startup():
     
     runtime = result.runtime
     assert runtime.container._is_sealed is True
+    manager = runtime.container.resolve(AutonomousGoalManager)
+    assert isinstance(manager, AutonomousGoalManager)
     
     # We can subscribe to something to verify EventBus
     events = []

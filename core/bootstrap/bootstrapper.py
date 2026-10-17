@@ -24,6 +24,17 @@ class Bootstrap:
     
     @classmethod
     def start(cls) -> StartupResult:
+        # Delay autonomy imports until bootstrap is fully initialized; autonomy
+        # implements RuntimeComponent and therefore depends on runtime interfaces.
+        from config.config import load_config as load_application_config
+        from core.autonomy import (
+            AutonomousGoalManager,
+            DAGGoalScheduler,
+            DefaultGoalEvaluator,
+            DefaultGoalPlanner,
+        )
+        from core.autonomy.factory import create_autonomous_goal_manager
+
         logger = None
         container = None
         
@@ -53,22 +64,36 @@ class Bootstrap:
             container.register_instance(ConfigSnapshot, config)
             container.register_instance(AsyncLogger, logger)
             container.register_singleton(EventBus, EventBus)
+
+            # 6. Wire the durable autonomy service into the application container.
+            # Its agent settings are intentionally loaded from config.config; the
+            # Foundation ConfigSnapshot remains responsible for AIOS core settings.
+            event_bus = container.resolve(EventBus)
+            autonomy_config = load_application_config()
+            goal_manager = create_autonomous_goal_manager(
+                planner=DefaultGoalPlanner(),
+                scheduler=DAGGoalScheduler(),
+                evaluator=DefaultGoalEvaluator(),
+                event_bus=event_bus,
+                logger=logger,
+                config=autonomy_config,
+            )
+            container.register_instance(AutonomousGoalManager, goal_manager)
             
-            # 6. Validate container
+            # 7. Validate container
             container.validate()
             logger.info("DI Container validated successfully.")
             
-            # 7. Seal container
+            # 8. Seal container
             container.seal()
             
-            # 8. Initialize Event Bus
-            event_bus = container.resolve(EventBus)
+            # 9. Event Bus is already resolved and shared with autonomy.
             
-            # 9. Create LifecycleManager and Runtime
+            # 10. Create LifecycleManager and Runtime
             lifecycle = LifecycleManager(container, event_bus, logger)
             runtime = Runtime(container, event_bus, logger, lifecycle)
             
-            # 10. Publish SystemStarted
+            # 11. Publish SystemStarted
             event_bus.publish(Event(topic="system.started"))
             logger.info("JARVIS AIOS Runtime initialized successfully.")
             

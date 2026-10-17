@@ -36,7 +36,8 @@ class MockComponent(BaseComponent):
         return await super().health()
 
 @pytest.fixture
-def runtime():
+def runtime(monkeypatch, tmp_path):
+    monkeypatch.setenv("JARVIS_AUTONOMY_DB", str(tmp_path / "autonomy.sqlite3"))
     result = Bootstrap.start()
     yield result.runtime
     # Cleanup after test if still running
@@ -112,4 +113,4 @@ def test_heartbeat_service(runtime):
     
     # The first event might have been fired while STARTING, so we check the last one
     assert events[-1].payload["state"] == RuntimeState.RUNNING
-    assert events[-1].payload["active_components"] == 0
+    assert events[-1].payload["active_components"] == 1
