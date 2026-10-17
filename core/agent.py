@@ -933,6 +933,27 @@ class Agent:
         session: Any = None,
     ) -> list[Task]:
         """Handles complex autonomous missions using the full reasoning loop."""
+        # Objectives supported by Mission Control are always executed by the durable
+        # crash-safe runner, including when submitted from the desktop chat GUI.
+        from mission_control.objective_planner import build_objective_plan
+        try:
+            safe_steps = build_objective_plan(user_input)
+        except (ValueError, TypeError):
+            safe_steps = None
+        if safe_steps is not None:
+            from mission_control.crash_cli import execute_objective
+            mission_id = f"gui-{uuid.uuid4().hex}"
+            result = execute_objective(
+                user_input, mission_id=mission_id, steps=safe_steps,
+            )
+            mission = result.get("mission") or {}
+            message = f"Mission {mission_id}: {mission.get('state', 'UNKNOWN')}"
+            if mission.get("failure_reason"):
+                message += f"\nReason: {mission['failure_reason']}"
+            for step in result.get("steps", []):
+                if step.get("stdout"):
+                    message += f"\n{step['stdout']}"
+            return [Task(tool="system", action="respond", args={"message": message})]
         tasks = []
         if session is not None:
             lower = user_input.lower()

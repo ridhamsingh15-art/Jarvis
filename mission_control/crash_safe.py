@@ -63,19 +63,21 @@ class CrashSafeMissionRunner:
         policy: ExecutionPolicy,
         *,
         after_execute: Callable[[str, int, Task], None] | None = None,
+        after_step: Callable[[str, int, dict[str, Any]], None] | None = None,
     ) -> None:
         self.store = store
         self.execution_engine = execution_engine
         self.policy = policy
         self.after_execute = after_execute
+        self.after_step = after_step
 
     def run(self, mission_id: str, objective: str, steps: list[str]) -> dict[str, Any]:
         if not steps:
-            self.store.create_mission(mission_id, objective)
+            self.store.create_mission(mission_id, objective, steps)
             reason = "Planner produced no executable steps."
             self.store.set_mission_state(mission_id, "FAILED", reason)
             return self.result(mission_id)
-        self.store.create_mission(mission_id, objective)
+        self.store.create_mission(mission_id, objective, steps)
         mission = self.store.mission(mission_id)
         if mission and mission["state"] in {"COMPLETED", "FAILED"}:
             return self.result(mission_id)
@@ -106,7 +108,7 @@ class CrashSafeMissionRunner:
                 )
                 self.store.mark_needs_review(mission_id, index, reason)
                 return self.result(mission_id)
-            if existing and existing["status"] not in {"started", "completed"}:
+            if existing and existing["status"] not in {"started", "completed", "retry_authorized"}:
                 self.store.set_mission_state(mission_id, "FAILED", f"Step {index + 1} is terminal ({existing['status']}); automatic replay is disabled.")
                 return self.result(mission_id)
 
@@ -117,7 +119,7 @@ class CrashSafeMissionRunner:
             ))
             idempotency_key = _stable_key(mission_id, index, spec)
             if decision.verdict != PolicyVerdict.ALLOW:
-                reason = f"Execution policy {decision.verdict.value} for {tool}.{action}: {decision.reason}"
+                reason = (f"Execution policy denied (Execution policy deny) for {tool}.{action}: {decision.reason}" if decision.verdict == PolicyVerdict.DENY else f"Execution policy requires confirmation for {tool}.{action}: {decision.reason}")
                 record = {
                     "status": "blocked", "stdout": "", "stderr": reason,
                     "normalized_code": 126 if tool == "file" else None,
@@ -129,6 +131,8 @@ class CrashSafeMissionRunner:
                 )
                 self.store.finish_step(mission_id, index, record)
                 self.store.set_mission_state(mission_id, "FAILED", reason)
+                if self.after_step is not None:
+                    self.after_step(mission_id, index, record)
                 return self.result(mission_id)
 
             self.store.begin_step(
@@ -159,6 +163,8 @@ class CrashSafeMissionRunner:
                     "paths": _paths_from_output(output), "result": output, "finished_at": _now(),
                 }
                 self.store.finish_step(mission_id, index, record)
+                if self.after_step is not None:
+                    self.after_step(mission_id, index, record)
                 if not ok:
                     self.store.set_mission_state(mission_id, "FAILED", f"Step {index + 1} ({tool}.{action}) failed: {error}")
                     return self.result(mission_id)
@@ -171,6 +177,8 @@ class CrashSafeMissionRunner:
                     "error": error, "finished_at": _now(), "result": None,
                 })
                 self.store.set_mission_state(mission_id, "FAILED", error)
+                if self.after_step is not None:
+                    self.after_step(mission_id, index, {"status": "failed", "error": error, "stderr": error})
                 return self.result(mission_id)
 
         self.store.set_mission_state(mission_id, "COMPLETED", "")

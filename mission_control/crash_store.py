@@ -21,7 +21,7 @@ class CrashSafeMissionStore:
                 """
                 CREATE TABLE IF NOT EXISTS crash_missions (
                     mission_id TEXT PRIMARY KEY, objective TEXT NOT NULL,
-                    state TEXT NOT NULL, failure_reason TEXT NOT NULL DEFAULT '',
+                    state TEXT NOT NULL, failure_reason TEXT NOT NULL DEFAULT '', steps_json TEXT NOT NULL DEFAULT '[]',
                     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
                 );
                 CREATE TABLE IF NOT EXISTS crash_steps (
@@ -39,6 +39,9 @@ class CrashSafeMissionStore:
                 );
                 """
             )
+            columns = {row['name'] for row in db.execute('PRAGMA table_info(crash_missions)')}
+            if 'steps_json' not in columns:
+                db.execute("ALTER TABLE crash_missions ADD COLUMN steps_json TEXT NOT NULL DEFAULT '[]'")
 
     def _connect(self) -> sqlite3.Connection:
         db = sqlite3.connect(self.path, timeout=15, isolation_level="IMMEDIATE")
@@ -47,12 +50,12 @@ class CrashSafeMissionStore:
         db.execute("PRAGMA synchronous=FULL")
         return db
 
-    def create_mission(self, mission_id: str, objective: str) -> None:
+    def create_mission(self, mission_id: str, objective: str, steps: list[str] | None = None) -> None:
         with self._connect() as db:
             db.execute(
-                "INSERT INTO crash_missions(mission_id, objective, state, failure_reason) VALUES(?,?,?,?) "
+                "INSERT INTO crash_missions(mission_id, objective, state, failure_reason, steps_json) VALUES(?,?,?,?,?) "
                 "ON CONFLICT(mission_id) DO NOTHING",
-                (mission_id, objective, "RUNNING", ""),
+                (mission_id, objective, "RUNNING", "", json.dumps(steps or [], ensure_ascii=False)),
             )
 
     def set_mission_state(self, mission_id: str, state: str, reason: str = "") -> None:
@@ -133,6 +136,49 @@ class CrashSafeMissionStore:
                 "UPDATE crash_missions SET state='FAILED', failure_reason=?, updated_at=CURRENT_TIMESTAMP WHERE mission_id=?",
                 (reason, mission_id),
             )
+
+
+    def needs_review(self) -> list[dict[str, Any]]:
+        with self._connect() as db:
+            rows = db.execute(
+                """SELECT m.mission_id, m.objective, m.state, m.failure_reason, m.updated_at,
+                          s.step_index, s.tool, s.action, s.error AS review_reason
+                   FROM crash_missions m JOIN crash_steps s ON s.mission_id=m.mission_id
+                   WHERE s.status='needs_review' ORDER BY m.updated_at, m.mission_id, s.step_index"""
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def resolve_needs_review(self, mission_id: str, step_index: int, resolution: str) -> dict[str, Any]:
+        if resolution not in {"retry", "abandon"}:
+            raise ValueError("resolution must be 'retry' or 'abandon'")
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT error FROM crash_steps WHERE mission_id=? AND step_index=? AND status='needs_review'",
+                (mission_id, step_index),
+            ).fetchone()
+            if row is None:
+                raise ValueError(f"No needs_review step {step_index + 1} for mission {mission_id}")
+            prior_reason = str(row["error"] or "unknown side-effect outcome")
+            if resolution == "retry":
+                db.execute(
+                    "UPDATE crash_steps SET status='retry_authorized', stderr=?, finished_at='' WHERE mission_id=? AND step_index=?",
+                    ("Operator explicitly authorized retry. Prior reason: " + prior_reason, mission_id, step_index),
+                )
+                db.execute(
+                    "UPDATE crash_missions SET state='RUNNING', failure_reason='', updated_at=CURRENT_TIMESTAMP WHERE mission_id=?",
+                    (mission_id,),
+                )
+            else:
+                reason = "Abandoned by operator. Prior needs_review reason: " + prior_reason
+                db.execute(
+                    "UPDATE crash_steps SET status='abandoned', error=?, stderr=?, finished_at=CURRENT_TIMESTAMP WHERE mission_id=? AND step_index=?",
+                    (reason, reason, mission_id, step_index),
+                )
+                db.execute(
+                    "UPDATE crash_missions SET state='ABANDONED', failure_reason=?, updated_at=CURRENT_TIMESTAMP WHERE mission_id=?",
+                    (reason, mission_id),
+                )
+        return self.mission(mission_id) or {}
 
     def steps(self, mission_id: str) -> list[dict[str, Any]]:
         with self._connect() as db:

@@ -697,10 +697,15 @@ def parse_args() -> argparse.Namespace:
         help="Display installed and configured AI models and their health status.",
     )
     parser.add_argument("--mission", help="Run an execution-backed Mission Control objective.")
-    parser.add_argument("--mission-db", default=str(Path.home() / ".jarvis" / "missions.sqlite3"), help="SQLite mission persistence path.")
+    parser.add_argument("--mission-db", default=str(Path.home() / ".jarvis" / "crash_missions.sqlite3"), help="SQLite crash-safe mission persistence path.")
     parser.add_argument("--mission-id", help="Mission ID for recovery or deterministic demos.")
     parser.add_argument("--resume", action="store_true", help="Resume a persisted mission ID.")
     parser.add_argument("--pause-after-step", type=int, default=0, help=argparse.SUPPRESS)
+    parser.add_argument("--needs-review", action="store_true", help="List crash-safe missions awaiting operator review")
+    parser.add_argument("--show-needs-review", metavar="MISSION_ID", help="Show recorded review reasons")
+    parser.add_argument("--resolve-needs-review", metavar="MISSION_ID", help="Resolve a needs_review step")
+    parser.add_argument("--step", type=int, default=1, help="One-based step number for needs-review resolution")
+    parser.add_argument("--resolution", choices=("retry", "abandon"), help="Explicitly retry or abandon a needs_review step")
     return parser.parse_args()
 
 
@@ -733,8 +738,22 @@ def main() -> None:
     setup_logging()
     args = parse_args()
 
+    if args.needs_review or args.show_needs_review or args.resolve_needs_review:
+        from mission_control.crash_cli import main as crash_safe_main
+        forwarded = ["--mission-db", args.mission_db, "--workspace-root", str(Path.home())]
+        if args.needs_review:
+            forwarded.append("--needs-review")
+        elif args.show_needs_review:
+            forwarded.extend(["--show-needs-review", args.show_needs_review])
+        else:
+            if not args.resolution:
+                print("ERROR: --resolve-needs-review requires --resolution retry|abandon", file=sys.stderr)
+                sys.exit(2)
+            forwarded.extend(["--resolve-needs-review", args.resolve_needs_review, "--step", str(args.step), "--resolution", args.resolution])
+        sys.exit(crash_safe_main(forwarded))
+
     if args.mission or args.resume:
-        from mission_control.cli import run_objective
+        from mission_control.crash_cli import run_objective
         if args.resume and not args.mission_id:
             print("ERROR: --resume requires --mission-id", file=sys.stderr)
             sys.exit(2)
