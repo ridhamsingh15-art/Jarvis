@@ -56,3 +56,18 @@ The remaining Ruff findings are an audit backlog, not permission for blind auto-
 - [x] **Verify and document:** run execution-policy and shell tests, then the full suite after the third task; run changed-file Ruff, critical lint, compile and diff checks, and commit only scoped files.
 - [x] **Normalize every supported shell argument alias before policy evaluation:** include `cmd`/`args` and equivalent aliases, so the policy evaluates the same effective command as `ShellTool`; add a regression using action `run`.
 - [x] **Recognize package-manager install variants as high-risk shell commands:** cover `pip3`, `python -m pip`, `npm ci`, `pnpm add`, `yarn add`, and `uv add` while preserving existing destructive-command decisions.
+
+
+## Execution-backed Mission Control vertical slice — 2026-10-17
+- [x] Build one CLI-reachable mission flow that converts a supported objective into explicit tool/action/argument steps; no free-form step may be marked complete without a real tool result.
+- [x] Route each step through the existing `ExecutionPolicy` before invoking a real registered tool; persist per-step status, stdout/result, paths, error and exit code in durable storage.
+- [x] Make restart behavior explicit: recover only verified successful steps, and fail a running/in-flight step cleanly with a persisted reason rather than assuming it completed.
+- [x] Add `run_demo.ps1`, `DEMO.md` with five real tasks, and a full end-to-end test using the real executor and a real tool (no mocked executor); the full demo passed with all five tasks in one run.
+- [x] Record baseline and each failure/fix in `NOTES.md`; next capability milestone recorded below.
+
+
+## Next milestone — model-driven, dependency-aware mission planning
+- [ ] Replace the narrow regex-only objective planner with provider-backed structured plan generation using a strict schema; reject unsupported, malformed, or unsafe plans without execution.
+- [ ] Add explicit step IDs and dependency edges so later steps can consume validated outputs from earlier steps instead of re-reading or recomputing the same data.
+- [ ] Implement recoverable replanning after a failed step, preserving prior verified outputs and requiring policy approval for gated actions.
+- [ ] Expose pending approvals and mission/step evidence in the existing GUI as well as the CLI; prove one cross-tool mission with real FileTool and ShellTool execution, policy decisions, persisted outputs, and process-restart recovery.

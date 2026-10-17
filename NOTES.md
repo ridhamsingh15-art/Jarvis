@@ -279,3 +279,45 @@ Final full suite after task snapshot isolation and future tracking: `python -m p
 - Expanded high-risk package-install recognition to include `pip3`/versioned pip, `python -m pip`, `npm ci`, `pnpm add/install`, `yarn add/install`, and `uv add`/`uv pip install`, in addition to the existing install/termination command checks. Six parameterized cases cover representative variants; five were previously allowed and are now denied by default.
 - Focused verification: `pytest -q tests\test_execution_policy.py tests\test_shell_tool.py tests\test_phase7g_safe_shell_swe.py --basetemp <unique-temp>` -> **81 passed in 10.75s**. Changed-file Ruff passed; `ruff check . --select E722,B019,S110` passed; `compileall -q core/execution_policy.py` and `git diff --check` passed.
 - Full-suite gate after all three scoped security changes: **1059 passed, 1 skipped in 32.64s**, exit 0. Critical lint passed. The single platform-conditional skip remains expected. Whole-repository Ruff was not run for this pass; the prior recorded global count remains 242 findings and is not represented as clean.
+
+
+## Execution-backed Mission Control baseline audit - 2026-10-17
+
+- Verified branch `feature/jarvis-control-center`, HEAD `088d618`, and clean tracked worktree; the only untracked path is `jarvis_test_workspace/`, preserved untouched.
+- Full suite baseline, run from Windows PowerShell with `.venv\Scripts\python.exe -m pytest -q --basetemp "$env:TEMP\jarvis-pytest-audit-20261017"`: **1059 passed, 1 skipped in 34.00s**, exit code 0. An initial attempt used a temp base inside the repository and got 3 unrelated protected-path failures; that run is invalid as a baseline and was rerun outside the repository. Do not count it as the baseline.
+- Confirmed `mission_control/execution.py::MissionExecutor.step()` is simulated: it chooses the next string, special-cases any string containing `deploy` for a simulated approval, otherwise appends the string to `completed_steps` without invoking a tool, policy, executor, or durable store. `CheckpointEngine` itself is an in-memory dictionary.
+- `main.py` is the actual app entry point (GUI by default, existing terminal mode via `--cli`); Mission Control is not currently wired into it. This milestone will expose the execution-backed path through `main.py` and preserve real per-step execution evidence.
+- No implementation results claimed yet; demo acceptance remains unproven until `run_demo.ps1` completes all five scenarios in a single run.
+
+
+## Execution-backed Mission Control vertical slice — final verification 2026-10-17
+
+- Implemented `main.py --mission` / `--resume` as the real CLI entry point. Supported objectives are deliberately bounded: list the largest files, summarize the largest text files, and attempt a destructive delete that the policy gate must deny. Unsupported objectives fail closed; this is not general-purpose LLM planning.
+- Added real `FileTool` actions `list_largest_files` and `summarize_files`; both validate paths using the existing read-only safety checks, exclude sensitive/unreadable entries, return actual file paths and byte sizes, and bound text previews to 2048 characters per file.
+- Replaced simulated `MissionExecutor.step()` success with structured JSON steps executed as real `Task` objects through `ExecutionEngine` and `ActionRegistry`, after `ExecutionPolicy.check`. A step is only completed after the real task reaches `COMPLETED` and its normalized exit code is zero. An unconfigured executor now marks the mission `FAILED` with `No real execution engine and policy are configured; simulated success is disabled.`
+- Added durable SQLite mission/step records in `mission_control/store.py`: objective/plan/state, per-step tool/action/args, stdout, stderr, normalized exit code, error, paths, result and timestamps. Recovery resumes after verified completed steps; a step persisted as `running` on restart is marked failed with an unknown-outcome reason and is not replayed automatically.
+- First demo attempt exposed a real Windows console encoding bug: PowerShell-created UTF-8 fixture files can contain U+FEFF, while Python stdout defaulted to cp1252 and raised `UnicodeEncodeError`. Fixed the mission CLI to configure UTF-8 stdout/stderr. A subsequent run revealed that a standalone `Summarize ...` objective incorrectly planned two steps; the planner now emits exactly one `summarize_files` step, and `run_demo.ps1` asserts this.
+- Final real `run_demo.ps1` run: **PASS, all 5 tasks passed in one run**. Raw output excerpts from that run:
+
+```text
+TASK_1=PASS exit_code=0
+MISSION_STATE=COMPLETED COMPLETED_STEPS=2/2
+LARGEST_FILES=file-11.txt:170, file-10.txt:158, file-09.txt:145, file-08.txt:133, file-07.txt:121, file-06.txt:109, file-05.txt:97, file-04.txt:85, file-03.txt:73, file-02.txt:61
+SUMMARY_PREVIEW=REAL_CONTENT_MARKER verified
+TASK_2=PASS exit_code=0
+MISSION_STATE=COMPLETED COMPLETED_STEPS=1/1
+TASK_3=PASS exit_code=1
+MISSION_FAILURE_REASON=Execution policy denied file.delete: High-risk action 'delete' is denied. Set allow_destructive_from_core=True and obtain user_confirmed=True to proceed.
+PROCESS_KILLED_AFTER=STEP_1_STATUS=completed
+TASK_4_RESUME=PASS exit_code=0
+MISSION_STATE=COMPLETED COMPLETED_STEPS=2/2
+TASK_5=PASS exit_code=1
+MISSION_FAILURE_REASON=Step 1 (file.list_largest_files) failed: Path does not exist: '<temporary demo folder>\\missing-directory'
+DEMO_RESULT=PASS all 5 tasks passed in one run
+```
+
+- End-to-end test `tests/test_execution_backed_mission.py` uses subprocesses, the real `main.py`, `ExecutionEngine`, `ExecutionPolicy`, `FileTool`, SQLite, and a force-killed process; no executor mock. Focused gate: **8 passed in 5.61s**. Final full suite: `.venv\Scripts\python.exe -m pytest -q --basetemp "$env:TEMP\jarvis-mission-final-20261017"` -> **1065 passed, 1 skipped in 38.11s**, exit 0 (baseline before this milestone: **1059 passed, 1 skipped in 34.00s**). Changed-file Ruff passed, `compileall` exit 0, and `git diff --check` passed.
+- `jarvis_test_workspace/` remains untouched. During this work, additional unowned concurrent changes appeared in `core/autonomy/__init__.py`, `core/autonomy/manager.py`, and untracked `core/autonomy/sqlite_persistence.py`, `docs/DOT_INSPIRED_AUTONOMY.md`, and `tests/test_sqlite_goal_persistence.py`. They are intentionally excluded from this milestone's staging/commit.
+- Known limit: the `exit_code` for FileTool actions is a normalized per-step status (0 on successful tool return, 1 on tool exception, 126 on policy block), not an OS subprocess exit code. Mission outputs are genuine FileTool results; the next milestone should add a real ShellTool action and provider-backed structured planning rather than claim broader autonomy.
+
+- Test-count reconciliation: the final +6 over baseline is one new end-to-end test from this milestone plus five tests in concurrently added, untracked `tests/test_sqlite_goal_persistence.py`; that unrelated file remains uncommitted.
