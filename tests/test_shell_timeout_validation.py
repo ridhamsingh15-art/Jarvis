@@ -36,14 +36,17 @@ def test_invalid_runtime_timeout_blocks_before_subprocess(tmp_path, timeout):
 
 def test_numeric_string_timeout_is_normalized_for_json_callers(tmp_path):
     tool = ShellTool(workspace_root=tmp_path)
-    with patch("tools.shell.subprocess.run") as run:
-        run.return_value.returncode = 0
-        run.return_value.stdout = "ok"
-        run.return_value.stderr = ""
+    with patch("tools.shell._WindowsKillOnCloseJob") as job_type, patch("tools.shell.subprocess.Popen") as popen:
+        process = popen.return_value
+        process._handle = 123
+        process.returncode = 0
+        process.communicate.return_value = ("ok", "")
+        process.poll.return_value = 0
         result = tool.run("echo safe", timeout="1.5")
 
     assert result.success is True
-    assert run.call_args.kwargs["timeout"] == 1.5
+    assert process.communicate.call_args.kwargs["timeout"] == 1.5
+    job_type.return_value.assign.assert_called_once_with(process)
 
 
 @pytest.mark.parametrize("command", [None, 0, [], "", "   "])

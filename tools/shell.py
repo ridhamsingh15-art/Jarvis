@@ -18,6 +18,7 @@ Security model:
 
 from __future__ import annotations
 
+import ctypes
 import logging
 import math
 import os
@@ -33,6 +34,76 @@ from core.action_definition import ActionDefinition
 from tools.base_tool import BaseTool
 
 logger = logging.getLogger(__name__)
+
+class _WindowsKillOnCloseJob:
+    """Own a Windows Job Object that kills the shell process tree when closed."""
+
+    def __init__(self) -> None:
+        if os.name != "nt":
+            raise OSError("Windows Job Objects are only available on Windows")
+        from ctypes import wintypes
+
+        class _BasicLimit(ctypes.Structure):
+            _fields_ = [
+                ("PerProcessUserTimeLimit", ctypes.c_longlong),
+                ("PerJobUserTimeLimit", ctypes.c_longlong),
+                ("LimitFlags", wintypes.DWORD),
+                ("MinimumWorkingSetSize", ctypes.c_size_t),
+                ("MaximumWorkingSetSize", ctypes.c_size_t),
+                ("ActiveProcessLimit", wintypes.DWORD),
+                ("Affinity", ctypes.c_size_t),
+                ("PriorityClass", wintypes.DWORD),
+                ("SchedulingClass", wintypes.DWORD),
+            ]
+
+        class _IoCounters(ctypes.Structure):
+            _fields_ = [(name, ctypes.c_ulonglong) for name in (
+                "ReadOperationCount", "WriteOperationCount", "OtherOperationCount",
+                "ReadTransferCount", "WriteTransferCount", "OtherTransferCount",
+            )]
+
+        class _ExtendedLimit(ctypes.Structure):
+            _fields_ = [
+                ("BasicLimitInformation", _BasicLimit), ("IoInfo", _IoCounters),
+                ("ProcessMemoryLimit", ctypes.c_size_t), ("JobMemoryLimit", ctypes.c_size_t),
+                ("PeakProcessMemoryUsed", ctypes.c_size_t), ("PeakJobMemoryUsed", ctypes.c_size_t),
+            ]
+
+        self._kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        self._kernel32.CreateJobObjectW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR]
+        self._kernel32.CreateJobObjectW.restype = wintypes.HANDLE
+        self._kernel32.SetInformationJobObject.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
+        self._kernel32.SetInformationJobObject.restype = wintypes.BOOL
+        self._kernel32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+        self._kernel32.AssignProcessToJobObject.restype = wintypes.BOOL
+        self._kernel32.TerminateJobObject.argtypes = [wintypes.HANDLE, wintypes.UINT]
+        self._kernel32.TerminateJobObject.restype = wintypes.BOOL
+        self._kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        self._kernel32.CloseHandle.restype = wintypes.BOOL
+        self._handle = self._kernel32.CreateJobObjectW(None, None)
+        if not self._handle:
+            raise ctypes.WinError(ctypes.get_last_error())
+        limits = _ExtendedLimit()
+        limits.BasicLimitInformation.LimitFlags = 0x00002000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        if not self._kernel32.SetInformationJobObject(self._handle, 9, ctypes.byref(limits), ctypes.sizeof(limits)):
+            error = ctypes.WinError(ctypes.get_last_error())
+            self.close()
+            raise error
+
+    def assign(self, process: subprocess.Popen) -> None:
+        from ctypes import wintypes
+        if not self._kernel32.AssignProcessToJobObject(self._handle, wintypes.HANDLE(int(process._handle))):
+            raise ctypes.WinError(ctypes.get_last_error())
+
+    def terminate(self) -> None:
+        if self._handle:
+            self._kernel32.TerminateJobObject(self._handle, 1)
+
+    def close(self) -> None:
+        if getattr(self, "_handle", None):
+            self._kernel32.CloseHandle(self._handle)
+            self._handle = None
+
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -101,7 +172,11 @@ def _is_sensitive_environment_key(key: str) -> bool:
 _HIGH_RISK_PATTERNS: list[re.Pattern] = [
     re.compile(r"\brm\s+-[a-z]*r", re.IGNORECASE),       # rm -r / rm -rf
     re.compile(r"\bdel\s+/[sq]", re.IGNORECASE),          # del /s /q
-    re.compile(r"\brmdir\s+/[sq]", re.IGNORECASE),        # rmdir /s /q
+    re.compile(r"\b(?:rd|rmdir)\s+/[sq]", re.IGNORECASE), # rd /s /q and rmdir /s /q
+    re.compile(r"\b(?:remove-item|ri)\b", re.IGNORECASE), # PowerShell recursive/file removal aliases
+    re.compile(r"\b(?:del|erase|rd|rmdir)\b", re.IGNORECASE), # all Windows delete commands
+    re.compile(r"\brobocopy\b.*?/(?:mir|purge)\b", re.IGNORECASE), # mirror/purge removes destination files
+    re.compile(r"\b(?:shutil\s*\.\s*rmtree|os\s*\.\s*(?:remove|unlink)|(?:pathlib\s*\.\s*)?Path\s*\([^)]*\)\s*\.\s*unlink)\b", re.IGNORECASE), # Python filesystem deletion
     re.compile(r"\bformat\b", re.IGNORECASE),             # format disk
     re.compile(r"\bmkfs\b", re.IGNORECASE),               # mkfs
     re.compile(r"\breg\s+(add|delete)\b", re.IGNORECASE), # registry modification
@@ -469,20 +544,52 @@ class ShellTool(BaseTool):
         logger.info("[SHELL] EXECUTE cwd=%s cmd=%s", cwd, command[:200])
 
         # 7. Run subprocess with bounded output and timeout
+        proc = None
+        job = None
         try:
-            proc = subprocess.run(
+            # A Job Object with KILL_ON_JOB_CLOSE makes Windows terminate the full
+            # shell process tree if JARVIS itself is killed or crashes.
+            if os.name == "nt":
+                job = _WindowsKillOnCloseJob()
+            proc = subprocess.Popen(
                 exec_cmd,
                 shell=True,
                 cwd=str(cwd),
                 env=filtered_env,
-                capture_output=True,
-                timeout=effective_timeout,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                check=False,
+                creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) if os.name == "nt" else 0,
             )
-            stdout = proc.stdout[: self._max_output]
-            stderr = proc.stderr[: self._max_output // 4]
-
+            if job is not None:
+                try:
+                    job.assign(proc)
+                except OSError as exc:
+                    proc.kill()
+                    proc.communicate()
+                    latency_ms = (time.perf_counter() - t0) * 1000
+                    return ShellResult(
+                        command=command, return_code=-1, stdout="", stderr=str(exc),
+                        timed_out=False, blocked=True,
+                        blocked_reason=f"Unable to enforce shell process-tree lifetime: {exc}", latency_ms=latency_ms,
+                    )
+            try:
+                stdout_raw, stderr_raw = proc.communicate(timeout=effective_timeout)
+            except subprocess.TimeoutExpired:
+                if job is not None:
+                    job.terminate()
+                else:
+                    proc.kill()
+                stdout_raw, stderr_raw = proc.communicate()
+                latency_ms = (time.perf_counter() - t0) * 1000
+                logger.warning("[SHELL] TIMEOUT after %.1fs: %s", effective_timeout, command[:120])
+                return ShellResult(
+                    command=command, return_code=-1, stdout=stdout_raw[:self._max_output],
+                    stderr=stderr_raw[:self._max_output // 4], timed_out=True, blocked=False,
+                    latency_ms=latency_ms,
+                )
+            stdout = (stdout_raw or "")[: self._max_output]
+            stderr = (stderr_raw or "")[: self._max_output // 4]
             latency_ms = (time.perf_counter() - t0) * 1000
             logger.info(
                 "[SHELL] DONE return_code=%d latency=%.1fms stdout_bytes=%d",
@@ -493,20 +600,25 @@ class ShellTool(BaseTool):
                 stdout=stdout, stderr=stderr,
                 timed_out=False, blocked=False, latency_ms=latency_ms,
             )
-        except subprocess.TimeoutExpired:
-            latency_ms = (time.perf_counter() - t0) * 1000
-            logger.warning("[SHELL] TIMEOUT after %.1fs: %s", effective_timeout, command[:120])
-            return ShellResult(
-                command=command, return_code=-1, stdout="", stderr="",
-                timed_out=True, blocked=False, latency_ms=latency_ms,
-            )
         except Exception as exc:  # noqa: BLE001
+            if proc is not None and proc.poll() is None:
+                try:
+                    if job is not None:
+                        job.terminate()
+                    else:
+                        proc.kill()
+                    proc.communicate(timeout=3)
+                except (OSError, subprocess.TimeoutExpired) as cleanup_exc:
+                    logger.debug("Shell process cleanup after error was incomplete: %s", cleanup_exc)
             latency_ms = (time.perf_counter() - t0) * 1000
             logger.error("[SHELL] ERROR: %s", exc)
             return ShellResult(
                 command=command, return_code=-1, stdout="", stderr=str(exc),
                 timed_out=False, blocked=False, latency_ms=latency_ms,
             )
+        finally:
+            if job is not None:
+                job.close()
 
     # ------------------------------------------------------------------
     # Security and boundary helpers
@@ -514,12 +626,39 @@ class ShellTool(BaseTool):
 
     @classmethod
     def check_high_risk(cls, command: str) -> str:
-        """Expose high risk check for ExecutionPolicy and other callers."""
-        for pattern in _HIGH_RISK_PATTERNS:
-            if pattern.search(command):
-                if r"\.\." in pattern.pattern:
-                    return f"Path traversal detected: {pattern.pattern}"
-                return f"Command matches high-risk pattern: {pattern.pattern}"
+        """Fail closed for destructive syntax, including quotes and encoded shells.
+
+        The scan intentionally inspects a normalized view as well as the original
+        command so quoting, command chaining, or environment-variable paths cannot
+        hide destructive verbs from the policy gate.
+        """
+        if _DIRECT_SHELL_LAUNCH.match(command) and not re.search(r"-(?:enc(?:odedcommand)?|e)\b", command, re.IGNORECASE):
+            return "Launching nested command interpreters is blocked."
+        candidates = [command]
+        normalized = command.strip()
+        # A command can be wrapped as one quoted argument or quote individual tokens.
+        normalized = normalized.replace('"', ' ').replace("'", " ")
+        candidates.append(normalized)
+        encoded = re.search(r"(?:-enc(?:odedcommand)?|-e)\s+([A-Za-z0-9+/=]{8,})", command, re.IGNORECASE)
+        if encoded:
+            import base64
+            import binascii
+            payload = encoded.group(1)
+            try:
+                decoded_bytes = base64.b64decode(payload, validate=True)
+                decoded_text = decoded_bytes.decode("utf-16le", errors="ignore")
+                if not decoded_text.strip():
+                    decoded_text = decoded_bytes.decode("utf-8", errors="ignore")
+                candidates.append(decoded_text)
+            except (ValueError, binascii.Error):
+                # Encoded PowerShell is itself blocked by the explicit pattern below.
+                pass
+        for candidate in candidates:
+            for pattern in _HIGH_RISK_PATTERNS:
+                if pattern.search(candidate):
+                    if r"\.\." in pattern.pattern:
+                        return f"Path traversal detected: {pattern.pattern}"
+                    return f"Command matches high-risk pattern: {pattern.pattern}"
         return ""
 
     def _check_high_risk(self, command: str) -> str:
