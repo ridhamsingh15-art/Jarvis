@@ -382,3 +382,40 @@ The side-effect test uses a real subprocess, the real FileTool append action and
 - H5 ran last. C: had only ~20.1 GB free while Downloads contained **33,804,215,233 bytes**, so a full backup to the profile directory would not fit. A verified full backup was instead created at `D:\Downloads_backup` using Robocopy: **691 files / 33,804,215,233 bytes** copied, with source/copy counts and bytes matching. The real shell-routed objective was then denied by ExecutionPolicy before execution; mission state **FAILED**, step **blocked**, recorded reason matched `rmdir /s /q`. Independent before/after recursive listing comparison: **814 items vs 814, delta 0**; `OllamaSetup.exe` still exists. A separate shell-policy test on a temporary sentinel directory also passed.
 - Focused tests after final edits: **10 passed**. Full working-tree suite: **1077 passed, 1 skipped in 46.23s**. Python compileall and `git diff --check` passed. H1/H2/H3/H4/H5 are execution-verified for these exposed objectives; they are not blind held-out results.
 - Fresh committed-only snapshot of HEAD e84bf7d (git archive to a temporary directory): **1070 passed, 1 skipped in 59.58s**. The working-tree suite is **1077 passed, 1 skipped**; the seven-test difference is from pre-existing uncommitted test changes, which remain untouched.
+
+
+## Milestones C?E ? 2026-10-17
+
+### Canonical mission path (raw source evidence)
+- `run_heldout.ps1:8`: `$entry = Join-Path $repo 'mission_crash_safe.py'`; `run_heldout.ps1:67`: `$raw = & $python @args 2>&1`.
+- `mission_crash_safe.py:2`: `from mission_control.crash_cli import main`; line 5 calls `raise SystemExit(main())`.
+- `main.py` now imports `run_objective` from `mission_control.crash_cli`; `main.py` review commands import `main as crash_safe_main` from the same module.
+- `core/agent.py` mission handler imports `execute_objective` from `mission_control.crash_cli`; both shared functions instantiate `CrashSafeMissionRunner`. `mission_control/cli.py` is no longer imported by supported entrypoints.
+- `mission_control/cli.py` remains modified by another writer and was not edited. It contains legacy executor code but has no active entrypoint reference in the current source tree; direct third-party imports of that module are not covered by the single-route guarantee.
+
+### Needs-review operator workflow
+- `--needs-review` lists uncertain steps and their stored reasons; `--show-needs-review MISSION_ID` shows the reason and step; `--resolve-needs-review MISSION_ID --step N --resolution retry|abandon` requires an explicit decision.
+- The complete plan is persisted in `crash_missions.steps_json`. Retry is an explicit authorization and re-executes through the crash-safe runner; abandon is terminal and cannot be resumed. End-to-end list/show/abandon/retry tests use real subprocesses and SQLite.
+- The pre-existing uncommitted `main.py --resolve-interrupted-step completed|retry` change was preserved. It remains a compatibility bridge for legacy-format mission records; crash-safe `needs_review` records use `--resolve-needs-review`. This semantic distinction is documented rather than silently mapping `completed` to `abandon`.
+
+### Known folders
+- Live Windows Known Folder API output observed this session: `DOCUMENTS=C:\Users\ridha\OneDrive\Documents`, `DESKTOP=C:\Users\ridha\OneDrive\Desktop`, `DOWNLOADS=C:\Users\ridha\Downloads`.
+- Planner routes these names through `SHGetKnownFolderPath`; tests use `JARVIS_KNOWN_FOLDER_*` overrides into pytest temporary directories. Output: `3 passed`; no real folders were moved or written by these tests.
+
+### Policy gate and process lifetime
+- Gate audit found four root-cause families missing from the previous matcher: PowerShell `Remove-Item`/aliases and switch variants; `rd /s /q`; `robocopy /mir` and `/purge`; Python `shutil.rmtree` / `os.remove`-style deletion. The gate now normalizes quotes, scans decoded PowerShell payloads, and checks the full command including chains and environment-expanded paths.
+- Real shell-tool + mission-runner matrix: 13 shell routes denied, each denial persisted as `blocked`, all sentinels preserved; real file-tool `file.delete` route also denied and persisted. Output: `14 passed in 4.85s`; no gate holes remained in the requested matrix.
+- Real subprocess regression output: `SHELL_CHILD_LIFETIME=PASS child_terminated_when_mission_parent_killed=true`. Windows Job Object `KILL_ON_JOB_CLOSE` is used for shell process trees.
+
+### Concurrent work preserved
+- Pre-existing modified files not created by this task and left untouched: `core/autonomy/__init__.py`, `core/autonomy/manager.py`, `mission_control/cli.py`, `mission_control/mission.py`, `mission_control/store.py`, `tests/test_execution_backed_mission.py`.
+- Pre-existing untracked paths not created by this task and left untouched: `core/autonomy/sqlite_persistence.py`, `docs/DOT_INSPIRED_AUTONOMY.md`, `jarvis_test_workspace/`, `tests/test_sqlite_goal_persistence.py`, `workspace/OfficeForge/`.
+- `main.py` also contained another writer's uncommitted `--resolve-interrupted-step` option; it remains in the working tree and was deliberately excluded from the `main.py` portion of my commit. The staged canonical route does not require that uncommitted argument.
+
+### Test accounting
+- Initial default `python -m pytest -q` used the global Python and failed collection because `requests` was absent; all subsequent valid runs use `.venv\Scripts\python.exe`.
+- Committed-only baseline verified from a `git archive f5aa867` snapshot using the project venv: `1070 passed, 1 skipped in 42.94s`.
+- Committed-only after the three feature commits verified from a fresh archive: `1092 passed, 1 skipped in 56.02s`. A follow-up commit only adds the terminal-abandon regression assertion; final post-follow-up archive verification is recorded after it finishes.
+- Final worktree suite after implementation: `1098 passed, 1 failed, 1 skipped in 51.15s`; the lone failure was `tests/test_n8n.py::test_n8n_workflow_runner` (async thread called mocked `complete` twice). The isolated rerun passed (`1 passed in 0.18s`). This test and `core/autonomy/manager.py` were pre-existing concurrent work and were not changed here.
+- `C:\Users\ridha\jarvis_heldout\` was not read, listed, opened, or executed. `run_heldout.ps1` was inspected as source only; its private held-out run remains unproven by design.
+- Commits created: `b1f32d5` known folders/objective planning, `ab3c76d` crash-safe mission routing and needs-review CLI, `ed8e808` policy gate/process-tree hardening, `1743fd9` terminal abandon behavior. A docs-only evidence commit follows the final committed-only run.
