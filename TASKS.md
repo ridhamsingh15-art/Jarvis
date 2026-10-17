@@ -26,4 +26,4 @@ The remaining Ruff findings are an audit backlog, not permission for blind auto-
 ## Next execution pass ? Agent timeout isolation
 - [x] **Prevent late executor completion from mutating timed-out tasks:** execute a detached task snapshot, copy terminal results back only when the future finishes within its timeout, and cancel futures when possible after timeout.
 - [x] **Track execution futures through Agent shutdown:** prevent submit/close races, cancel queued futures during close, and ensure completed futures are removed from tracking.
-- [ ] **Regression gate:** test late completion after timeout, Agent close with queued/running work, run focused Agent tests plus the full suite, Ruff, compileall and diff check; record any non-cooperative running-tool limitation.
+- [x] **Regression gate:** test late completion after timeout, Agent close with queued/running work, run focused Agent tests plus the full suite, Ruff, compileall and diff check; record any non-cooperative running-tool limitation.
