@@ -145,3 +145,18 @@ def test_kill_after_read_only_tool_result_retries_same_idempotency_key(tmp_path:
     assert after and after["status"] == "completed" and after["attempt_count"] == 2
     assert after["idempotency_key"] == before["idempotency_key"]
     assert mission and mission["state"] == "COMPLETED"
+
+def test_destructive_action_is_denied_and_persisted_without_mutation(tmp_path: Path) -> None:
+    target, db = tmp_path / "keep.txt", tmp_path / "policy.sqlite3"
+    target.write_text("must survive", encoding="utf-8")
+    steps = [{"tool": "file", "action": "delete", "args": {"path": str(target)}}]
+    result = _command(*_args(db, "deny-delete", tmp_path, steps))
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "MISSION_STATE=FAILED" in result.stdout
+    assert "Execution policy deny" in result.stdout
+    assert target.read_text(encoding="utf-8") == "must survive"
+    store = CrashSafeMissionStore(db)
+    mission, step = store.mission("deny-delete"), store.step("deny-delete", 0)
+    assert mission and mission["state"] == "FAILED"
+    assert step and step["status"] == "blocked" and "Execution policy deny" in step["error"]
+    print("DESTRUCTIVE_POLICY=PASS status=FAILED step=blocked file_unchanged=true")

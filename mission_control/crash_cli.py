@@ -84,7 +84,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             time.sleep(1)
 
     runner = CrashSafeMissionRunner(
-        store, _engine(args.workspace_root), ExecutionPolicy(allow_destructive_from_core=True),
+        store, _engine(args.workspace_root), ExecutionPolicy(allow_destructive_from_core=False),
         after_execute=pause_after_execute if args.after_execute_marker else None,
     )
     result = runner.run(mission_id, objective, steps)
