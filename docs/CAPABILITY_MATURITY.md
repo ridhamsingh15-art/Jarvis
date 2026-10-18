@@ -22,7 +22,7 @@ These are the current evidence-based maturity estimates. Revise each capability 
 |---:|---|---:|---:|---|
 | 1 | Core conversational agent and orchestration | 10% | 100% | **ACCEPTED — gate complete** |
 | 2 | Best-model strategy and provider routing | 8% | 100% | **ACCEPTED — gate complete** |
-| 3 | Planning, reasoning and multi-step execution | 9% | 75% | QUEUED |
+| 3 | Planning, reasoning and multi-step execution | 9% | 100% | **ACCEPTED - gate complete** |
 | 4 | Computer use: files, shell, browser and applications | 10% | 75% | QUEUED |
 | 5 | Long-term personal memory | 7% | 50% | QUEUED |
 | 6 | Adaptive personality and personalization | 4% | 25% | QUEUED |
@@ -38,7 +38,7 @@ These are the current evidence-based maturity estimates. Revise each capability 
 | 16 | Deployment and operational management | 2% | 50% | QUEUED |
 | | **Total** | **100%** | | |
 
-Initial weighted baseline: **54.25 / 100**. Current weighted score after accepting Gates 1–2: **60.75 / 100**. These are rubric-based progress estimates, not objective proof that the overall vision is complete.
+Initial weighted baseline: **54.25 / 100**. Current weighted score after accepting Gates 1-3: **63.00 / 100**. These are rubric-based progress estimates, not objective proof that the overall vision is complete.
 
 ## Gate 1 — Core conversational agent and orchestration
 
@@ -96,6 +96,42 @@ Accept the provider-selection and model-routing layer for the configured provide
 - Final full repository test run after model-default updates: **1,480 passed, 8 skipped, 0 failed in 95.36s**. The 8 skips are the known Windows symlink/POSIX-shell skips recorded in Gate 1; no failing tests remain.
 - Whole-package compileall passed. Runtime smoke reported SMOKE_TEST=PASS with no external or state-changing actions. main.py --help, mission_crash_safe.py --help, and mission_control.cli --help passed. Targeted Ruff and git diff --check passed (Git emitted line-ending conversion warnings only).
 - **Operational boundary:** no live Gemini/MiniMax request or charge was made because live credentials/account access were not part of offline acceptance. Availability, quotas, account entitlements, and real billing must be checked when a provider is deliberately configured. Screen/voice capabilities remain separate rows.
+
+## Gate 3 - Planning, reasoning and multi-step execution
+
+**Status: ACCEPTED at 100% within this gate's documented scope (2026-10-18).** All acceptance criteria below were executed and passed; explicit boundaries remain documented.
+
+### Scope
+
+Accept the planning/reasoning seam used to turn a user goal into a validated sequence, critique it, verify declared tool requirements, and refuse to present an unverified draft as executable. Also accept the model-driven objective planner's bounded dependency-graph validation and its tested integration with the crash-safe objective runner. Keep provider-routing implementation details under Gate 2, general computer-use capability depth under Gate 4, durable storage/recovery guarantees under Gate 12, and release/observability depth under Gate 13.
+
+This gate does not claim arbitrary mission dispatch: ReasoningManager currently has no mission registry wired into its verifier, so a plan that declares required missions must fail verification and end safely in clarification rather than being approved. It does not claim live provider availability or live model accuracy; model planning acceptance uses mocked responses and temporary test workspaces.
+
+### Acceptance criteria
+
+1. **Bounded model planning:** planner input and output are size-bounded; output must match a typed JSON schema, use supported context labels, and provide 1-32 concise ordered steps unless clarification is requested. Invalid output, provider exceptions, or overlong responses produce a clarification plan with no steps rather than an apparently runnable generic task.
+2. **Critique fails closed:** malformed critique JSON, missing/wrongly typed decision fields, or invalid clarification data never count as approval.
+3. **Plan verification:** the verifier checks step count/content and field types, supported context labels, available declared tools, and registry verification errors. Required missions cannot be marked available without a connected mission registry.
+4. **Bounded deliberation:** iteration limits must be valid and bounded. A plan is returned for downstream execution only after critique and verification both pass. Clarification and iteration-exhaustion results contain no steps or declared tool requirements.
+5. **Model-driven objective graph:** novel objectives plan only against the currently registered action catalog. The whole graph is validated before execution: tool/action allowlists, argument names/types, mutation restrictions, unique step IDs, dependencies, output references, dependency ordering and cycle rejection. Ambiguous destructive requests and unsupported objectives fail closed.
+6. **Multi-step integration evidence:** a mocked model plan can resolve a prior step's verified result reference in a later step and complete through the crash-safe objective runner in a temporary workspace; no live provider call or real user-data mutation is required.
+7. **Regression acceptance:** focused planning/reasoning/objective-runner tests, relevant collaboration/agent-loop tests, whole-package compile, full repository suite, targeted Ruff, smoke and supported CLI checks pass. Existing skips and platform boundaries are reviewed and reported.
+8. **Preservation:** changes stay within Gate 3 plus its tests and this ledger; accepted Gates 1-2 stay accepted; do not reset, rewrite history, or include generated codebase dumps or scratch scripts in commits.
+
+### Gate 3 worklog
+
+- Gate opened on 2026-10-18. Baseline verified at commit 09576fc35c632ad238e1ec641e403587bead956b; branch feature/jarvis-control-center was clean and matched origin before changes.
+- Baseline focused tests: tests/test_planner.py, tests/test_objective_planner.py, tests/test_reasoning.py, and tests/test_reasoning_loop.py: **33 passed**.
+- **2026-10-18 - accepted at 100% within the documented scope.** Hardened the reasoning planner to enforce bounded input/output, JSON schema and field validation, supported context labels, step-count and length limits, and an explicit non-executable clarification result on model/provider/parse failure. A clarification response discards all proposed steps and tool requirements.
+- Hardened the critic so malformed JSON, wrong-typed booleans, unsupported fields, invalid clarification data, and overlong output cannot be treated as approval. Hardened the verifier to validate step/list structure, supported context labels, registered-tool availability, registry failures, and unconnected mission requirements.
+- Reworked the deliberation loop to validate iteration bounds (1-10) and return a downstream plan only after critique and verification pass. If no valid plan is established within the iteration budget, it returns a clarification result with no executable steps or declared tool requirements.
+- Added tests in tests/test_reasoning_planning_acceptance.py for malformed plan output, unsupported schema values, clarification behavior, malformed critic output, missing tools, disconnected mission registry behavior, iteration exhaustion, and invalid iteration bounds.
+- Focused planning/reasoning/mission-objective/collaboration/agent-loop tests: **61 passed in 3.03s**.
+- Final full repository suite: **1,489 passed, 8 skipped, 0 failed in 103.54s**. The 8 skips match the previously reviewed Windows environment boundaries: 1 directory-symlink test skipped because symlink creation is not permitted and 7 POSIX-only shell tests skipped on Windows (path semantics, parameter expansion, shell quoting, and POSIX path handling).
+- Whole-package compileall passed. Runtime smoke returned **SMOKE_TEST=PASS; no external or state-changing actions were executed**. main.py --help, mission_crash_safe.py --help, and mission_control.cli --help passed. Targeted Ruff passed; git diff --check passed with only Git LF-to-CRLF conversion warnings.
+- The objective planner's existing regression suite validates dependency ordering, output-reference ancestry and path semantics, cycle/undeclared-reference rejection, unsupported actions, and a two-step output-reference flow executed through the crash-safe objective runner in a temporary workspace. Its model responses are mocked; no live provider requests or user-data mutation were made.
+- **Boundary kept explicit:** a mission registry is not currently wired to the reasoning verifier, so required_missions fails verification instead of being assumed available. Live provider/model quality, computer-use coverage, durable mission recovery guarantees, and broad release observability remain outside this gate.
+- Capability 3 is accepted; Gate 4 remains queued and was not started.
 
 ## Operating rule
 
