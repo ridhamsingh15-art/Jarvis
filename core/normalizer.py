@@ -131,7 +131,18 @@ def _normalize_one(raw: dict[str, Any]) -> dict[str, Any]:
     normalized_args: dict[str, Any] = {}
 
     for key, value in raw_args.items():
-        canonical_key = _ARG_ALIASES.get(key.lower(), key.lower())
+        lower_key = key.lower()
+        # "target" means the replacement search text for patch/edit actions, but
+        # means a destination path for move/copy. Resolve this collision using the
+        # normalized action instead of the context-free alias table.
+        if (
+            lower_key == "target"
+            and result["tool"] == "file"
+            and result["action"] in {"patch_file", "edit_file"}
+        ):
+            canonical_key = "target"
+        else:
+            canonical_key = _ARG_ALIASES.get(lower_key, lower_key)
 
         if isinstance(value, str):
             value = value.strip()

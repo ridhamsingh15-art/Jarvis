@@ -20,6 +20,19 @@ from core.task import Task, TaskStatus
 
 logger = logging.getLogger(__name__)
 
+
+def _task_args_snapshot(args: Any) -> dict[str, Any]:
+    """Keep summaries resilient to invalid argument shapes from legacy callbacks."""
+    if args is None:
+        return {}
+    if not isinstance(args, dict):
+        return {"_invalid_args_type": type(args).__name__}
+    try:
+        return dict(args)
+    except Exception:  # noqa: BLE001 - summarization must not fail on hostile mapping subclasses
+        return {"_invalid_args_type": type(args).__name__}
+
+
 # Pattern to detect when a model falsely claims failure
 _FAILURE_CLAIM_PATTERN = re.compile(
     r"\b(could\s+not|couldn\'t|failed\s+to|unable\s+to|cannot|can\'t|error|was\s+not\s+able)\b",
@@ -123,7 +136,7 @@ class ExecutionSummary:
                 status=t.status,
                 result=t.result,
                 error=t.error,
-                args=dict(t.args) if t.args else {},
+                args=_task_args_snapshot(t.args),
             )
             for t in exec_tasks
         ]
@@ -138,7 +151,7 @@ class ExecutionSummary:
                 status=t.status,
                 result=t.result,
                 error=t.error,
-                args=dict(t.args) if t.args else {},
+                args=_task_args_snapshot(t.args),
             )
             for t in effective_tasks
         ]
@@ -193,6 +206,56 @@ class ExecutionSummary:
                     "without executing the required tool."
                 )
             return initial_claim.strip() if initial_claim else "Done."
+
+        # Uncertain side effects override model claims. Never imply success or invite a
+        # retry until the outside state has been reconciled by an operator or verifier.
+        unknown = [
+            record for record in self.failed
+            if "outcome unknown" in str(record.error or "").lower()
+        ]
+        if unknown:
+            details = "; ".join(
+                f"couldn't complete {record.tool}.{record.action}"
+                + (
+                    f" on '{record.args.get('path') or record.args.get('filepath') or record.args.get('app')}'"
+                    if (record.args.get("path") or record.args.get("filepath") or record.args.get("app"))
+                    else ""
+                )
+                + f": {record.error or 'execution outcome unknown'}"
+                for record in unknown
+            )
+            failed_descriptions = []
+            for record in unknown:
+                target = record.args.get("path") or record.args.get("filepath") or record.args.get("app")
+                target_str = f" on '{target}'" if target else ""
+                failed_descriptions.append(
+                    f"{record.tool}.{record.action}{target_str}: {record.error or 'execution outcome unknown'}"
+                )
+
+            if self.completed:
+                completed = ", ".join(self._format_task_summary(record) for record in self.completed)
+                message = (
+                    f"Partially completed:\nCompleted: {completed}\n"
+                    f"Failed: {'; '.join(failed_descriptions)}\n"
+                    f"OUTCOME UNKNOWN: {details}. Do not automatically retry; "
+                    "reconcile external state before resuming."
+                )
+            else:
+                first = unknown[0]
+                target = first.args.get("path") or first.args.get("filepath") or first.args.get("app")
+                target_str = f" on '{target}'" if target else ""
+                message = (
+                    f"I couldn't complete {first.tool}.{first.action}{target_str}. "
+                    f"OUTCOME UNKNOWN: {details}. Do not automatically retry; "
+                    "reconcile external state before resuming."
+                )
+
+            if self.skipped:
+                not_run = ", ".join(
+                    f"{record.tool}.{record.action}" for record in self.skipped
+                )
+                message += f" Not executed after the uncertain outcome: {not_run}."
+            return message
 
         # 2. Check mission verification override if verification failed or was partial
         if self.verification_status == "partial":

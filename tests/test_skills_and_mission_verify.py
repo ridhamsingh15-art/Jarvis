@@ -122,6 +122,10 @@ class TestSkillsRuntime:
         denied = runtime.check_tool_permission("unknown_tool", "do_thing", "skill_001")
         assert denied is False
 
+    def test_tool_permission_denied_when_policy_missing(self):
+        runtime = SkillsRuntime()
+        assert runtime.check_tool_permission("browser", "open_url", "skill_001") is False
+
     def test_format_context_for_prompt(self):
         runtime = SkillsRuntime()
         ctxs = [

@@ -1,11 +1,13 @@
 # Audit-Derived Reliability Tasks
 
-## Verified baseline (2026-10-17)
+## Historical verified baseline (2026-10-17; superseded by current hardening pass)
 - Branch: `feature/jarvis-control-center`; HEAD: `c720084` (`fix(swe): harden repository analysis`).
 - Full suite: `1031 passed, 1 skipped in 33.86s` (exit 0), run with the project `.venv` and a temp directory outside the repository.
 - Whole-repository Ruff: `275 findings`; top groups include `BLE001` 103, `RUF059` 41, `F841` 32, `S110` 25, `RUF022` 15, `SIM102` 12, and `UP035` 46 (Ruff's statistics output reports categories; counts overlap only if the same finding has multiple rules, so do not sum blindly).
 - One skip is a Windows-specific shell-variable-expansion test guarded by `skipif(os.name != "nt")`; it is expected on non-Windows platforms and is not a failing test.
 - Worktree contains pre-existing edits in `core/applications/installer.py` and `core/applications/permissions.py`, plus untracked `jarvis_test_workspace/`. These were inspected and are intentionally excluded from audit commits; do not overwrite, stage, or remove them.
+
+Current hardening verification is recorded in [`docs/JARVIS_HARDENING_STATUS.md`](docs/JARVIS_HARDENING_STATUS.md); the current wired entry points and mission architecture are in [`docs/ARCHITECTURE_CURRENT.md`](docs/ARCHITECTURE_CURRENT.md).
 
 ## Checklist
 - [x] **Bound identity prompt cache to the manager instance:** replace the class-level `lru_cache` on `IdentityManager.build_planner_prompt` with a bounded per-instance cache; add regression coverage for cache hits and eviction; run identity tests and targeted Ruff.
@@ -67,10 +69,18 @@ The remaining Ruff findings are an audit backlog, not permission for blind auto-
 
 
 ## Next milestone — model-driven, dependency-aware mission planning
-- [ ] Replace the narrow regex-only objective planner with provider-backed structured plan generation using a strict schema; reject unsupported, malformed, or unsafe plans without execution.
-- [ ] Add explicit step IDs and dependency edges so later steps can consume validated outputs from earlier steps instead of re-reading or recomputing the same data.
-- [ ] Implement recoverable replanning after a failed step, preserving prior verified outputs and requiring policy approval for gated actions.
-- [ ] Expose pending approvals and mission/step evidence in the existing GUI as well as the CLI; prove one cross-tool mission with real FileTool and ShellTool execution, policy decisions, persisted outputs, and process-restart recovery.
+- [x] Add provider-backed structured planning for objectives not handled by the bounded deterministic fast path; validate the entire plan, reject unsupported/malformed/unsafe actions, and expose only capabilities actually registered by the crash-safe execution engine.
+- [x] Add stable step IDs, dependency graph validation/topological ordering, bounded output references (for example, `{"$ref":"discover.result.files.0.path"}`), persisted-result resolution, and runtime type checks before invoking dependent tools.
+- [x] Add a reusable local-model evaluation harness and varied cases for filesystem inspection, multi-step result use, browser lookup, app launch, and ambiguous requests. The harness measures plan validity, tool-sequence accuracy, unsupported-request handling, and latency without executing generated plans.
+- [x] Implement one bounded model-driven replan after an eligible failure, only when the prior plan contains replay-safe filesystem actions and the failure is not policy/approval/unknown-side-effect related. Preserve prior verified evidence in goal metadata, omit raw file contents (store a digest for read-file results), and require every replacement plan to pass the same registered-tool/schema/dependency validation.
+- [x] Add durable independent postcondition checks for supported filesystem actions (`read_file`, `list_directory`, `list_largest_files`, `summarize_files`, `directory_file_stats`, `extension_counts`, `list_directory_details`, and `ensure_text_files`). Persist per-step verification evidence and expose mission-level `verified`/`partial`/`not_verified`; actions without an independent verifier are explicitly not reported as independently verified.
+- [x] Add a Mission Control GUI page for persisted mission/step evidence, verification status, legacy and crash-safe pending approvals, explicit approve/reject controls, resume, and needs-review retry/abandon actions. Approval is a durable, separate action; execution requires a second explicit resume confirmation. Preserve the configured execution policy and fail closed when the registry/policy is unavailable.
+- [x] Add independent Windows process-inventory verification for supported desktop app launches. Browser actions validate the HTTP(S) destination and independently confirm a supported browser process; when local Chromium DevTools Protocol is enabled at `127.0.0.1:9222`, the verifier checks that the requested URL is present in an open page. Without that endpoint, status remains `partial`.
+- [x] Expand local-model evaluation to 16 cases covering filesystem tasks, browser/desktop requests, unsupported capabilities, ambiguous destructive requests, and two model-generated recovery alternatives. The report is `evaluation/model_planner_eval_20261017_extended.json`; planning-only evaluation did not execute any generated actions.
+- [x] Extend the crash-safe engine and model capability manifest to include additional explicitly registered tools. New registered tools require explicit operator approval by default; arbitrary/unregistered actions and model self-authorization remain blocked. The planner and execution schema are deliberately retained as safety boundaries rather than bypassed.
+- [x] Add deterministic browser page-content/title/URL checks through the explicitly enabled loopback CDP inspection channel. Arbitrary natural-language `expected_outcome` prose remains unsupported as proof; only deterministic assertions and action-specific verifiers can establish verified completion.
+- [x] Exercise end-to-end recovery with controlled failures, persisted evidence, a replacement mission, and final-state checks across filesystem/browser tool families. The 16-case local-model benchmark remains planning-only; live-model execution reliability is not inferred from it.
+- [ ] Expand autonomy only through capability providers with explicit schemas, provenance, execution policies, approval rules, and independent verifiers. Do not enable arbitrary shell/code or bypass the validated plan schema as a shortcut to “general-purpose” behavior.
 
 
 ## Crash-safe mission execution + held-out harness — 2026-10-17
@@ -78,4 +88,49 @@ The remaining Ruff findings are an audit backlog, not permission for blind auto-
 - [x] On recovery, re-run only explicitly idempotent read-only actions; fail/needs-review side-effecting steps left `started` with a recorded unknown-outcome reason.
 - [x] Add real subprocess kill tests after a side effect but before result persistence, and during a long-running step; assert exactly-once-or-flagged semantics.
 - [x] Add `run_heldout.ps1` that reads `C:\Users\ridha\jarvis_heldout\HELDOUT.md` only inside the script, hashes objectives, runs the real crash-safe CLI against the real filesystem, evaluates adjacent declarative checks, and reports failure classes without special-casing objective text. Syntax-checked only; private objectives intentionally not run.
-- [x] Preserve unrelated working-tree changes and `jarvis_test_workspace/`; commit only milestone-owned files and report held-out as unverified until the user runs it with their private file. Blocker: wiring the crash-safe runner into `main.py` is deferred because `main.py` and related mission files have pre-existing uncommitted changes that were not edited.
+- [x] Preserve unrelated working-tree changes and `jarvis_test_workspace/`; report held-out as unverified until the user runs it with their private file. Historical blocker resolved in the current working tree: `main.py` now delegates mission execution to the crash-safe runner with an explicit workspace boundary and verification-aware exit semantics.
+
+
+## Autonomy integration hardening — 2026-10-17
+- [x] Add a whole-plan executor contract so the durable Mission Control runner is invoked once per autonomous goal, rather than once per step with the full mission repeated.
+- [x] Validate persisted plan/mission metadata and align each returned tool/action result with the corresponding planned step.
+- [x] Require independently verified mission and step outcomes before the crash-safe autonomy adapter can return success; block automatic replanning when partial work is known to have occurred.
+- [x] Add unit regressions and a real two-step autonomous-goal integration test using SQLite goal persistence and the real crash-safe mission runner.
+- [x] Finish the full regression gate and record the exact result in NOTES: 1148 passed, 1 skipped; Ruff/critical lint, compileall, and diff checks passed.
+- [x] Complete deterministic browser page-content/title/URL and supported expected-outcome verification; arbitrary free-form semantic prose remains explicitly unsupported.
+- [ ] Inject controlled failures after a verified step and prove safe recovery/final-state correctness across multiple capability families.
+- [x] Add durable scheduled goals/background execution with pause/disable, missed-run handling, single-run locking, and startup reconciliation; covered by `core/autonomy/scheduling.py` and scheduling regression tests.
+- [x] Inject the same explicit registered-tool registry into model planning and crash-safe execution; schemas are manifest-derived and additional registered tools remain confirmation-gated. Provenance/verification requirements still apply to future provider types.
+- [x] Share one explicit registered-tool capability registry between autonomy planning and execution; keep model-generated shell execution disabled.
+- [x] Preserve approval/reconciliation as a durable paused goal state instead of incorrectly turning WAITING_APPROVAL/NEEDS_REVIEW/RECOVERY_REQUIRED into a terminal goal failure; require explicit resume after operator resolution.
+
+
+## Durable autonomy milestone — 2026-10-17
+- [x] Durable recurring goal schedules with SQLite ledger, atomic due/pending claims, pause/disable/delete, missed-run coalescing, and startup reconciliation.
+- [x] Add a background autonomy service mode (`main.py --autonomy-service`) so schedules can continue while the GUI is closed; document optional Windows Task Scheduler setup without installing it automatically.
+- [x] Connect goal and schedule lifecycle controls to Mission Control GUI with auto-refreshing progress, verification evidence, intervention reasons, and explicit start/pause/resume/cancel controls.
+- [x] Inspect Chromium DOM through opt-in loopback CDP and add deterministic browser text/title/URL plus file/output/process expected-outcome assertions; default page excerpts are not persisted.
+- [x] Inject a real read-only failure after a verified step, replan using persisted evidence under a distinct mission ID, and verify final state.
+- [x] Inject a cross-family file/browser failure and assert uncertain browser actions are not automatically replayed.
+- [x] Final full regression suite and post-final-edit lint/compile/diff gate: 1161 passed, 1 skipped; Ruff, critical lint, compileall, CLI help, and diff checks passed.
+- [x] Keep free-form semantic prose from being treated as proof. Deterministic assertions and action-specific independent verifiers decide verified completion; future action families must add their own verifiers. Browser DOM inspection remains opt-in and requires local CDP enablement.
+
+
+## Trustworthy execution-state recovery follow-up — 2026-10-17
+- [x] Persist in-flight step/batch markers before executor invocation; only clear markers after independently verified results are durably recorded.
+- [x] Mark active goals untrusted on restart and when stopping/pausing during an in-flight action; refuse generic executor replay without a durable reconciliation ledger.
+- [x] Route production recovery through the crash-safe mission ledger and prove that an explicit resume does not replay a terminal side-effecting browser failure.
+- [x] Require an explicit replay-safety attestation before bounded replanning; distinguish known policy denial from uncertain side-effect outcomes.
+- [x] Add regression tests for unverified results, restart reconciliation, generic plan replay after intervention, and cross-tool-family no-replay recovery.
+- [x] Final validation: 1163 passed, 1 skipped; scoped Ruff, critical lint, compileall, CLI-help smoke test, and `git diff --check` passed.
+
+## 2026-10-17 hardening follow-up
+
+- [x] Unify `JARVIS_DISABLE_LIVE_MODEL_PLANNING` with the adaptive planner's live-model gate and add a regression test.
+- [x] Harden quoted/path-qualified nested-shell detection and ensure inline Python commands with quoted/absolute interpreter paths enter the approval policy.
+- [x] Remove filename-based exceptions that allowed project-root mutations of `test_*` and `jarvis_session_test*` paths.
+- [x] Strip sensitive environment variables before launching Codex CLI and ensure the GUI Missions view uses the configured mission database.
+- [x] Require independent verification before dependent steps can execute or a mission can return success; uncertain side effects enter `needs_review`.
+- [x] Add independent postcondition checks for common file mutations and prevent `output_contains` from overriding failed or unsupported independent verification.
+- [x] Bound subprocess stdout/stderr capture while continuing to drain pipes; redact URL userinfo/query values and shell command arguments from logs.
+- [x] Final verification: **1,203 passed, 1 skipped**; scoped Ruff, compileall, smoke test, CLI help, and `git diff --check` passed. Full Ruff comparison found zero new tracked-file signatures (11 new signatures are confined to existing untracked workspace/vendor files). No commit/push was performed.

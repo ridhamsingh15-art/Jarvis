@@ -1,12 +1,19 @@
+import logging
 import math
 from numbers import Real
 from typing import Any
 
+from core.action_safety import (
+    is_known_pre_side_effect_failure,
+    is_known_read_only_action,
+)
 from core.task import TaskStatus
 
 from .action_registry import ActionRegistry
 from .exceptions import ActionNotFoundError
 from .models import ExecutionContext
+
+logger = logging.getLogger(__name__)
 
 
 class ExecutionEngine:
@@ -14,6 +21,10 @@ class ExecutionEngine:
     
     def __init__(self, registry: ActionRegistry):
         self._registry = registry
+
+    def registered_actions(self) -> list[str]:
+        """Expose registered capabilities without leaking mutable registry internals."""
+        return self._registry.list_actions()
         
     def timeout_for_task(self, task: Any, default_timeout: float | None) -> float | None:
         """Resolve a handler timeout without reducing an explicitly larger budget."""
@@ -62,17 +73,46 @@ class ExecutionEngine:
     def execute(self, task: Any) -> Any:
         """
         Backward compatibility wrapper for Agent.
-        Executes a task directly in the current thread.
+        Only PENDING/RETRYING tasks may claim execution; duplicate calls are no-ops.
         """
+        # try_start() performs the state check and transition atomically. In particular,
+        # a second caller must not execute the handler or fail the first caller's task.
+        if not task.try_start():
+            logger.warning(
+                "Skipping duplicate task execution for %s.%s in state %s",
+                getattr(task, "tool", "unknown"),
+                getattr(task, "action", "unknown"),
+                getattr(getattr(task, "status", None), "value", getattr(task, "status", None)),
+            )
+            return task
+
         try:
-            if getattr(task, "status", None) in (TaskStatus.PENDING, TaskStatus.RETRYING):
-                task.start()
             handler = self._registry.get(task.action)
-            result = handler(None, **task.args) if hasattr(task, 'args') else handler(None, **task.parameters)
+        except Exception as exc:
+            # Registration lookup failed before any handler was invoked, so this is a
+            # known non-execution failure rather than an uncertain external side effect.
+            if getattr(task, "status", None) == TaskStatus.RUNNING:
+                task.fail(f"NOT EXECUTED: handler lookup failed: {type(exc).__name__}: {exc}")
+            logger.exception("Task handler lookup failed for %s.%s", task.tool, task.action)
+            return task
+
+        try:
+            result = handler(None, **task.args) if hasattr(task, "args") else handler(None, **task.parameters)
             task.complete(result)
-        except Exception as e:  # noqa: BLE001
-            # If task is still PENDING or RETRYING (start() failed or wasn't reached), force to RUNNING first
-            if getattr(task, "status", None) in (TaskStatus.PENDING, TaskStatus.RETRYING):
-                task.start()
-            task.fail(str(e))
+        except Exception as exc:
+            # Read-only operations cannot mutate external state, so their failures can
+            # safely return to bounded model recovery. All other actions remain uncertain.
+            if getattr(task, "status", None) == TaskStatus.RUNNING:
+                if is_known_read_only_action(task.tool, task.action) or is_known_pre_side_effect_failure(
+                    task.tool, task.action, str(exc)
+                ):
+                    task.fail(f"Execution failed: {type(exc).__name__}: {exc}")
+                else:
+                    task.fail(
+                        "OUTCOME UNKNOWN: execution handler raised "
+                        f"{type(exc).__name__}: {exc}. The handler may have crossed a "
+                        "side-effect boundary; do not automatically retry until external "
+                        "state is reconciled."
+                    )
+            logger.exception("Task execution failed for %s.%s", task.tool, task.action)
         return task

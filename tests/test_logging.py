@@ -133,3 +133,133 @@ def test_concurrent_logging(sample_config, tmp_path):
         lines = f.readlines()
         
     assert len(lines) == 1000
+
+
+@pytest.mark.parametrize(
+    "secret_key",
+    [
+        "access_token",
+        "accessToken",
+        "refresh-token",
+        "client_secret",
+        "clientSecret",
+        "apiKey",
+        "api-key",
+        "privateKey",
+        "private_key",
+        "authorization",
+        "COOKIE",
+        "db-password",
+    ],
+)
+def test_secret_masking_covers_common_key_variants(sample_config, secret_key):
+    masker = LogMasker(sample_config)
+    payload = {
+        secret_key: "must-not-leak",
+        "nested": [{"sessionKey": "nested-secret", "ordinary": "visible"}],
+        "tokenizer": "ordinary-language-tokenizer",
+    }
+
+    masked = masker.mask(payload)
+
+    assert masked[secret_key] == "********"
+    assert masked["nested"][0]["sessionKey"] == "********"
+    assert masked["nested"][0]["ordinary"] == "visible"
+    assert masked["tokenizer"] == "ordinary-language-tokenizer"
+    assert "must-not-leak" not in repr(masked)
+    assert "nested-secret" not in repr(masked)
+
+
+def test_secret_masking_matches_configured_schema_keys_after_normalization(tmp_path):
+    schema = ConfigSchema({
+        "OAuthAccessToken": ConfigField(type_=str, is_secret=True, default="secret"),
+    })
+    config = ConfigManager(schema).load()
+    masker = LogMasker(config)
+
+    assert masker.mask({"oauth_access_token": "sensitive"})["oauth_access_token"] == "********"
+
+
+def test_shutdown_does_not_close_sink_while_dispatch_is_writing(sample_config, monkeypatch):
+    from core.telemetry.logger import AsyncLogger
+
+    started = threading.Event()
+    release = threading.Event()
+
+    class BlockingSink:
+        def __init__(self):
+            self.closed = False
+            self.closed_while_writing = False
+
+        def write(self, _formatted):
+            started.set()
+            assert release.wait(timeout=2)
+            self.closed_while_writing = self.closed
+
+        def close(self):
+            self.closed = True
+
+    sink = BlockingSink()
+    logger = AsyncLogger(LogLevel.DEBUG, LogMasker(sample_config), [(TextFormatter(), sink)])
+    real_join = logger._thread.join
+    # Simulate the documented bounded shutdown timeout without waiting two seconds.
+    monkeypatch.setattr(logger._thread, "join", lambda timeout=None: real_join(timeout=0.01))
+    logger.info("blocked sink record")
+    assert started.wait(timeout=1)
+
+    logger.shutdown()
+    assert not sink.closed, "shutdown must not close a sink still owned by the dispatcher"
+
+    release.set()
+    real_join(timeout=1)
+    assert not logger._thread.is_alive()
+    assert sink.closed
+    assert not sink.closed_while_writing
+
+
+def test_dispatcher_accounts_for_records_when_a_sink_fails(sample_config):
+    from core.telemetry.logger import AsyncLogger
+
+    received = []
+
+    class FlakySink:
+        def __init__(self):
+            self.calls = 0
+            self.closed = False
+
+        def write(self, formatted):
+            self.calls += 1
+            if self.calls == 1:
+                raise RuntimeError("expected sink failure")
+            received.append(formatted)
+
+        def close(self):
+            self.closed = True
+
+    sink = FlakySink()
+    logger = AsyncLogger(LogLevel.DEBUG, LogMasker(sample_config), [(TextFormatter(), sink)])
+    logger.info("first record")
+    logger.info("second record")
+    logger.shutdown()
+
+    assert sink.calls == 2
+    assert received and "second record" in received[0]
+    assert sink.closed
+
+
+def test_secret_masking_recurses_through_tuples(sample_config):
+    masker = LogMasker(sample_config)
+    payload = {
+        "metadata": (
+            {"password": "tuple-secret-marker"},
+            [{"apiKey": "nested-tuple-secret-marker", "ordinary": "visible"}],
+        )
+    }
+
+    masked = masker.mask(payload)
+
+    assert masked["metadata"][0]["password"] == "********"
+    assert masked["metadata"][1][0]["apiKey"] == "********"
+    assert masked["metadata"][1][0]["ordinary"] == "visible"
+    assert "tuple-secret-marker" not in repr(masked)
+    assert "nested-tuple-secret-marker" not in repr(masked)

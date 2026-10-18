@@ -5,6 +5,7 @@ from .exceptions import (
     EvaluationError,
     GoalCreationError,
     GoalExecutionError,
+    GoalInterventionRequired,
     PersistenceError,
     SchedulingError,
 )
@@ -17,19 +18,25 @@ from .interfaces import (
     IRetryPolicy,
 )
 from .manager import AutonomousGoalManager
+from .mission_adapter import CrashSafeGoalStepExecutor, ExecutionBackedGoalPlanner
 from .models import Goal, GoalEvaluation, GoalHistory, GoalPlan, GoalProgress, GoalStep
 from .persistence import InMemoryGoalPersistence
 from .planner import DefaultGoalPlanner
 from .policies import ExponentialBackoffPolicy, LinearRetryPolicy
 from .scheduler import DAGGoalScheduler
+from .service import AutonomyService
+from .step_executor import IGoalStepExecutor, UnconfiguredGoalStepExecutor
 
 __all__ = [
     "AutonomousGoalManager",
     "AutonomyError",
+    "AutonomyService",
+    "CrashSafeGoalStepExecutor",
     "DAGGoalScheduler",
     "DefaultGoalEvaluator",
     "DefaultGoalPlanner",
     "EvaluationError",
+    "ExecutionBackedGoalPlanner",
     "ExponentialBackoffPolicy",
     "Goal",
     "GoalContext",
@@ -37,24 +44,30 @@ __all__ = [
     "GoalEvaluation",
     "GoalExecutionError",
     "GoalHistory",
+    "GoalInterventionRequired",
     "GoalPlan",
     "GoalPriority",
     "GoalProgress",
+    "GoalSchedule",
     "GoalState",
     "GoalStep",
     "IGoalEvaluator",
     "IGoalPersistence",
     "IGoalPlanner",
     "IGoalScheduler",
+    "IGoalStepExecutor",
     "IRetryPolicy",
     "InMemoryGoalPersistence",
     "LinearRetryPolicy",
     "PersistenceError",
     "RetryStrategy",
+    "SQLiteGoalPersistence",
+    "SQLiteScheduleStore",
+    "ScheduleRun",
     "SchedulingError",
     "StepState",
+    "UnconfiguredGoalStepExecutor",
 ]
 
+from .scheduling import GoalSchedule, ScheduleRun, SQLiteScheduleStore
 from .sqlite_persistence import SQLiteGoalPersistence
-
-__all__.append("SQLiteGoalPersistence")

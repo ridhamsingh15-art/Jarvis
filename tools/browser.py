@@ -9,7 +9,7 @@ the core framework — communicates only through the BaseTool interface.
 import logging
 import re
 import webbrowser
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlsplit
 
 from core.action_definition import ActionDefinition
 from core.exceptions import ExecutionError
@@ -38,6 +38,22 @@ _KNOWN_SITES: dict[str, str] = {
 _GOOGLE_SEARCH_URL = "https://www.google.com/search?q={query}"
 
 
+def _safe_url_for_log(url: str) -> str:
+    """Return URL location evidence without userinfo, query values, or fragments."""
+    try:
+        parsed = urlsplit(url)
+        host = parsed.hostname or ""
+        port = parsed.port
+    except ValueError:
+        return "[invalid URL]"
+    if ":" in host and not host.startswith("["):
+        host = f"[{host}]"
+    authority = host + (f":{port}" if port is not None else "")
+    suffix = "?[redacted]" if parsed.query else ""
+    suffix += "#[redacted]" if parsed.fragment else ""
+    return f"{parsed.scheme}://{authority}{parsed.path}{suffix}"
+
+
 class BrowserTool(BaseTool):
     """Tool for opening URLs, known websites, and Google searches."""
 
@@ -64,18 +80,21 @@ class BrowserTool(BaseTool):
         return {
             "open_url": ActionDefinition(
                 name="open_url",
-                description="Opens a URL in the default browser.",
-                required_args=["url"]
+                description="Opens a URL in the default browser and can verify expected page text/title when local Chromium inspection is enabled.",
+                required_args=["url"],
+                optional_args=["expected_text", "expected_title", "capture_page_excerpt"],
             ),
             "open_site": ActionDefinition(
                 name="open_site",
-                description=f"Opens a known website by name. Known sites: {site_list}",
-                required_args=["site"]
+                description=f"Opens a known website by name and can verify expected page text/title when local Chromium inspection is enabled. Known sites: {site_list}",
+                required_args=["site"],
+                optional_args=["expected_text", "expected_title", "capture_page_excerpt"],
             ),
             "search_google": ActionDefinition(
                 name="search_google",
-                description="Searches Google with a query.",
-                required_args=["query"]
+                description="Searches Google with a query and can verify expected result text/title when local Chromium inspection is enabled.",
+                required_args=["query"],
+                optional_args=["expected_text", "expected_title", "capture_page_excerpt"],
             ),
         }
 
@@ -131,12 +150,13 @@ class BrowserTool(BaseTool):
             url = f"https://{url}"
 
         try:
-            webbrowser.open(url)
-            logger.info("Opened URL: %s", url)
-            return f"Opened {url}"
+            if not webbrowser.open(url):
+                raise ExecutionError("The default browser did not accept the URL open request.")
+            logger.info("Opened URL: %s", _safe_url_for_log(url))
+            return f"Opened {_safe_url_for_log(url)}"
         except webbrowser.Error as exc:
             raise ExecutionError(
-                f"Failed to open URL '{url}': {exc}"
+                f"Failed to open URL '{_safe_url_for_log(url)}': {exc}"
             ) from exc
 
     @staticmethod
@@ -183,8 +203,9 @@ class BrowserTool(BaseTool):
             )
 
         try:
-            webbrowser.open(url)
-            logger.info("Opened site: %s (%s)", site_name, url)
+            if not webbrowser.open(url):
+                raise ExecutionError("The default browser did not accept the site open request.")
+            logger.info("Opened site: %s (%s)", site_name, _safe_url_for_log(url))
             return f"Opened {site_name}"
         except webbrowser.Error as exc:
             raise ExecutionError(
@@ -214,8 +235,9 @@ class BrowserTool(BaseTool):
         url = _GOOGLE_SEARCH_URL.format(query=quote_plus(query))
 
         try:
-            webbrowser.open(url)
-            logger.info("Google search: %s", query)
+            if not webbrowser.open(url):
+                raise ExecutionError("The default browser did not accept the search request.")
+            logger.info("Google search requested (query_chars=%d)", len(query))
             return f"Searched Google for '{query}'"
         except webbrowser.Error as exc:
             raise ExecutionError(

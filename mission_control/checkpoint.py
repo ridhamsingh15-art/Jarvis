@@ -17,6 +17,8 @@ class CheckpointEngine:
                 "completed": mission.completed_steps,
                 "pending_approvals": mission.pending_approvals,
                 "approved_steps": mission.approved_steps,
+                "pending_approval_indexes": mission.pending_approval_indexes,
+                "approved_step_indexes": mission.approved_step_indexes,
             })
 
     def load(self, mission_id: str) -> dict | None:

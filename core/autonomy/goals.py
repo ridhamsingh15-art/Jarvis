@@ -19,9 +19,19 @@ class GoalContext:
 
     def set_state(self, state: GoalState) -> None:
         with self._lock:
-            if self._goal.state in (GoalState.COMPLETED, GoalState.FAILED, GoalState.CANCELLED) and state not in (GoalState.COMPLETED, GoalState.FAILED, GoalState.CANCELLED):
-                    raise GoalExecutionError(f"Cannot transition from terminal state {self._goal.state.value} to {state.value}.")
-                    
+            terminal_states = (
+                GoalState.COMPLETED,
+                GoalState.FAILED,
+                GoalState.CANCELLED,
+            )
+            if self._goal.state in terminal_states:
+                if state != self._goal.state:
+                    raise GoalExecutionError(
+                        f"Cannot transition from terminal state {self._goal.state.value} to {state.value}."
+                    )
+                # Treat an idempotent write of the same terminal state as a no-op.
+                return
+
             self._goal = Goal(
                 id=self._goal.id,
                 description=self._goal.description,

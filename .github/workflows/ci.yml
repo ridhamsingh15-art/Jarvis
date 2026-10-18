@@ -1,0 +1,41 @@
+name: JARVIS CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Compile application modules
+        run: python -m compileall -q core mission_control tools providers
+      - name: Lint hardened runtime modules
+        run: >-
+          ruff check --output-format concise main.py tools/shell.py tools/file.py
+          core/execution_policy.py core/skills_runtime.py core/context_budget.py
+          core/bootstrap/bootstrapper.py core/autonomy/manager.py
+          core/autonomy/sqlite_persistence.py providers/gemini_provider.py
+          mission_control/crash_safe.py mission_control/crash_store.py
+          mission_control/crash_cli.py mission_control/execution.py mission_control/mission.py
+          core/executor/manager.py core/executor/isolated_handler.py core/executor/isolated_tool_worker.py
+          tests/test_executor_containment_contract.py tests/test_isolated_handler.py
+          tests/test_verification_integrity.py
+      - name: Run automated tests
+        run: python -m pytest -q
+      - name: Smoke-test wired AIOS runtime
+        run: python smoke_test.py
+      - name: Check CLI entry points
+        run: |
+          python main.py --help
+          python mission_crash_safe.py --help

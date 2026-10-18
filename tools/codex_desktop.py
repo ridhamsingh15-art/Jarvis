@@ -18,6 +18,7 @@ from typing import Any
 from core.action_definition import ActionDefinition
 from core.exceptions import ExecutionError
 from tools.base_tool import BaseTool
+from tools.shell import _is_sensitive_environment_key
 
 LOGGER = logging.getLogger(__name__)
 MAX_TASK_CHARS = 3000
@@ -89,7 +90,10 @@ class CodexDesktopTool(BaseTool):
         prompt = f"{_SYSTEM_INSTRUCTIONS}\n\nUSER TASK:\n{task}"
         command = self._build_command()
         root = Path(__file__).resolve().parents[1]
-        env = os.environ.copy()
+        env = {
+            key: value for key, value in os.environ.items()
+            if not _is_sensitive_environment_key(key)
+        }
         env.setdefault("PYTHONUTF8", "1")
         env.setdefault("NUPHUS_MCP_CONFIRM_WRITE", "1")
 

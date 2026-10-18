@@ -1,5 +1,8 @@
 # 📦 Modules Reference
 
+> **Current-status note (2026-10-17):** This document contains legacy architecture descriptions and may not match the current wired runtime. Use [`ARCHITECTURE_CURRENT.md`](ARCHITECTURE_CURRENT.md) for the authoritative entry-point and mission flow, and [`JARVIS_HARDENING_STATUS.md`](JARVIS_HARDENING_STATUS.md) for verified safety changes and remaining limitations.
+
+
 > Detailed reference for every module in the Jarvis framework.
 
 ---

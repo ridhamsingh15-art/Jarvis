@@ -39,6 +39,8 @@ class MockComponent(BaseComponent):
 @pytest.fixture
 def runtime(monkeypatch, tmp_path):
     monkeypatch.setenv("JARVIS_AUTONOMY_DB", str(tmp_path / "autonomy.sqlite3"))
+    monkeypatch.setenv("JARVIS_MISSION_DB", str(tmp_path / "crash-missions.sqlite3"))
+    monkeypatch.setenv("JARVIS_LLM_PLANNING", "false")
     result = Bootstrap.start()
     yield result.runtime
     # Cleanup after test if still running
@@ -130,10 +132,81 @@ def test_runtime_caller_can_start_persistent_goal(runtime):
         deadline = time.monotonic() + 3.0
         while time.monotonic() < deadline:
             state = manager.status(goal.id)
-            if state in (GoalState.COMPLETED, GoalState.FAILED):
+            if state in (GoalState.COMPLETED, GoalState.FAILED, GoalState.PAUSED):
                 break
             time.sleep(0.01)
 
+        assert manager.status(goal.id) is GoalState.FAILED
+        failed_goal = next(item for item in manager.list_goals() if item.id == goal.id)
+        assert "couldn't safely map this objective" in failed_goal.metadata["failure_reason"]
+    finally:
+        kernel.stop()
+
+
+
+def test_runtime_executes_real_supported_goal(runtime, tmp_path):
+    import json
+
+    from core.autonomy import AutonomousGoalManager
+
+    workspace = tmp_path / "real-goal-files"
+    workspace.mkdir()
+    for index in range(3):
+        (workspace / f"real-file-{index}.txt").write_text(
+            f"JARVIS_REAL_EXECUTION_MARKER_{index}\n" + ("sample " * (index + 2)),
+            encoding="utf-8",
+        )
+
+    kernel = RuntimeKernel(runtime)
+    kernel.start()
+    try:
+        manager = runtime.container.resolve(AutonomousGoalManager)
+        goal = manager.create_goal(f"List the 10 largest files in {workspace}")
+        manager.start_goal(goal.id)
+
+        deadline = time.monotonic() + 10.0
+        while time.monotonic() < deadline:
+            state = manager.status(goal.id)
+            if state in (GoalState.COMPLETED, GoalState.FAILED):
+                break
+            time.sleep(0.02)
+
         assert manager.status(goal.id) is GoalState.COMPLETED
+        completed_goal = next(item for item in manager.list_goals() if item.id == goal.id)
+        results = completed_goal.metadata.get("execution_results", [])
+        assert len(results) == 1
+        assert results[0]["state"] == "COMPLETED"
+        assert results[0]["action"] == "list_largest_files"
+        assert "real-file-2.txt" in json.dumps(results, ensure_ascii=False)
+    finally:
+        kernel.stop()
+
+
+
+
+def test_runtime_goal_respects_destructive_execution_policy(runtime, tmp_path):
+    from core.autonomy import AutonomousGoalManager
+
+    target = tmp_path / "must-not-delete.txt"
+    target.write_text("preserve this file", encoding="utf-8")
+    kernel = RuntimeKernel(runtime)
+    kernel.start()
+    try:
+        manager = runtime.container.resolve(AutonomousGoalManager)
+        goal = manager.create_goal(f"delete {target}")
+        manager.start_goal(goal.id)
+
+        deadline = time.monotonic() + 10.0
+        while time.monotonic() < deadline:
+            state = manager.status(goal.id)
+            if state in (GoalState.COMPLETED, GoalState.FAILED, GoalState.PAUSED):
+                break
+            time.sleep(0.02)
+
+        assert manager.status(goal.id) is GoalState.PAUSED
+        assert target.read_text(encoding="utf-8") == "preserve this file"
+        paused_goal = next(item for item in manager.list_goals() if item.id == goal.id)
+        assert paused_goal.metadata["intervention_kind"] == "approval_required"
+        assert "requires confirmation" in paused_goal.metadata["intervention_required"]
     finally:
         kernel.stop()

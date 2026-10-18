@@ -32,11 +32,13 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from core.action_safety import is_known_read_only_action
 from core.context_budget import (
     DEFAULT_MAX_TOOL_RESULT_CHARS,
     ContextBudget,
@@ -94,6 +96,7 @@ class ToolLoopResult:
     llm_calls: int = 0
     final_response: str = ""
     context_budget: ContextBudget | None = None
+    outcome_unknown: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -101,14 +104,157 @@ class ToolLoopResult:
 # ---------------------------------------------------------------------------
 
 
+def _canonical_fingerprint_value(value: object, active_ids: set[int] | None = None) -> object:
+    """Convert task arguments into deterministic JSON-safe data without recursion crashes."""
+    active = active_ids if active_ids is not None else set()
+    if value is None or type(value) in (str, bool, int):
+        return value
+    if type(value) is float:
+        return value if math.isfinite(value) else {"__float__": repr(value)}
+
+    object_id = id(value)
+    if isinstance(value, dict):
+        if object_id in active:
+            return {"__cycle__": "mapping"}
+        active.add(object_id)
+        try:
+            entries = []
+            for key, item in value.items():
+                canonical_key = _canonical_fingerprint_value(key, active)
+                canonical_value = _canonical_fingerprint_value(item, active)
+                key_sort = json.dumps(canonical_key, sort_keys=True, separators=(",", ":"), default=str)
+                entries.append((key_sort, canonical_key, canonical_value))
+            entries.sort(key=lambda entry: entry[0])
+            return {"__mapping__": [[key, item] for _, key, item in entries]}
+        finally:
+            active.remove(object_id)
+
+    if isinstance(value, (list, tuple)):
+        if object_id in active:
+            return {"__cycle__": "sequence"}
+        active.add(object_id)
+        try:
+            return [_canonical_fingerprint_value(item, active) for item in value]
+        finally:
+            active.remove(object_id)
+
+    if isinstance(value, (set, frozenset)):
+        if object_id in active:
+            return {"__cycle__": "set"}
+        active.add(object_id)
+        try:
+            items = [_canonical_fingerprint_value(item, active) for item in value]
+            return sorted(items, key=lambda item: json.dumps(item, sort_keys=True, separators=(",", ":"), default=str))
+        finally:
+            active.remove(object_id)
+
+    if hasattr(value, "__fspath__"):
+        try:
+            return {"__path__": str(value.__fspath__())}
+        except (TypeError, ValueError, OSError):
+            pass
+    return {"__type__": f"{type(value).__module__}.{type(value).__qualname__}", "__repr__": repr(value)}
+
+
 def _task_fingerprint(task: Task) -> str:
     """Stable hash of (tool, action, args) to detect repeated identical calls."""
     payload = json.dumps(
-        {"tool": task.tool, "action": task.action, "args": task.args},
+        {
+            "tool": task.tool,
+            "action": task.action,
+            "args": _canonical_fingerprint_value(task.args),
+        },
         sort_keys=True,
-        default=str,
+        separators=(",", ":"),
+        ensure_ascii=False,
     )
-    return hashlib.sha256(payload.encode()).hexdigest()[:16]
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+def _safe_task_args(args: object) -> dict:
+    """Snapshot only valid argument mappings; never let malformed args break error handling."""
+    if isinstance(args, dict):
+        try:
+            return dict(args)
+        except Exception:  # noqa: BLE001 - preserve controlled failure for hostile mapping subclasses
+            return {"_invalid_args_type": type(args).__name__}
+    return {"_invalid_args_type": type(args).__name__}
+
+
+def _known_execution_failure(task: Task, reason: str) -> Task:
+    """Record a known no-side-effect failure that may safely enter bounded recovery."""
+    message = f"Execution failed: {reason}"
+    if not isinstance(task.args, dict):
+        candidate = Task(
+            tool=task.tool,
+            action=task.action,
+            args=_safe_task_args(task.args),
+            retry_count=task.retry_count,
+            max_retries=task.max_retries,
+        )
+        candidate.start()
+        candidate.fail(message + f" (invalid argument shape: {type(task.args).__name__})")
+        return candidate
+
+    if task.status == TaskStatus.PENDING:
+        task.start()
+    if task.status in (TaskStatus.RUNNING, TaskStatus.RETRYING):
+        task.fail(message)
+        return task
+
+    candidate = Task(
+        tool=task.tool,
+        action=task.action,
+        args=_safe_task_args(task.args),
+        retry_count=task.retry_count,
+        max_retries=task.max_retries,
+    )
+    candidate.start()
+    candidate.fail(message)
+    return candidate
+
+
+def _outcome_unknown_failure(task: Task, reason: str) -> Task:
+    """Represent an ambiguous execution as failed without replaying the callback."""
+    message = (
+        f"OUTCOME UNKNOWN: {reason}. The operation may have crossed a side-effect boundary; "
+        "do not automatically retry until external state is reconciled."
+    )
+
+    # Task.args is annotated as a dict but can be mutated by legacy code or plugins.
+    # A malformed shape must not make the failure recorder itself raise or be persisted
+    # as if it were a valid argument mapping.
+    if not isinstance(task.args, dict):
+        candidate = Task(
+            tool=task.tool,
+            action=task.action,
+            args=_safe_task_args(task.args),
+            retry_count=task.retry_count,
+            max_retries=task.max_retries,
+        )
+        candidate.start()
+        candidate.fail(message + f" (invalid argument shape: {type(task.args).__name__})")
+        return candidate
+
+    candidate = task
+    if candidate.status == TaskStatus.PENDING:
+        candidate.start()
+    if candidate.status in (TaskStatus.RUNNING, TaskStatus.RETRYING):
+        candidate.fail(message)
+        return candidate
+
+    # Do not rewrite a completed or already-failed task's terminal state. Return a
+    # separate uncertainty record instead, while preserving the original history.
+    candidate = Task(
+        tool=task.tool,
+        action=task.action,
+        args=_safe_task_args(task.args),
+        retry_count=task.retry_count,
+        max_retries=task.max_retries,
+    )
+    candidate.start()
+    candidate.fail(message)
+    return candidate
 
 
 # ---------------------------------------------------------------------------
@@ -189,30 +335,59 @@ class ToolFeedbackLoop:
         llm_calls_in_loop = 0
         loop_detected = False
         limit_reached = False
+        outcome_unknown_detected = False
 
         current_tasks = list(initial_tasks)
 
-        # Handle purely conversational initial tasks (no executable tools)
+        if not current_tasks:
+            return ToolLoopResult(
+                tasks=[],
+                iterations_used=0,
+                succeeded=False,
+                final_response="No tasks were provided; no work was executed.",
+            )
+
+        # Handle purely conversational initial tasks (no executable tools).
+        # A repeated call must not transition an already-completed task a second time.
         non_system_initial = [t for t in current_tasks if t.tool != "system"]
         if not non_system_initial:
             for task in current_tasks:
                 if task.status in (TaskStatus.PENDING, TaskStatus.RETRYING):
                     task.start()
-                raw_msg = (
-                    task.args.get("message")
-                    or task.args.get("content")
-                    or task.args.get("response")
-                    or task.args.get("text")
-                    or ""
-                )
-                task.complete(str(raw_msg))
+                if task.status in (TaskStatus.RUNNING,):
+                    raw_msg = (
+                        task.args.get("message")
+                        or task.args.get("content")
+                        or task.args.get("response")
+                        or task.args.get("text")
+                        or ""
+                    )
+                    task.complete(str(raw_msg))
                 all_executed_tasks.append(task)
+
+            response_task = next(
+                (
+                    task for task in reversed(all_executed_tasks)
+                    if task.action == "respond" and task.status == TaskStatus.COMPLETED
+                ),
+                None,
+            )
+            final_response = (
+                str(response_task.result or response_task.args.get("message", ""))
+                if response_task is not None
+                else str(next(
+                    (task.error for task in reversed(all_executed_tasks) if task.status == TaskStatus.FAILED),
+                    "",
+                ))
+            )
             return ToolLoopResult(
                 tasks=all_executed_tasks,
                 iterations_used=1,
-                succeeded=True,
+                succeeded=bool(all_executed_tasks) and all(
+                    task.status == TaskStatus.COMPLETED for task in all_executed_tasks
+                ),
                 iterations=[],
-                final_response=str(all_executed_tasks[0].result) if all_executed_tasks else "",
+                final_response=final_response,
             )
 
         iteration = 0
@@ -236,19 +411,99 @@ class ToolFeedbackLoop:
             exec_tasks = [t for t in current_tasks if t.tool != "system"]
             system_tasks = [t for t in current_tasks if t.tool == "system"]
 
-            # Record initial announcement tasks
+            # Preserve pre-completed or failed system tasks; complete only runnable ones.
             for st in system_tasks:
                 if st.status in (TaskStatus.PENDING, TaskStatus.RETRYING):
                     st.start()
-                msg = str(st.args.get("message") or "")
-                st.complete(msg)
+                if st.status == TaskStatus.RUNNING:
+                    msg = str(
+                        st.args.get("message")
+                        or st.args.get("content")
+                        or st.args.get("response")
+                        or st.args.get("text")
+                        or ""
+                    )
+                    st.complete(msg)
                 all_executed_tasks.append(st)
 
             if not exec_tasks:
                 break
 
             iteration_executed: list[Task] = []
-            for task in exec_tasks:
+            for task_index, task in enumerate(exec_tasks):
+                # A completed task is evidence, not permission to execute it again.
+                if task.status == TaskStatus.COMPLETED:
+                    all_executed_tasks.append(task)
+                    continue
+
+                # FAILED tasks must pass through the explicit retry transition; uncertain
+                # failures and active tasks stop the batch instead of being replayed.
+                if task.status == TaskStatus.FAILED:
+                    if "outcome unknown" in str(task.error or "").lower():
+                        all_executed_tasks.append(task)
+                        outcome_unknown_detected = True
+                        stop_reason = (
+                            "Not executed because a prior task had OUTCOME UNKNOWN; "
+                            "reconcile external state before resuming."
+                        )
+                        not_run_actions = []
+                        for not_run in exec_tasks[task_index + 1 :]:
+                            if not_run.status in (TaskStatus.PENDING, TaskStatus.RETRYING):
+                                not_run.error = stop_reason
+                                not_run_actions.append(f"{not_run.tool}.{not_run.action}")
+                        if not_run_actions:
+                            task.error = (
+                                f"{task.error} Not executed after the uncertain outcome: "
+                                + ", ".join(not_run_actions)
+                                + "."
+                            )
+                        break
+                    if task.retry_count >= task.max_retries:
+                        all_executed_tasks.append(task)
+                        limit_reached = True
+                        not_run_actions = []
+                        for not_run in exec_tasks[task_index + 1 :]:
+                            if not_run.status in (TaskStatus.PENDING, TaskStatus.RETRYING):
+                                not_run.error = "Not executed because an earlier task exhausted its retry budget."
+                                not_run_actions.append(f"{not_run.tool}.{not_run.action}")
+                        if not_run_actions:
+                            task.error = (
+                                f"{task.error} Not executed because the retry budget was exhausted: "
+                                + ", ".join(not_run_actions)
+                                + "."
+                            )
+                        break
+                    task.retry()
+
+                if task.status not in (TaskStatus.PENDING, TaskStatus.RETRYING):
+                    result = _outcome_unknown_failure(
+                        Task(
+                            tool=task.tool,
+                            action=task.action,
+                            args=dict(task.args),
+                            retry_count=task.retry_count,
+                            max_retries=task.max_retries,
+                        ),
+                        f"task entered orchestration in unexpected state {getattr(task.status, 'value', repr(task.status))}",
+                    )
+                    all_executed_tasks.append(result)
+                    outcome_unknown_detected = True
+                    not_run_actions = []
+                    for not_run in exec_tasks[task_index + 1 :]:
+                        if not_run.status in (TaskStatus.PENDING, TaskStatus.RETRYING):
+                            not_run.error = (
+                                "Not executed because a task had an invalid or active state; "
+                                "reconcile external state before resuming."
+                            )
+                            not_run_actions.append(f"{not_run.tool}.{not_run.action}")
+                    if not_run_actions:
+                        result.error = (
+                            f"{result.error} Not executed after the uncertain outcome: "
+                            + ", ".join(not_run_actions)
+                            + "."
+                        )
+                    break
+
                 # 1. Loop detection via fingerprint
                 fp = _task_fingerprint(task)
                 if fp in seen_fingerprints:
@@ -269,7 +524,45 @@ class ToolFeedbackLoop:
 
                 # 3. ACT: Execute through canonical choke point
                 t0 = time.perf_counter()
-                result = self._execute(task)
+                try:
+                    result = self._execute(task)
+                    if not isinstance(result, Task):
+                        raise TypeError(
+                            "execution callback returned "
+                            f"{type(result).__name__}; expected Task"
+                        )
+                except Exception as exc:  # noqa: BLE001 - execution may have side effects before raising
+                    make_failure = (
+                        _known_execution_failure
+                        if is_known_read_only_action(task.tool, task.action)
+                        else _outcome_unknown_failure
+                    )
+                    result = make_failure(
+                        task,
+                        f"execution callback raised {type(exc).__name__}: {exc}",
+                    )
+                if not isinstance(result.args, dict):
+                    make_failure = (
+                        _known_execution_failure
+                        if is_known_read_only_action(result.tool, result.action)
+                        else _outcome_unknown_failure
+                    )
+                    result = make_failure(
+                        result,
+                        "execution callback returned a Task with invalid args shape "
+                        f"({type(result.args).__name__})",
+                    )
+                if result.status not in (TaskStatus.COMPLETED, TaskStatus.FAILED):
+                    returned_status = getattr(result.status, "value", repr(result.status))
+                    make_failure = (
+                        _known_execution_failure
+                        if is_known_read_only_action(result.tool, result.action)
+                        else _outcome_unknown_failure
+                    )
+                    result = make_failure(
+                        result,
+                        f"execution callback returned a nonterminal Task status ({returned_status})",
+                    )
                 latency_ms = (time.perf_counter() - t0) * 1000
 
                 iteration_executed.append(result)
@@ -289,7 +582,35 @@ class ToolFeedbackLoop:
                     request_id, iteration, task.tool, task.action, success, latency_ms,
                 )
 
-            if loop_detected:
+                # An uncertain side effect is a hard stop: do not retry it, ask the
+                # model for another action, or continue a pre-planned batch.
+                if (
+                    result.status == TaskStatus.FAILED
+                    and "outcome unknown" in str(result.error or "").lower()
+                ):
+                    outcome_unknown_detected = True
+                    not_run_actions = []
+                    for not_run in exec_tasks[task_index + 1 :]:
+                        if not_run.status in (TaskStatus.PENDING, TaskStatus.RETRYING):
+                            not_run.error = (
+                                "Not executed because a prior task had OUTCOME UNKNOWN; "
+                                "reconcile external state before resuming."
+                            )
+                            not_run_actions.append(f"{not_run.tool}.{not_run.action}")
+                    if not_run_actions:
+                        result.error = (
+                            f"{result.error} Not executed after the uncertain outcome: "
+                            + ", ".join(not_run_actions)
+                            + "."
+                        )
+                    logger.error(
+                        "[TOOL_LOOP] Halting after uncertain outcome from %s.%s; "
+                        "no automatic retry or later batch task will run.",
+                        task.tool, task.action,
+                    )
+                    break
+
+            if loop_detected or outcome_unknown_detected or limit_reached or not iteration_executed:
                 break
 
             # 4. OBSERVE & DECIDE
@@ -320,7 +641,7 @@ class ToolFeedbackLoop:
                 break
 
             # Format untrusted observation using budget manager
-            untrusted_obs, obs_truncated = self._budget_manager.bound_tool_results_list(iteration_executed)
+            untrusted_obs, _obs_truncated = self._budget_manager.bound_tool_results_list(iteration_executed)
             history_summary = self._format_history_summary([t for t in all_executed_tasks if t.tool != "system"])
 
             sec_inst = (
@@ -419,7 +740,13 @@ class ToolFeedbackLoop:
                 t.result = summary.ground_response(raw_claim)
 
         if not has_final_response:
-            if loop_detected:
+            if outcome_unknown_detected:
+                msg = (
+                    "OUTCOME UNKNOWN: a tool operation may have produced an external side effect. "
+                    "No automatic retry or subsequent task was executed. Reconcile the external "
+                    "state before attempting to resume."
+                )
+            elif loop_detected:
                 msg = "Execution stopped: detected repeated identical tool calls."
             elif limit_reached:
                 failed = [f"{t.tool}.{t.action}" for t in executed_non_system if t.status == TaskStatus.FAILED]
@@ -441,7 +768,12 @@ class ToolFeedbackLoop:
                 final_resp_str = str(t.result or "")
                 break
 
-        overall_success = summary.all_succeeded and not loop_detected and not limit_reached
+        overall_success = (
+            summary.all_succeeded
+            and not loop_detected
+            and not limit_reached
+            and not outcome_unknown_detected
+        )
 
         return ToolLoopResult(
             tasks=all_executed_tasks,
@@ -453,6 +785,7 @@ class ToolFeedbackLoop:
             llm_calls=llm_calls_in_loop,
             final_response=final_resp_str,
             context_budget=self._last_context_budget,
+            outcome_unknown=outcome_unknown_detected,
         )
 
     # ------------------------------------------------------------------

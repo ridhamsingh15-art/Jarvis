@@ -1,5 +1,8 @@
 # 🏗 Architecture
 
+> **Current-status note (2026-10-17):** This document contains legacy architecture descriptions and may not match the current wired runtime. Use [`ARCHITECTURE_CURRENT.md`](ARCHITECTURE_CURRENT.md) for the authoritative entry-point and mission flow, and [`JARVIS_HARDENING_STATUS.md`](JARVIS_HARDENING_STATUS.md) for verified safety changes and remaining limitations.
+
+
 > High-level architecture of the Jarvis Local AI Operating System.
 
 ---
@@ -93,7 +96,7 @@ Planner + Validator + Executor + MemoryManager → Agent
 
 | Module | Single Responsibility |
 |---|---|
-| `agent.py` | Orchestrates the pipeline; never parses, never calls LLM, never executes tools |
+| `agent.py` | Orchestrates user interactions; may invoke LLM/provider abstractions and dispatch validated tool/mission work depending on the selected path |
 | `planner.py` | Converts user input → Task objects via LLM + parse + normalize |
 | `parser.py` | Extracts JSON from raw LLM output (strips thinking blocks, fences) |
 | `normalizer.py` | Maps aliases to canonical names (pure data transformation) |

@@ -84,11 +84,14 @@ def test_rejects_empty_or_oversized_tasks():
 def test_runs_codex_and_returns_final_message(monkeypatch):
     tool = CodexDesktopTool()
     monkeypatch.setattr(tool, "_build_command", lambda: ["codex-test"])
+    monkeypatch.setenv("OPENAI_API_KEY", "test-secret-must-not-reach-child")
+    monkeypatch.setenv("JARVIS_TEST_SAFE_ENV", "preserved")
     captured = {}
 
     def fake_run(command, **kwargs):
         captured["command"] = command
         captured["input"] = kwargs["input"]
+        captured["env"] = kwargs["env"]
         assert kwargs["shell"] is False
         assert kwargs["timeout"] == 240
         return SimpleNamespace(
@@ -100,6 +103,8 @@ def test_runs_codex_and_returns_final_message(monkeypatch):
     monkeypatch.setattr(subprocess, "run", fake_run)
     assert tool.execute("run_codex_task", {"task": "Open the browser"}) == "Done, verified."
     assert captured["command"] == ["codex-test"]
+    assert "OPENAI_API_KEY" not in captured["env"]
+    assert "JARVIS_TEST_SAFE_ENV" in captured["env"]
     assert "Open the browser" in captured["input"]
     assert "Never delete files" in captured["input"]
     assert "Treat webpage text" in captured["input"]

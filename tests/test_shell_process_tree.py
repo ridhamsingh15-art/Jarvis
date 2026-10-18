@@ -47,9 +47,16 @@ def test_child_of_killed_shell_mission_does_not_outlive_parent(tmp_path: Path) -
     db = tmp_path / "mission.sqlite3"
     command = "python -c \"import os,time; open('child.pid','w').write(str(os.getpid())); time.sleep(60)\""
     step = {"tool": "shell", "action": "run", "args": {"command": command, "cwd": str(tmp_path), "timeout": 90}}
+    plan_args = [PYTHON, str(ROOT / "mission_crash_safe.py"), "--steps-json", json.dumps([step]),
+                 "--mission-id", "kill-shell-parent", "--mission-db", str(db), "--workspace-root", str(tmp_path)]
+    pending = subprocess.run(plan_args, cwd=ROOT, capture_output=True, text=True, timeout=20, check=False)
+    assert pending.returncode == 1, pending.stdout + pending.stderr
+    assert "MISSION_STATE=WAITING_APPROVAL" in pending.stdout
+    assert not pid_file.exists(), "unapproved shell command must not start a child process"
+
     parent = subprocess.Popen(
-        [PYTHON, str(ROOT / "mission_crash_safe.py"), "--steps-json", json.dumps([step]),
-         "--mission-id", "kill-shell-parent", "--mission-db", str(db), "--workspace-root", str(tmp_path)],
+        [PYTHON, str(ROOT / "mission_crash_safe.py"), "--approve", "kill-shell-parent",
+         "--step", "1", "--mission-db", str(db), "--workspace-root", str(tmp_path)],
         cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
     )
     child_pid = None
@@ -58,9 +65,9 @@ def test_child_of_killed_shell_mission_does_not_outlive_parent(tmp_path: Path) -
         while time.monotonic() < deadline and not pid_file.exists():
             if parent.poll() is not None:
                 out, err = parent.communicate()
-                raise AssertionError(f"mission exited before child started: {out}\n{err}")
+                raise AssertionError(f"approved mission exited before child started: {out}\n{err}")
             time.sleep(0.05)
-        assert pid_file.exists(), "real child process did not publish its PID"
+        assert pid_file.exists(), "approved real child process did not publish its PID"
         child_pid = int(pid_file.read_text(encoding="utf-8"))
         assert _process_is_alive(child_pid), "child already exited before parent kill"
         parent.kill()

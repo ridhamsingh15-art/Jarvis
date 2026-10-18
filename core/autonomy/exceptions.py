@@ -7,6 +7,10 @@ class GoalCreationError(AutonomyError):
 class GoalExecutionError(AutonomyError):
     """Raised during errors in goal step execution."""
 
+
+class GoalInterventionRequired(GoalExecutionError):
+    """Raised when execution must pause for operator approval or reconciliation."""
+
 class PersistenceError(AutonomyError):
     """Raised when goal state cannot be saved or loaded."""
 

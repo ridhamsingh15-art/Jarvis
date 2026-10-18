@@ -23,6 +23,11 @@ def test_successful_startup():
     assert runtime.container._is_sealed is True
     manager = runtime.container.resolve(AutonomousGoalManager)
     assert isinstance(manager, AutonomousGoalManager)
+    # The planner and executor must share one explicit capability registry.
+    assert manager._planner._tool_registry is manager._step_executor._tool_registry
+    assert {"file", "browser", "windows", "codex_desktop"} <= set(
+        manager._planner._tool_registry.list_tools()
+    )
     
     # We can subscribe to something to verify EventBus
     events = []

@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>OfficeForge — Independent Office Suite</title>
+<style>
+:root{color-scheme:light;--ink:#172033;--muted:#667085;--line:#d9e0ea;--panel:#fff;--bg:#f4f6fa;--blue:#2563eb;--nav:#182338}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 "Segoe UI",system-ui,sans-serif}
+header{background:var(--nav);color:#fff;padding:16px 24px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.brand{font-size:20px;font-weight:750;letter-spacing:-.4px}.brand span{color:#8bb4ff}.sub{color:#c8d2e3;font-size:12px}
+main{max-width:1440px;margin:20px auto;padding:0 18px}.topbar,.toolbar,.statusbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.topbar{justify-content:space-between;margin-bottom:14px}.tabs{display:flex;gap:6px;background:#e8edf5;padding:5px;border-radius:12px}
+button,.filebutton{border:1px solid var(--line);background:white;color:var(--ink);padding:9px 13px;border-radius:8px;cursor:pointer;font:inherit;font-weight:600}
+button:hover,.filebutton:hover{border-color:#8aa8ed;background:#f8faff}.tabs button{border:0;background:transparent}.tabs button.active{background:#fff;box-shadow:0 1px 4px #17203318;color:var(--blue)}
+button.primary{background:var(--blue);color:white;border-color:var(--blue)}button.primary:hover{background:#1d4ed8}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;box-shadow:0 5px 20px #1c2d4b08}
+.panelhead{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}.panelhead h1{font-size:17px;margin:0}.muted{color:var(--muted);font-size:12px}
+#docTitle{border:1px solid var(--line);border-radius:7px;padding:7px 9px;font:inherit;width:min(330px,70vw)}
+.toolbar{padding:10px 16px;border-bottom:1px solid var(--line);background:#fafbfe}.toolbar button{padding:6px 10px}
+#docEditor{min-height:490px;padding:36px max(22px,9%);outline:none;line-height:1.7;font-size:16px;background:#fff;overflow-wrap:anywhere}#docEditor:focus{box-shadow:inset 0 0 0 2px #d8e5ff}#docEditor h1,#docEditor h2,#docEditor h3{line-height:1.25}
+#sheetWrap{overflow:auto;padding:14px;max-height:66vh}.sheet{border-collapse:collapse;table-layout:fixed;min-width:100%}.sheet th,.sheet td{border:1px solid #d7dfeb;padding:0;min-width:110px;height:34px}.sheet th{background:#f0f3f8;color:#475467;font-size:12px;text-align:center;min-width:34px}.sheet input{border:0;outline:0;padding:7px 8px;width:100%;height:33px;font:13px ui-monospace,Consolas,monospace;background:transparent}.sheet input:focus{box-shadow:inset 0 0 0 2px var(--blue);background:#f8fbff}
+#slidesArea{display:grid;grid-template-columns:220px 1fr;min-height:500px}.slideRail{border-right:1px solid var(--line);padding:12px;background:#f8faff}.slideChoice{display:block;width:100%;text-align:left;margin-bottom:8px;background:white}.slideChoice.active{border-color:var(--blue);background:#eff5ff}.slideEdit{padding:22px;display:flex;flex-direction:column;gap:14px}.slideCanvas{aspect-ratio:16/9;max-width:900px;width:100%;margin:auto;background:#fff;border:1px solid #cbd5e1;box-shadow:0 8px 24px #15284b12;padding:7%;display:flex;flex-direction:column;gap:24px}.slideCanvas input,.slideCanvas textarea{width:100%;border:1px solid transparent;background:transparent;padding:8px;font:inherit}.slideCanvas input{font-size:clamp(20px,3vw,38px);font-weight:750}.slideCanvas textarea{resize:vertical;min-height:180px;font-size:clamp(13px,1.6vw,20px);line-height:1.6}.slideCanvas input:focus,.slideCanvas textarea:focus{outline:1px dashed #9ab4ed;border-color:#dbeafe}
+.statusbar{padding:10px 16px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;justify-content:space-between}.notice{margin:12px 0 0;padding:10px 12px;border-radius:8px;background:#edf7ee;color:#206333;display:none}.notice.error{background:#fff0f0;color:#a12a2a}.footnote{margin:14px 0;color:var(--muted);font-size:12px}
+.hidden{display:none!important}#fileInput{display:none}
+@media(max-width:680px){main{padding:0 9px;margin:10px auto}header{padding:13px}#slidesArea{grid-template-columns:1fr}.slideRail{display:flex;gap:6px;overflow:auto;border-right:0;border-bottom:1px solid var(--line)}.slideChoice{min-width:130px;margin:0}#docEditor{padding:24px 18px}.panelhead{align-items:flex-start}}
+</style></head>
+<body>
+<header><div><div class="brand"><span>Office</span>Forge</div><div class="sub">Independent · local-first · open formats</div></div><div class="sub">Prototype 0.1 · No account or cloud connection</div></header>
+<main>
+<div class="topbar"><div class="tabs"><button class="active" data-tab="writer">Writer</button><button data-tab="sheets">Sheets</button><button data-tab="slides">Slides</button></div><div class="toolbar"><label for="fileInput" class="filebutton">Open .docx / .xlsx / .pptx</label><input id="fileInput" type="file" accept=".docx,.xlsx,.pptx"><button id="newBtn">New</button></div></div>
+<section id="writerPanel" class="panel">
+<div class="panelhead"><div><h1>Writer</h1><div class="muted">Write and format text, then export to .docx</div></div><input id="docTitle" value="Untitled document" aria-label="Document title"><button class="primary" id="exportDoc">Export .docx</button></div>
+<div class="toolbar"><button data-cmd="bold"><b>Bold</b></button><button data-cmd="italic"><i>Italic</i></button><button data-cmd="insertUnorderedList">• List</button><button data-block="h1">Heading</button><button data-block="p">Normal text</button></div>
+<div id="docEditor" contenteditable="true" spellcheck="true"><h1>Welcome to OfficeForge</h1><p>This is an independent office-suite prototype. Start writing here.</p><p><b>Bold</b> and <i>italic</i> text are supported in basic document exports.</p></div>
+<div class="statusbar"><span>Document · local session</span><span id="wordCount">0 words</span></div>
+</section>
+<section id="sheetsPanel" class="panel hidden">
+<div class="panelhead"><div><h1>Sheets</h1><div class="muted">Editable grid · basic formulas · export to .xlsx</div></div><button class="primary" id="exportSheet">Export .xlsx</button></div>
+<div class="toolbar"><span class="muted">Formula examples: =SUM(A1:A5), =AVERAGE(B1:B5), =MIN(C1:C5), =MAX(D1:D5), =A1+B1</span><button id="clearSheet">Clear grid</button></div>
+<div id="sheetWrap"><table class="sheet" id="sheetTable" aria-label="Spreadsheet grid"></table></div>
+<div class="statusbar"><span>Sheet1 · 12 rows × 8 columns</span><span id="sheetStatus">Select a cell to edit</span></div>
+</section>
+<section id="slidesPanel" class="panel hidden">
+<div class="panelhead"><div><h1>Slides</h1><div class="muted">Build a simple presentation · export to .pptx</div></div><div class="toolbar"><button id="addSlide">+ Add slide</button><button class="primary" id="exportSlides">Export .pptx</button></div></div>
+<div id="slidesArea"><aside class="slideRail" id="slideRail"></aside><div class="slideEdit"><div class="slideCanvas"><input id="slideTitle" aria-label="Slide title" value="Welcome to OfficeForge"><textarea id="slideBody" aria-label="Slide body">Create a clear presentation.
+Add another slide to continue.</textarea></div><div class="muted">MVP supports title and body text. Advanced themes, animations, media, and speaker notes are not implemented.</div></div></div>
+<div class="statusbar"><span>Presentation · wide layout</span><span id="slideStatus">Slide 1 of 1</span></div>
+</section>
+<div id="notice" class="notice" role="status"></div>
+<p class="footnote">Files are processed in this browser session and on the local machine only. This prototype does not run macros or contact Microsoft services. Save exports somewhere you control.</p>
+</main>
+<script>
+const $=s=>document.querySelector(s);
+let currentTab='writer', slides=[{title:'Welcome to OfficeForge',body:'Create a clear presentation.\nAdd another slide to continue.'}], activeSlide=0;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function notice(msg,error=false){const n=$('#notice');n.textContent=msg;n.className='notice'+(error?' error':'');n.style.display='block';}
+function hideNotice(){$('#notice').style.display='none'}
+function setTab(name){currentTab=name;document.querySelectorAll('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));['writer','sheets','slides'].forEach(n=>$('#'+n+'Panel').classList.toggle('hidden',n!==name));hideNotice();}
+document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>setTab(b.dataset.tab)));
+document.querySelectorAll('[data-cmd]').forEach(b=>b.addEventListener('click',()=>{ $('#docEditor').focus();document.execCommand(b.dataset.cmd,false,null);updateWordCount();}));
+document.querySelectorAll('[data-block]').forEach(b=>b.addEventListener('click',()=>{ $('#docEditor').focus();document.execCommand('formatBlock',false,b.dataset.block);updateWordCount();}));
+function updateWordCount(){const t=$('#docEditor').innerText.trim();$('#wordCount').textContent=(t?t.split(/\s+/).length:0)+' words';}
+$('#docEditor').addEventListener('input',updateWordCount);updateWordCount();
+function saveBlob(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);}
+async function exportFile(kind,payload,name){hideNotice();try{const res=await fetch('/api/export/'+kind,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});if(!res.ok){const e=await res.json().catch(()=>({error:'Export failed'}));throw new Error(e.error||'Export failed');}saveBlob(await res.blob(),name);notice('Export created: '+name);}catch(e){notice(e.message||'Could not export file.',true);}}
+$('#exportDoc').addEventListener('click',()=>exportFile('docx',{title:$('#docTitle').value,html:$('#docEditor').innerHTML},safeName($('#docTitle').value,'docx')));
+function safeName(name,ext){name=(name||'officeforge').replace(/[<>:"/\\|?*\x00-\x1f]/g,'-').trim().replace(/\.+$/,'').slice(0,70)||'officeforge';return name+'.'+ext;}
+const rows=12,cols=8;let sheet=[];
+function blankSheet(){sheet=Array.from({length:rows},()=>Array(cols).fill(''));}
+function colName(n){let s='';while(n){let r=(n-1)%26;s=String.fromCharCode(65+r)+s;n=Math.floor((n-1)/26);}return s;}
+function buildSheet(){const table=$('#sheetTable');table.innerHTML='';const head=document.createElement('tr');head.appendChild(document.createElement('th'));for(let c=1;c<=cols;c++){const th=document.createElement('th');th.textContent=colName(c);head.appendChild(th);}table.appendChild(head);
+for(let r=0;r<rows;r++){const tr=document.createElement('tr');const th=document.createElement('th');th.textContent=r+1;tr.appendChild(th);for(let c=0;c<cols;c++){const td=document.createElement('td'),input=document.createElement('input');input.value=sheet[r][c];input.setAttribute('aria-label',colName(c+1)+(r+1));input.dataset.r=r;input.dataset.c=c;input.addEventListener('focus',()=>$('#sheetStatus').textContent=colName(c+1)+(r+1));input.addEventListener('input',()=>{sheet[r][c]=input.value;const ref=colName(c+1)+(r+1);let detail='value';if(input.value.startsWith('=')){try{detail='formula → '+formulaValue(input.value.slice(1),new Set([ref]));}catch{detail='formula (check syntax)';}}$('#sheetStatus').textContent=ref+' · '+detail;});td.appendChild(input);tr.appendChild(td);}table.appendChild(tr);}}
+blankSheet();buildSheet();
+$('#clearSheet').addEventListener('click',()=>{blankSheet();buildSheet();notice('Grid cleared.');});
+function colIndex(s){let n=0;for(const ch of s)n=n*26+ch.charCodeAt(0)-64;return n-1;}
+function getVal(ref,seen=new Set()){const m=/^([A-Z]{1,3})([1-9][0-9]*)$/i.exec(ref);if(!m)return 0;const r=+m[2]-1,c=colIndex(m[1].toUpperCase()),key=m[1].toUpperCase()+m[2];if(r<0||r>=rows||c<0||c>=cols||seen.has(key))return 0;let v=sheet[r][c]||'';if(v.startsWith('=')){seen.add(key);return formulaValue(v.slice(1),seen);}const n=Number(v);return v.trim()!==''&&Number.isFinite(n)?n:0;}
+function formulaValue(f,seen){let m=/^(SUM|AVERAGE|MIN|MAX)\(([A-Z]{1,3}\d+)(?::([A-Z]{1,3}\d+))?\)$/i.exec(f.trim());if(m){const start=m[2].match(/([A-Z]+)(\d+)/i),end=(m[3]||m[2]).match(/([A-Z]+)(\d+)/i),r1=+start[2],r2=+end[2],c1=colIndex(start[1].toUpperCase()),c2=colIndex(end[1].toUpperCase()),vals=[];for(let r=Math.min(r1,r2);r<=Math.max(r1,r2)&&vals.length<500;r++)for(let c=Math.min(c1,c2);c<=Math.max(c1,c2)&&vals.length<500;c++)vals.push(getVal(colName(c+1)+r, new Set(seen)));if(!vals.length)return 0;return ({SUM:()=>vals.reduce((a,b)=>a+b,0),AVERAGE:()=>vals.reduce((a,b)=>a+b,0)/vals.length,MIN:()=>Math.min(...vals),MAX:()=>Math.max(...vals)})[m[1].toUpperCase()]();}
+const parts=f.match(/^([A-Z]{1,3}\d+)\s*([+\-*/])\s*([A-Z]{1,3}\d+)$/i);if(parts){const a=getVal(parts[1],new Set(seen)),b=getVal(parts[3],new Set(seen));return parts[2]==='+'?a+b:parts[2]==='-'?a-b:parts[2]==='*'?a*b:(b===0?'#DIV/0!':a/b);}return '#UNSUPPORTED';}
+$('#exportSheet').addEventListener('click',()=>{try{for(const row of sheet)for(const v of row)if(v.startsWith('='))formulaValue(v.slice(1),new Set());exportFile('xlsx',{rows:sheet},'officeforge-workbook.xlsx');}catch(e){notice(e.message,true);}});
+function renderSlides(){const rail=$('#slideRail');rail.innerHTML='';slides.forEach((s,i)=>{const b=document.createElement('button');b.className='slideChoice'+(i===activeSlide?' active':'');b.textContent=(i+1)+'. '+(s.title||'Untitled slide');b.addEventListener('click',()=>selectSlide(i));rail.appendChild(b);});$('#slideStatus').textContent='Slide '+(activeSlide+1)+' of '+slides.length;}
+function selectSlide(i){storeSlide();activeSlide=i;$('#slideTitle').value=slides[i].title;$('#slideBody').value=slides[i].body;renderSlides();}
+function storeSlide(){if(!slides[activeSlide])return;slides[activeSlide]={title:$('#slideTitle').value,body:$('#slideBody').value};}
+$('#slideTitle').addEventListener('input',()=>{storeSlide();renderSlides();});$('#slideBody').addEventListener('input',storeSlide);
+$('#addSlide').addEventListener('click',()=>{storeSlide();if(slides.length>=100){notice('Limit is 100 slides.',true);return;}slides.push({title:'Slide '+(slides.length+1),body:''});selectSlide(slides.length-1);});
+$('#exportSlides').addEventListener('click',()=>{storeSlide();exportFile('pptx',{slides},'officeforge-presentation.pptx');});
+renderSlides();
+$('#newBtn').addEventListener('click',()=>{if(currentTab==='writer'){if(!confirm('Start a new document? Unsaved editor contents will be replaced.'))return;$('#docTitle').value='Untitled document';$('#docEditor').innerHTML='<p></p>';updateWordCount();}else if(currentTab==='sheets'){if(!confirm('Clear the current grid?'))return;blankSheet();buildSheet();}else{if(!confirm('Start a new presentation? Unsaved slide contents will be replaced.'))return;slides=[{title:'Untitled presentation',body:''}];activeSlide=0;selectSlide(0);}hideNotice();});
+$('#fileInput').addEventListener('change',async e=>{const file=e.target.files[0];if(!file)return;hideNotice();try{if(file.size>15*1024*1024)throw new Error('File exceeds the 15 MiB import limit.');const res=await fetch('/api/import?filename='+encodeURIComponent(file.name),{method:'POST',headers:{'Content-Type':'application/octet-stream'},body:file});const data=await res.json();if(!res.ok)throw new Error(data.error||'Import failed');if(data.kind==='docx'){setTab('writer');$('#docTitle').value=file.name.replace(/\.docx$/i,'');$('#docEditor').innerText=data.text;updateWordCount();}else if(data.kind==='xlsx'){setTab('sheets');blankSheet();data.rows.slice(0,rows).forEach((r,i)=>r.slice(0,cols).forEach((v,j)=>sheet[i][j]=String(v??'')));buildSheet();}else if(data.kind==='pptx'){setTab('slides');slides=data.slides.slice(0,100);if(!slides.length)slides=[{title:'Slide 1',body:''}];activeSlide=0;selectSlide(0);}notice('Imported '+file.name+'. Unsupported formatting may be lost.');}catch(err){notice(err.message||'Import failed.',true);}finally{e.target.value='';}});
+</script></body></html>

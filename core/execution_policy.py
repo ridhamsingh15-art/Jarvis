@@ -26,6 +26,7 @@ import logging
 import re
 from dataclasses import dataclass, field
 from enum import StrEnum
+from pathlib import Path
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -62,6 +63,7 @@ _SAFE_TOOLS: frozenset[str] = frozenset({
     "shell",        # shell is allowed but only through safe command allowlist
     "automation",   # automation integration
     "publishing",   # publishing integration
+    "codex_desktop",  # guarded visual desktop agent; its own MCP layer prompts for each state-changing action
 })
 
 # Actions (tool.action) that are classified as HIGH RISK.
@@ -72,6 +74,11 @@ _HIGH_RISK_ACTIONS: frozenset[str] = frozenset({
     "delete_file",
     "delete_dir",
     "overwrite_file",
+    "patch_file",
+    "edit_file",
+    "rename",
+    "move",
+    "copy",
     "append_line",      # durable filesystem side effect; explicit approval required
     "format_disk",
     # System
@@ -144,6 +151,8 @@ class ExecutionPolicy:
         allow_destructive_from_core: bool = False,
         restricted_plugin_tools: frozenset[str] | None = None,
         restricted_mcp_tools: frozenset[str] | None = None,
+        registered_tools: frozenset[str] | None = None,
+        workspace_root: str | Path | None = None,
     ) -> None:
         """
         Args:
@@ -154,8 +163,20 @@ class ExecutionPolicy:
                 Defaults to {"system", "browser"}.
             restricted_mcp_tools: Set of tool names MCP servers are allowed to invoke.
                 Defaults to {"system", "browser"}.
+            registered_tools: Additional explicitly registered core tool names. Actions from
+                these tools require per-mission user confirmation by default; the registry alone
+                does not make their side effects trusted.
+            workspace_root: The same filesystem boundary used by the configured FileTool.
+                Relative write paths are resolved against this root before checking whether a
+                write would overwrite an existing file. This value must come from trusted
+                runtime configuration, never from model-controlled tool arguments.
         """
         self._allow_destructive_from_core = allow_destructive_from_core
+        self._workspace_root = (
+            Path(workspace_root).expanduser().resolve()
+            if workspace_root is not None
+            else None
+        )
         self._restricted_plugin_tools: frozenset[str] = (
             restricted_plugin_tools
             if restricted_plugin_tools is not None
@@ -166,10 +187,21 @@ class ExecutionPolicy:
             if restricted_mcp_tools is not None
             else frozenset({"system", "browser"})
         )
+        self._registered_tools: frozenset[str] = registered_tools or frozenset()
 
     # ------------------------------------------------------------------
     # Public API
     # ------------------------------------------------------------------
+
+    def with_registered_tools(self, tool_names: frozenset[str]) -> ExecutionPolicy:
+        """Return a policy copy that recognizes explicit registry additions but confirmation-gates them."""
+        return ExecutionPolicy(
+            allow_destructive_from_core=self._allow_destructive_from_core,
+            restricted_plugin_tools=self._restricted_plugin_tools,
+            restricted_mcp_tools=self._restricted_mcp_tools,
+            registered_tools=self._registered_tools | frozenset(tool_names),
+            workspace_root=self._workspace_root,
+        )
 
     def check(self, ctx: PolicyContext) -> PolicyResult:
         """
@@ -178,6 +210,29 @@ class ExecutionPolicy:
         Returns:
             PolicyResult with verdict ALLOW, DENY, or REQUIRE_CONFIRMATION.
         """
+        if not isinstance(ctx, PolicyContext):
+            raise TypeError("ctx must be a PolicyContext")
+
+        # Dataclass annotations are not runtime validation. Reject malformed trust
+        # fields before set membership, command parsing, or any authorization branch.
+        if not isinstance(ctx.tool, str) or not ctx.tool.strip():
+            return self._deny(ctx, "Invalid policy context: tool must be a non-empty string")
+        if not isinstance(ctx.action, str) or not ctx.action.strip():
+            return self._deny(ctx, "Invalid policy context: action must be a non-empty string")
+        if not isinstance(ctx.source, CapabilitySource):
+            return self._deny(
+                ctx,
+                f"Unknown capability source '{ctx.source}' - source must be a CapabilitySource",
+            )
+        if not isinstance(ctx.source_id, str):
+            return self._deny(ctx, "Invalid policy context: source_id must be a string")
+        if type(ctx.user_confirmed) is not bool:
+            return self._deny(ctx, "Invalid policy context: user_confirmed must be a boolean")
+        if type(ctx.args) is not dict:
+            return self._deny(ctx, "Invalid policy context: args must be a dictionary")
+        if not isinstance(ctx.request_id, str):
+            return self._deny(ctx, "Invalid policy context: request_id must be a string")
+
         tool_action = f"{ctx.tool}.{ctx.action}"
 
         # Unknown sources must be denied before any tool/action allow logic.
@@ -187,8 +242,9 @@ class ExecutionPolicy:
                 f"Unknown capability source '{ctx.source}' - only registered sources are permitted",
             )
 
-        # 1. Unknown tool → DENY
-        if ctx.tool not in _SAFE_TOOLS:
+        # 1. Unknown tool → DENY. Additional core tools must be explicitly supplied by
+        # the application's trusted registry, and are confirmation-gated below.
+        if ctx.tool not in _SAFE_TOOLS and ctx.tool not in self._registered_tools:
             return self._deny(ctx, f"Unknown tool '{ctx.tool}' — only registered tools are permitted")
 
         # 2. Source-specific restrictions
@@ -205,6 +261,15 @@ class ExecutionPolicy:
                 f"MCP server '{ctx.source_id}' may not invoke tool '{ctx.tool}'. "
                 f"Permitted MCP tools: {sorted(self._restricted_mcp_tools)}",
             )
+
+        if ctx.tool in self._registered_tools and ctx.tool not in _SAFE_TOOLS:
+            if ctx.source != CapabilitySource.CORE:
+                return self._deny(ctx, f"Additional registered tool '{ctx.tool}' is available to core routing only")
+            if not ctx.user_confirmed:
+                reason = f"Newly registered tool action '{tool_action}' requires explicit user confirmation"
+                result = PolicyResult(PolicyVerdict.REQUIRE_CONFIRMATION, reason, ctx)
+                self._record_trace(ctx, result.verdict.value, result.reason)
+                return result
 
         # 3. Shell-specific execution policy
         if ctx.tool == "shell":
@@ -241,7 +306,11 @@ class ExecutionPolicy:
                 cmd,
                 re.IGNORECASE,
             )
-            is_high_risk_cmd = bool(package_install) or any(
+            inline_interpreter = bool(re.search(
+                r"\b(?:python(?:\d+(?:\.\d+)?)?(?:\.exe)?|py(?:\.exe)?)\s+-(?:c|e)\b",
+                cmd, re.IGNORECASE,
+            )) or ShellTool.is_inline_interpreter_command(cmd)
+            is_high_risk_cmd = bool(package_install or inline_interpreter) or any(
                 k in cmd.lower()
                 for k in ("taskkill", "kill -9", "net stop", "sc stop", "icacls")
             )
@@ -264,8 +333,24 @@ class ExecutionPolicy:
                     return res
                 return self._deny(ctx, f"High-risk shell command denied: {cmd[:60]}")
 
+        # Creating a new file/folder within the configured workspace is a normal
+        # capability. Replacing an existing file is high-risk and requires approval.
+        existing_file_write = False
+        if ctx.tool == "file" and ctx.action == "write_file" and isinstance(ctx.args, dict):
+            raw_path = ctx.args.get("path")
+            if isinstance(raw_path, (str, Path)) and str(raw_path).strip():
+                try:
+                    candidate = Path(raw_path).expanduser()
+                    if not candidate.is_absolute() and self._workspace_root is not None:
+                        candidate = self._workspace_root / candidate
+                    # Match FileTool's relative-path semantics. An uninspectable target
+                    # must fail closed instead of being mistaken for a new file.
+                    existing_file_write = candidate.resolve(strict=False).exists()
+                except (OSError, RuntimeError, TypeError, ValueError):
+                    existing_file_write = True  # malformed/uninspectable path fails closed
+
         # 4. High-risk action check
-        if ctx.action in _HIGH_RISK_ACTIONS:
+        if ctx.action in _HIGH_RISK_ACTIONS or existing_file_write:
             # Non-core sources cannot use a high-risk action to bypass confirmation.
             if ctx.source in (CapabilitySource.PLUGIN, CapabilitySource.MCP, CapabilitySource.SKILL):
                 return self._deny(

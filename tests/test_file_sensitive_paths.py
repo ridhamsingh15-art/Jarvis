@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 
 from core.exceptions import ExecutionError
-from tools.file import FileTool, _is_sensitive_read_path
+from tools.file import FileTool, _is_sensitive_read_path, _validate_path
 
 
 @pytest.mark.parametrize(
@@ -71,3 +71,58 @@ def test_sensitive_files_cannot_be_renamed_copied_or_moved_to_bypass_read_guards
     assert not destination.exists()
     assert not copied.exists()
     assert not moved.exists()
+
+
+def test_workspace_scoped_file_tool_blocks_writes_outside_root(tmp_path: Path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    outside = tmp_path / "outside.txt"
+    tool = FileTool(workspace_root=workspace)
+
+    with pytest.raises(ExecutionError, match="outside workspace"):
+        tool.execute("write_file", {"path": str(outside), "content": "must not write"})
+    with pytest.raises(ExecutionError, match="outside workspace"):
+        tool.execute("copy", {"path": "inside.txt", "dest": str(outside)})
+    assert not outside.exists()
+
+def test_workspace_scoped_file_tool_resolves_relative_writes_inside_root(tmp_path: Path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    tool = FileTool(workspace_root=workspace)
+    tool.execute("write_file", {"path": "inside.txt", "content": "allowed"})
+    assert (workspace / "inside.txt").read_text(encoding="utf-8") == "allowed"
+
+def test_project_test_sources_are_protected_from_mutation():
+    project_root = Path(__file__).resolve().parents[1]
+    protected_test = project_root / "tests" / "test_execution_policy.py"
+    assert protected_test.is_file()
+    tool = FileTool()
+    with pytest.raises(ExecutionError, match="protected directory"):
+        tool.execute("delete", {"path": str(protected_test)})
+    assert protected_test.is_file()
+    with pytest.raises(ExecutionError, match="protected directory"):
+        _validate_path(project_root / "jarvis_session_test.txt")
+
+
+def test_workspace_scoped_move_cannot_move_protected_project_source(monkeypatch):
+    project_root = Path(__file__).resolve().parents[1]
+    protected = project_root / "tests" / "test_execution_policy.py"
+    destination = project_root / ".jarvis_test_workspace" / "audit-move-regression.py"
+    assert protected.is_file()
+    moved = []
+
+    def record_move(source, dest):
+        moved.append((source, dest))
+        return str(dest)
+
+    # Never perform the move in this regression test; only observe whether validation
+    # incorrectly allows the protected source to reach shutil.move().
+    monkeypatch.setattr("tools.file.shutil.move", record_move)
+    tool = FileTool(workspace_root=project_root)
+
+    with pytest.raises(ExecutionError, match="protected directory"):
+        tool.execute("move", {"path": str(protected), "dest": str(destination)})
+
+    assert moved == []
+    assert protected.is_file()
+    assert not destination.exists()

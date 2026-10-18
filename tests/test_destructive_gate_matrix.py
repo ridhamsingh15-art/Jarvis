@@ -88,6 +88,14 @@ def test_file_tool_delete_route_is_denied_and_recorded(tmp_path: Path) -> None:
     result = _mission(db, tmp_path, "gate-file-delete", step)
     record = CrashSafeMissionStore(db).step("gate-file-delete", 0)
     assert result.returncode == 1, result.stdout + result.stderr
-    assert record and record["status"] == "blocked" and "execution policy deny" in record["error"].lower()
+    assert record and record["status"] == "pending_approval" and "requires confirmation" in record["error"].lower()
     assert sentinel.read_text(encoding="utf-8") == "must survive"
-    print("GATE_CASE=file.delete RESULT=DENIED RECORDED=true FILES_PRESERVED=true")
+    denied = subprocess.run(
+        [PYTHON, str(ROOT / "mission_crash_safe.py"), "--mission-db", str(db),
+         "--deny", "gate-file-delete", "--step", "1", "--workspace-root", str(tmp_path)],
+        cwd=ROOT, capture_output=True, text=True, timeout=20, check=False,
+    )
+    assert denied.returncode == 0, denied.stdout + denied.stderr
+    assert "APPROVAL=DENIED" in denied.stdout
+    assert sentinel.read_text(encoding="utf-8") == "must survive"
+    print("GATE_CASE=file.delete RESULT=DENIED_BY_OPERATOR RECORDED=true FILES_PRESERVED=true")

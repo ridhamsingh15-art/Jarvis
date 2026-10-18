@@ -8,9 +8,13 @@ delegates execution. Never parses JSON, never talks to the LLM.
 
 import logging
 
+from core.action_safety import (
+    is_known_pre_side_effect_failure,
+    is_known_read_only_action,
+)
 from core.exceptions import ExecutionError
 from core.registry import Registry
-from core.task import Task, TaskStatus
+from core.task import Task
 
 logger = logging.getLogger(__name__)
 
@@ -33,17 +37,26 @@ class Executor:
         Returns:
             The same Task with updated status, result, or error.
         """
-        tool_impl = self._registry.get_executor(task.tool)
-
-        if tool_impl is None:
-            if task.status in (TaskStatus.PENDING, TaskStatus.RETRYING):
-                task.start()
-            task.fail(f"No executor found for tool: {task.tool}")
-            logger.error("No executor for tool: %s", task.tool)
+        # Claim the task atomically before resolving or calling any tool. A duplicate
+        # invocation on RUNNING/terminal work must never repeat a side effect.
+        if not task.try_start():
+            logger.warning(
+                "Skipping duplicate task execution for %s.%s in state %s",
+                task.tool, task.action, getattr(task.status, "value", task.status),
+            )
             return task
 
-        if task.status in (TaskStatus.PENDING, TaskStatus.RETRYING):
-            task.start()
+        try:
+            tool_impl = self._registry.get_executor(task.tool)
+        except Exception as exc:
+            task.fail(f"NOT EXECUTED: executor lookup failed: {type(exc).__name__}: {exc}")
+            logger.exception("Executor lookup failed for tool: %s", task.tool)
+            return task
+
+        if tool_impl is None:
+            task.fail(f"NOT EXECUTED: no executor found for tool: {task.tool}")
+            logger.error("No executor for tool: %s", task.tool)
+            return task
 
         logger.info(
             "Executing: tool=%s action=%s args=%s",
@@ -63,10 +76,28 @@ class Executor:
                 result,
             )
         except ExecutionError as exc:
-            task.fail(str(exc))
+            if (
+                is_known_read_only_action(task.tool, task.action)
+                or is_known_pre_side_effect_failure(task.tool, task.action, str(exc))
+            ):
+                task.fail(str(exc))
+            else:
+                task.fail(
+                    "OUTCOME UNKNOWN: execution raised after handler invocation: "
+                    f"{exc}. Do not automatically retry until external state is reconciled."
+                )
             logger.error("Execution failed: %s", exc)
         except Exception as exc:
-            task.fail(f"Unexpected error: {exc}")
+            if (
+                is_known_read_only_action(task.tool, task.action)
+                or is_known_pre_side_effect_failure(task.tool, task.action, str(exc))
+            ):
+                task.fail(f"Execution failed: {exc}")
+            else:
+                task.fail(
+                    "OUTCOME UNKNOWN: execution raised after handler invocation: "
+                    f"{type(exc).__name__}: {exc}. Do not automatically retry until external state is reconciled."
+                )
             logger.error(  # noqa: G201
                 "Unexpected error in %s.%s: %s",
                 task.tool,

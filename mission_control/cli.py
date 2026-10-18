@@ -14,11 +14,12 @@ from pathlib import Path
 from core.execution_policy import ExecutionPolicy
 from core.executor.action_registry import ActionRegistry
 from core.executor.executor import ExecutionEngine
+from core.executor.isolated_handler import IsolatedToolHandler
 from tools.file import FileTool
 
 from .execution import MissionExecutor
 from .mission import Mission, MissionState
-from .store import MissionStore
+from .store import MissionStore, MissionStoreCorruptionError
 
 _DEFAULT_DOWNLOADS = Path.home() / "Downloads"
 
@@ -59,9 +60,10 @@ def build_plan(objective: str) -> list[str]:
 def _make_engine(file_tool: FileTool) -> ExecutionEngine:
     registry = ActionRegistry()
     for action_name in file_tool.get_actions():
-        def handler(_context, _action=action_name, **kwargs):
-            return file_tool.execute(_action, kwargs)
-        registry.register(f"file.{action_name}", handler)
+        registry.register(
+            f"file.{action_name}",
+            IsolatedToolHandler(file_tool, action_name, timeout_seconds=30.0),
+        )
     return ExecutionEngine(registry)
 
 
@@ -71,6 +73,7 @@ def run_objective(
     mission_id: str | None = None,
     resume: bool = False,
     pause_after_step: int = 0,
+    resolve_interrupted_step: str | None = None,
 ) -> int:
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -81,11 +84,21 @@ def run_objective(
         if not mission_id:
             print("ERROR: --resume requires --mission-id", file=sys.stderr, flush=True)
             return 2
-        mission = store.load_mission(mission_id)
+        try:
+            mission = store.load_mission(mission_id)
+        except MissionStoreCorruptionError as exc:
+            print(f"ERROR: mission checkpoint is corrupt: {exc}", file=sys.stderr, flush=True)
+            return 2
         if mission is None:
             print(f"ERROR: mission not found: {mission_id}", file=sys.stderr, flush=True)
             return 2
-        if mission.state in (MissionState.FAILED, MissionState.COMPLETED, MissionState.WAITING_APPROVAL):
+        if resolve_interrupted_step is not None:
+            try:
+                mission = store.resolve_interrupted_step(mission_id, resolve_interrupted_step)
+            except ValueError as exc:
+                print(f"ERROR: {exc}", file=sys.stderr, flush=True)
+                return 2
+        if mission.state in (MissionState.FAILED, MissionState.COMPLETED, MissionState.WAITING_APPROVAL, MissionState.RECOVERY_REQUIRED):
             print(json.dumps(_mission_summary(mission), indent=2, ensure_ascii=False), flush=True)
             return 0 if mission.state == MissionState.COMPLETED else 1
         mission.state = MissionState.RUNNING
@@ -98,11 +111,16 @@ def run_objective(
         mission = Mission(id=mission_id or str(uuid.uuid4()), objective=objective, state=MissionState.RUNNING, steps=steps)
         store.save_mission(mission)
 
-    file_tool = FileTool()
+    # Legacy CLI can inspect the user home (including Downloads), but may not
+    # mutate files outside that explicitly bounded workspace.
+    file_tool = FileTool(workspace_root=Path.home())
     engine = _make_engine(file_tool)
     # Read-only file actions are allowed. Destructive actions fail closed unless an
     # explicit approval flow is added; this CLI intentionally does not auto-approve.
-    policy = ExecutionPolicy(allow_destructive_from_core=False)
+    policy = ExecutionPolicy(
+        allow_destructive_from_core=False,
+        workspace_root=Path.home(),
+    )
     executor = MissionExecutor(
         execution_engine=engine,
         policy=policy,
@@ -153,14 +171,25 @@ def _mission_summary(mission: Mission) -> dict:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Run a real JARVIS Mission Control objective")
     parser.add_argument("--mission", dest="objective", help="Natural-language mission objective")
-    parser.add_argument("--mission-db", default=str(Path.home() / ".jarvis" / "missions.sqlite3"), help="SQLite persistence path")
+    parser.add_argument("--mission-db", default=str(Path.home() / ".jarvis" / "crash_missions.sqlite3"), help="SQLite persistence path (shared crash-safe mission journal)")
     parser.add_argument("--mission-id", help="Mission ID for resume or deterministic demos")
     parser.add_argument("--resume", action="store_true", help="Resume a persisted mission")
     parser.add_argument("--pause-after-step", type=int, default=0, help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--resolve-interrupted-step", choices=("completed", "retry"),
+        help="Explicitly resolve a crash-interrupted step after checking its real-world postcondition.",
+    )
     args = parser.parse_args(argv)
     if not args.objective and not args.resume:
         parser.error("--mission is required unless --resume is used")
-    return run_objective(args.objective or "", args.mission_db, args.mission_id, args.resume, args.pause_after_step)
+    if args.resolve_interrupted_step and not args.resume:
+        parser.error("--resolve-interrupted-step requires --resume")
+    if args.resolve_interrupted_step and not args.mission_id:
+        parser.error("--resolve-interrupted-step requires --mission-id")
+    return run_objective(
+        args.objective or "", args.mission_db, args.mission_id, args.resume,
+        args.pause_after_step, args.resolve_interrupted_step,
+    )
 
 
 if __name__ == "__main__":

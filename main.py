@@ -8,6 +8,7 @@ PySide6 desktop GUI by default, or the terminal REPL with --cli.
 import argparse
 import logging
 import sys
+import time
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -22,7 +23,7 @@ from memory.sqlite_memory import SqliteMemory
 from tools.base_tool import BaseTool
 from tools.browser import BrowserTool
 from tools.file import FileTool
-from tools.shell import ShellTool
+from tools.shell import _SAFE_COMMAND_PREFIXES, ShellTool
 from tools.windows import WindowsTool
 
 logger = logging.getLogger(__name__)
@@ -107,8 +108,9 @@ def _build_infra(config) -> InfraContext:
     # Tools
     windows_tool = WindowsTool()
     browser_tool = BrowserTool()
-    file_tool = FileTool()
-    shell_tool = ShellTool(workspace_root=Path.cwd())
+    workspace_root = Path(__file__).resolve().parent
+    file_tool = FileTool(workspace_root=workspace_root)
+    shell_tool = ShellTool(workspace_root=workspace_root, allowed_commands=list(_SAFE_COMMAND_PREFIXES))
 
     registry = Registry()
     registry.register(windows_tool)
@@ -149,10 +151,14 @@ def _build_infra(config) -> InfraContext:
         tool = registry.get(tool_name)
         if tool is not None:
             for action_name in tool.get_actions():
+                from core.executor.isolated_handler import IsolatedToolHandler
+
                 def _make_handler(t: BaseTool, a: str):
-                    def handler(_context, **kwargs):
-                        return t.execute(a, kwargs)
-                    return handler
+                    # The normal Agent executor invokes handlers in a thread pool.
+                    # Run actual built-in tool work in a killable child process so a
+                    # caller timeout cannot leave a Python handler mutating state later.
+                    return IsolatedToolHandler(t, a, timeout_seconds=25.0)
+
                 action_registry.register(action_name, _make_handler(tool, action_name))
                 if tool_name == "shell" and action_name == "run":
                     action_registry.register("shell_run", _make_handler(tool, action_name))
@@ -184,7 +190,10 @@ def _build_infra(config) -> InfraContext:
     llm_client = LLMClient(config)
 
     from core.execution_policy import ExecutionPolicy
-    execution_policy = ExecutionPolicy(allow_destructive_from_core=True)
+    execution_policy = ExecutionPolicy(
+        allow_destructive_from_core=True,
+        workspace_root=workspace_root,
+    )
 
     return InfraContext(
         registry=registry,
@@ -656,6 +665,27 @@ def build_agent() -> dict:
         session_repository=mem.session_repo,
     )
 
+    # Keep persistent goal execution alive for the lifetime of the desktop/CLI
+    # application. Planning and execution share the exact same registered tools.
+    from core.autonomy import DAGGoalScheduler, DefaultGoalEvaluator
+    from core.autonomy.factory import create_autonomous_goal_manager
+    from core.autonomy.mission_adapter import (
+        CrashSafeGoalStepExecutor,
+        ExecutionBackedGoalPlanner,
+    )
+    from core.autonomy.service import AutonomyService
+
+    autonomy_manager = create_autonomous_goal_manager(
+        planner=ExecutionBackedGoalPlanner(tool_registry=infra.registry),
+        scheduler=DAGGoalScheduler(),
+        evaluator=DefaultGoalEvaluator(),
+        event_bus=infra.event_bus,
+        logger=logging.getLogger("jarvis.autonomy"),
+        config=config,
+        step_executor=CrashSafeGoalStepExecutor(tool_registry=infra.registry),
+    )
+    autonomy_service = AutonomyService(autonomy_manager)
+
     return {
         "agent": agent,
         "config": config,
@@ -666,6 +696,8 @@ def build_agent() -> dict:
         "memory_backend": "SQLite",
         "tool_count": len(infra.registry.list_tools()),
         "execution_policy": infra.execution_policy,
+        "event_bus": infra.event_bus,
+        "autonomy_service": autonomy_service,
     }
 
 
@@ -691,6 +723,12 @@ def parse_args() -> argparse.Namespace:
         help="Launch the terminal REPL instead of the desktop GUI.",
     )
     parser.add_argument(
+        "--autonomy-service",
+        action="store_true",
+        default=False,
+        help="Run the durable autonomy scheduler in the background without opening the GUI or REPL.",
+    )
+    parser.add_argument(
         "--models",
         action="store_true",
         default=False,
@@ -699,7 +737,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mission", help="Run an execution-backed Mission Control objective.")
     parser.add_argument("--mission-db", default=str(Path.home() / ".jarvis" / "crash_missions.sqlite3"), help="SQLite crash-safe mission persistence path.")
     parser.add_argument("--mission-id", help="Mission ID for recovery or deterministic demos.")
+    parser.add_argument("--workspace-root", default=str(Path(__file__).resolve().parent), help="Workspace boundary for mission file writes and shell cwd.")
+    parser.add_argument("--require-verified", action="store_true", help="Return non-zero unless mission steps are independently verified.")
     parser.add_argument("--resume", action="store_true", help="Resume a persisted mission ID.")
+    parser.add_argument("--resolve-interrupted-step", choices=("completed", "retry"), help="Resolve an unknown interrupted step after checking its real-world postcondition.")
     parser.add_argument("--pause-after-step", type=int, default=0, help=argparse.SUPPRESS)
     parser.add_argument("--needs-review", action="store_true", help="List crash-safe missions awaiting operator review")
     parser.add_argument("--show-needs-review", metavar="MISSION_ID", help="Show recorded review reasons")
@@ -763,6 +804,9 @@ def main() -> None:
             mission_id=args.mission_id,
             resume=args.resume,
             pause_after_step=args.pause_after_step,
+            resolve_interrupted_step=getattr(args, "resolve_interrupted_step", None),
+            workspace_root=args.workspace_root,
+            require_verified=args.require_verified,
         ))
 
     if args.models:
@@ -775,12 +819,27 @@ def main() -> None:
     ModelManager(config).startup_health_check()
 
     ctx = build_agent()
-
-    if args.cli:
-        repl(ctx["agent"])
-    else:
-        from gui import launch_gui
-        launch_gui(ctx["agent"], config_ctx=ctx)
+    # Mission Control must use the same journal as the CLI/runtime configuration.
+    ctx["mission_db"] = args.mission_db
+    autonomy_service = ctx.get("autonomy_service")
+    try:
+        if autonomy_service is not None:
+            autonomy_service.start()
+        if args.autonomy_service:
+            print("JARVIS durable autonomy service is running. Press Ctrl+C to stop.")
+            while True:
+                time.sleep(60)
+        elif args.cli:
+            repl(ctx["agent"])
+        else:
+            from gui import launch_gui
+            launch_gui(ctx["agent"], config_ctx=ctx)
+    finally:
+        if autonomy_service is not None:
+            autonomy_service.shutdown()
+        close_agent = getattr(ctx["agent"], "close", None)
+        if callable(close_agent):
+            close_agent()
 
 
 if __name__ == "__main__":

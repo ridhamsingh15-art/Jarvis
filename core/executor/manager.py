@@ -8,6 +8,7 @@ from core.tasks import TaskManager
 from .action_registry import ActionRegistry
 from .dispatcher import TaskDispatcher
 from .executor import ExecutionEngine
+from .isolated_handler import IsolatedToolHandler
 from .models import ExecutionContext
 from .pool import WorkerPool
 from .timeouts import TimeoutEnforcer
@@ -30,10 +31,66 @@ class ExecutorManager(BaseComponent):
         self._timeouts = TimeoutEnforcer()
         self._pool = WorkerPool("JarvisExecutor", min_workers, max_workers, self._engine.execute_context, self._handle_worker_completion)
         self._dispatcher = TaskDispatcher(task_manager, self._pool, self._timeouts, self._engine)
+        # Compatibility registrations remain available, but are explicitly reported
+        # as legacy/uncontained until callers classify them via register_action.
+        self._action_contracts: dict[str, str] = {}
+        self._registered_handlers: dict[str, Callable] = {}
 
-    def register_action(self, action_name: str, handler: Callable) -> None:
-        """Registers a callable into the execution engine."""
+    def register_action(
+        self,
+        action_name: str,
+        handler: Callable,
+        *,
+        side_effecting: bool = False,
+    ) -> None:
+        """Register an action with an explicit containment contract.
+
+        Existing two-argument callers retain their historical behavior. New
+        side-effecting actions must pass ``side_effecting=True`` and supply an
+        ``IsolatedToolHandler``; raw callbacks are rejected for that contract.
+        Legacy registrations are tracked as ``legacy-uncontained`` so release
+        checks can fail closed instead of mistaking compatibility for safety.
+        A handler's return value is execution output, not independent verification.
+        """
+        if not isinstance(action_name, str) or not action_name.strip():
+            raise ValueError("action_name must be a non-empty string")
+        if not callable(handler):
+            raise TypeError("handler must be callable")
+        if not isinstance(side_effecting, bool):
+            raise TypeError("side_effecting must be a bool")
+        if side_effecting and not isinstance(handler, IsolatedToolHandler):
+            raise TypeError(
+                "Side-effecting actions require IsolatedToolHandler containment; "
+                "raw callbacks are not accepted for this contract."
+            )
+        if side_effecting:
+            handler.validate_configuration()
         self.registry.register(action_name, handler)
+        self._action_contracts[action_name] = (
+            "isolated-side-effect" if side_effecting else "legacy-uncontained"
+        )
+        self._registered_handlers[action_name] = handler
+
+    def registration_audit(self) -> dict[str, object]:
+        """Return a snapshot that detects legacy registrations and registry bypasses."""
+        contracts = dict(self._action_contracts)
+        registered_actions = self.registry.list_actions()
+        uncontained = []
+        for name in registered_actions:
+            current_handler = self.registry.get(name)
+            declared_handler = self._registered_handlers.get(name)
+            contract = contracts.get(name)
+            if declared_handler is not current_handler:
+                contracts[name] = "unclassified-or-replaced-direct-registry-entry"
+                uncontained.append(name)
+            elif contract != "isolated-side-effect":
+                uncontained.append(name)
+        return {
+            "registered_actions": registered_actions,
+            "contracts": contracts,
+            "uncontained_actions": sorted(uncontained),
+            "release_safe": not uncontained,
+        }
 
     def _handle_worker_completion(self, worker: WorkerThread, context: ExecutionContext, result: ExecutionResult):
         """Callback invoked by a WorkerThread when it finishes an assignment."""

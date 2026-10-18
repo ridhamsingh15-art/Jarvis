@@ -32,6 +32,7 @@ _NAV_ITEMS: list[tuple[str, str, str]] = [
     ("logs",     "📊", "Logs"),
     ("plugins",  "🔌", "Plugins"),
     ("settings", "⚙",  "Settings"),
+    ("missions", "GO", "Missions"),
 ]
 
 

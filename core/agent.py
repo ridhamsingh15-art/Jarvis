@@ -14,7 +14,9 @@ directly. All dependencies are injected via the constructor.
 
 from __future__ import annotations
 
+import inspect
 import logging
+import os
 import threading
 from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
@@ -24,6 +26,10 @@ from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from core.action_safety import (
+    is_known_pre_side_effect_failure,
+    is_known_read_only_action,
+)
 from core.exceptions import JarvisError
 from core.execution_policy import (
     CapabilitySource,
@@ -48,6 +54,82 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 _MEMORY_FAILURES = (AttributeError, OSError, RuntimeError, TypeError, ValueError)
+
+
+def _invoke_process_task_once(processor: Callable[..., Task], task: Task, **kwargs: Any) -> Task:
+    """Invoke a task processor once, passing only keywords its signature accepts.
+
+    Legacy test doubles and plugins sometimes expose a one-argument callable. Detect
+    that contract before invocation; never catch a TypeError from the callable body
+    and retry, because the first call may already have performed a side effect.
+    """
+    try:
+        parameters = inspect.signature(processor).parameters
+    except (TypeError, ValueError):
+        # If a callable has no inspectable signature, invoke only once with the
+        # documented runtime contract and let any error be handled by the caller.
+        return processor(task, **kwargs)
+
+    accepts_kwargs = any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD
+        for parameter in parameters.values()
+    )
+    supported_kwargs = (
+        kwargs
+        if accepts_kwargs
+        else {name: value for name, value in kwargs.items() if name in parameters}
+    )
+    return processor(task, **supported_kwargs)
+
+
+def _fail_task_after_callback_error(task: Task, exc: Exception, *, outcome_unknown: bool) -> Task:
+    """Convert a callback exception into one failed result without retrying execution."""
+    message = f"Task processing callback failed: {type(exc).__name__}: {exc}"
+    if outcome_unknown:
+        message = (
+            f"OUTCOME UNKNOWN: {message}. The operation may have crossed a side-effect "
+            "boundary; do not automatically retry until external state is reconciled."
+        )
+
+    args_are_valid = isinstance(task.args, dict)
+    if not args_are_valid:
+        message += f" (invalid argument shape: {type(task.args).__name__})"
+        failed_result = Task(
+            tool=task.tool,
+            action=task.action,
+            args={"_invalid_args_type": type(task.args).__name__},
+            retry_count=task.retry_count,
+            max_retries=task.max_retries,
+            failure_history=list(task.failure_history),
+        )
+        failed_result.start()
+        failed_result.fail(message)
+        return failed_result
+
+    if task.status in (TaskStatus.PENDING, TaskStatus.RETRYING):
+        task.start()
+    if task.status is TaskStatus.RUNNING:
+        task.fail(message)
+        return task
+
+    # A callback can raise after it has already marked the task completed or failed.
+    # Never let that stale terminal state hide the exception; report a separate failed
+    # result while leaving the original task's terminal history intact.
+    try:
+        copied_args = deepcopy(task.args)
+    except Exception:  # noqa: BLE001 - retain a controlled result even if plugin args cannot be copied
+        copied_args = {"_invalid_args_type": type(task.args).__name__}
+    failed_result = Task(
+        tool=task.tool,
+        action=task.action,
+        args=copied_args,
+        retry_count=task.retry_count,
+        max_retries=task.max_retries,
+        failure_history=list(task.failure_history),
+    )
+    failed_result.start()
+    failed_result.fail(message)
+    return failed_result
 
 
 import re
@@ -551,7 +633,7 @@ class Agent:
                     use_direct = False
                     direct_resolved = self._resolve_direct_tool(user_input, session=session)
                     if direct_resolved:
-                        d_tool, d_action, d_args = direct_resolved
+                        d_tool, _, _ = direct_resolved
                         if d_tool == "shell" and response.tool != "shell":
                             # User gave an explicit shell/pytest command, but LLM selected a non-shell tool (e.g. file.open_file)
                             use_direct = True
@@ -593,7 +675,7 @@ class Agent:
                             ]
                         elif self._capability_manager:
                             try:
-                                plan, profile = self._capability_manager.route(user_input)
+                                plan, _profile = self._capability_manager.route(user_input)
                                 llm_calls += 1
                                 if plan.requires_planner:
                                     tasks = self._planner.plan(user_input, context="")
@@ -652,9 +734,25 @@ class Agent:
                 # Phase 7B: Real Observe -> Decide -> Act Loop via ToolFeedbackLoop
                 def _safe_exec(t):
                     try:
-                        return self._process_task(t, user_confirmed=user_confirmed)
-                    except TypeError:
-                        return self._process_task(t)
+                        result = _invoke_process_task_once(
+                            self._process_task, t, user_confirmed=user_confirmed
+                        )
+                        if not isinstance(result, Task):
+                            raise TypeError(
+                                "task processor returned "
+                                f"{type(result).__name__}, expected Task"
+                            )
+                        return result
+                    except Exception as exc:
+                        logger.exception("Task processing callback failed for %s.%s", t.tool, t.action)
+                        return _fail_task_after_callback_error(
+                            t,
+                            exc,
+                            outcome_unknown=(
+                                not is_known_read_only_action(t.tool, t.action)
+                                and not is_known_pre_side_effect_failure(t.tool, t.action, str(exc))
+                            ),
+                        )
 
                 feedback_loop = self._tool_feedback_loop or ToolFeedbackLoop(
                     execute_fn=_safe_exec,
@@ -670,7 +768,9 @@ class Agent:
                 results = loop_result.tasks
                 llm_calls += loop_result.llm_calls
                 loop_iterations = loop_result.iterations_used
-                if loop_result.loop_detected:
+                if getattr(loop_result, "outcome_unknown", False):
+                    loop_stop_reason = "outcome_unknown"
+                elif loop_result.loop_detected:
                     loop_stop_reason = "loop_detected"
                 elif loop_result.limit_reached:
                     loop_stop_reason = "iteration_limit_reached"
@@ -689,20 +789,31 @@ class Agent:
                 results_by_id: dict[int, Task] = {}
                 for task in resp_tasks:
                     try:
-                        res = self._process_task(task, execution_summary=summary, user_confirmed=user_confirmed)
-                    except TypeError:
-                        try:
-                            res = self._process_task(task, execution_summary=summary)
-                        except TypeError:
-                            res = self._process_task(task)
+                        res = _invoke_process_task_once(
+                            self._process_task,
+                            task,
+                            execution_summary=summary,
+                            user_confirmed=user_confirmed,
+                        )
+                        if not isinstance(res, Task):
+                            raise TypeError(
+                                "task processor returned "
+                                f"{type(res).__name__}, expected Task"
+                            )
+                    except Exception as exc:
+                        logger.exception("Response processing callback failed")
+                        res = _fail_task_after_callback_error(task, exc, outcome_unknown=False)
                     results_by_id[id(task)] = res
                 results = [results_by_id.get(id(t), t) for t in resp_tasks]
 
             # 5. Mission Verification & Grounding (associated ONLY with intent == IntentType.MISSION)
             if intent == IntentType.MISSION:
-                if (not expected_files) and session.last_target_file:
-                    if any(k in user_input.lower() for k in ("verify it", "verify its", "verify that", "verify the file", "check it", "check its")):
-                        expected_files = [session.last_target_file]
+                if (
+                    not expected_files
+                    and session.last_target_file
+                    and any(k in user_input.lower() for k in ("verify it", "verify its", "verify that", "verify the file", "check it", "check its"))
+                ):
+                    expected_files = [session.last_target_file]
                 if (not expected_contents) and session.last_target_content and expected_files:
                     expected_contents = {expected_files[0]: session.last_target_content}
 
@@ -787,8 +898,22 @@ class Agent:
             logger.info("[LLM] calls=%d", max(1 if intent in (IntentType.CHAT, IntentType.TOOL) and self._cognitive_manager else 0, llm_calls))
             if tool_action:
                 logger.info("[TOOL] %s", tool_action)
-                exec_success = any(t.status == TaskStatus.COMPLETED for t in results if t.tool != "system")
-                logger.info("[EXECUTOR] %s", "success" if exec_success else "failed")
+                tool_results = [t for t in results if t.tool != "system"]
+                if any(
+                    t.status == TaskStatus.FAILED
+                    and "outcome unknown" in str(t.error or "").lower()
+                    for t in tool_results
+                ):
+                    executor_status = "outcome_unknown"
+                elif any(t.status == TaskStatus.FAILED for t in tool_results):
+                    executor_status = "partial" if any(
+                        t.status == TaskStatus.COMPLETED for t in tool_results
+                    ) else "failed"
+                elif any(t.status == TaskStatus.COMPLETED for t in tool_results):
+                    executor_status = "success"
+                else:
+                    executor_status = "not_executed"
+                logger.info("[EXECUTOR] %s", executor_status)
             logger.info("[BACKGROUND] work_running=%s", KnowledgeScheduler.is_indexing())
             logger.info("[RESPONSE] tasks=%d total_latency=%.3fs", len(results), timings["Total"])
             logger.info(
@@ -837,7 +962,13 @@ class Agent:
                 trace.session_context_tokens = getattr(self._last_context_budget, "history_tokens", 0)
 
             final_status = "success"
-            if any(t.status == TaskStatus.FAILED for t in results):
+            if any(
+                t.status == TaskStatus.FAILED
+                and "outcome unknown" in str(t.error or "").lower()
+                for t in results
+            ):
+                final_status = "outcome_unknown"
+            elif any(t.status == TaskStatus.FAILED for t in results):
                 if any(t.status == TaskStatus.COMPLETED for t in results):
                     final_status = "partial"
                 elif any("Execution policy denied" in str(t.error or "") for t in results):
@@ -903,7 +1034,7 @@ class Agent:
                     mission_state=mission_state,
                     metadata_updates=meta_updates,
                 )
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 - persistence must not discard an otherwise completed user response
                 logger.warning("Failed to record turn in session: %s", exc)
 
             completed = sum(1 for t in results if t.status == TaskStatus.COMPLETED)
@@ -935,19 +1066,33 @@ class Agent:
         """Handles complex autonomous missions using the full reasoning loop."""
         # Objectives supported by Mission Control are always executed by the durable
         # crash-safe runner, including when submitted from the desktop chat GUI.
-        from mission_control.objective_planner import build_objective_plan
+        from mission_control.crash_cli import _engine, execute_objective
+        from mission_control.objective_planner import (
+            build_adaptive_objective_plan,
+            build_objective_plan,
+        )
+        tool_registry = getattr(getattr(self, "_planner", None), "_registry", None)
         try:
-            safe_steps = build_objective_plan(user_input)
-        except (ValueError, TypeError):
+            # Unit tests can disable live model calls deterministically; production uses
+            # adaptive planning over the same registered tools and crash-safe engine.
+            if os.environ.get("JARVIS_DISABLE_LIVE_MODEL_PLANNING") == "1":
+                safe_steps = build_objective_plan(user_input)
+            else:
+                planning_engine = _engine(Path.home(), tool_registry=tool_registry)
+                safe_steps = build_adaptive_objective_plan(
+                    user_input, execution_engine=planning_engine, tool_registry=tool_registry,
+                )
+        except (ValueError, TypeError, RuntimeError):
             safe_steps = None
         if safe_steps is not None:
-            from mission_control.crash_cli import execute_objective
             mission_id = f"gui-{uuid.uuid4().hex}"
             result = execute_objective(
-                user_input, mission_id=mission_id, steps=safe_steps,
+                user_input, mission_id=mission_id, steps=safe_steps, tool_registry=tool_registry,
             )
             mission = result.get("mission") or {}
             message = f"Mission {mission_id}: {mission.get('state', 'UNKNOWN')}"
+            if result.get("error"):
+                message += f"\nError: {result['error']}"
             if mission.get("failure_reason"):
                 message += f"\nReason: {mission['failure_reason']}"
             for step in result.get("steps", []):
@@ -957,9 +1102,12 @@ class Agent:
         tasks = []
         if session is not None:
             lower = user_input.lower()
-            if (not expected_files) and session.last_target_file:
-                if any(k in lower for k in ("verify it", "verify its", "verify that", "verify the file", "check it", "check its")):
-                    expected_files = [session.last_target_file]
+            if (
+                not expected_files
+                and session.last_target_file
+                and any(k in lower for k in ("verify it", "verify its", "verify that", "verify the file", "check it", "check its"))
+            ):
+                expected_files = [session.last_target_file]
             if (not expected_contents) and session.last_target_content and expected_files:
                 expected_contents = {expected_files[0]: session.last_target_content}
             if session.active_mission:
@@ -1172,16 +1320,19 @@ class Agent:
         """Deterministically resolves common OS and tool actions if LLM returns plain text."""
         lower = user_input.lower().strip()
         # Cross-turn test execution: "run its tests", "run the tests", "run tests"
-        if session and session.last_target_file:
-            if any(k in lower for k in ("run its tests", "run the tests", "run tests for it", "run its test")):
-                target = session.last_target_file
-                p = Path(target)
-                if not p.name.startswith("test_") and not p.name.endswith("_test.py"):
-                    test_cand = p.parent / f"test_{p.name}"
-                    cmd = f"pytest {test_cand}" if test_cand.exists() else f"pytest {target}"
-                else:
-                    cmd = f"pytest {target}"
-                return "shell", "run", {"command": cmd}
+        if (
+            session
+            and session.last_target_file
+            and any(k in lower for k in ("run its tests", "run the tests", "run tests for it", "run its test"))
+        ):
+            target = session.last_target_file
+            p = Path(target)
+            if not p.name.startswith("test_") and not p.name.endswith("_test.py"):
+                test_cand = p.parent / f"test_{p.name}"
+                cmd = f"pytest {test_cand}" if test_cand.exists() else f"pytest {target}"
+            else:
+                cmd = f"pytest {target}"
+            return "shell", "run", {"command": cmd}
 
         # Direct test execution: "run tests", "run pytest", "pytest <path>"
         pytest_match = re.match(r"^(?:run\s+)?(?:the\s+)?pytest(?:\s+(.+))?$", lower)
@@ -1217,9 +1368,15 @@ class Agent:
             }
 
         # Cross-turn file reference: "read it", "read it back", "read that file"
-        if session and session.last_target_file:
-            if re.search(r"\b(?:read|show|cat|display)\s+(?:it|it\s+back|that|that\s+file|the\s+file)\b", lower) or lower in ("read it", "read it back", "read that", "read the file"):
-                return "file", "read_file", {"path": session.last_target_file}
+        if (
+            session
+            and session.last_target_file
+            and (
+                re.search(r"\b(?:read|show|cat|display)\s+(?:it|it\s+back|that|that\s+file|the\s+file)\b", lower)
+                or lower in ("read it", "read it back", "read that", "read the file")
+            )
+        ):
+            return "file", "read_file", {"path": session.last_target_file}
 
         # Calculator app
         if (
@@ -1283,7 +1440,7 @@ class Agent:
                 blocks.append(f"File: {r.document.filename} ({r.document.path})\nContent snippet:\n{r.chunk.text}")
             
             return "\n\n--- PERSONAL KNOWLEDGE INDEX ---\n" + "\n\n".join(blocks) + "\n--------------------------------\n"
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - optional semantic search must fail open to empty context
             if not self._semantic_search_disabled:
                 logger.warning("Semantic search unavailable (Embedding model offline?): %s. Disabling semantic search for this session to prevent timeout spam.", exc)
                 self._semantic_search_disabled = True
@@ -1452,6 +1609,13 @@ class Agent:
 
         # 3. Timeout-Guarded Execution
         timeout = getattr(task, "timeout_seconds", None) or self._default_tool_timeout
+        # Registered isolated handlers own a real process deadline. Wait at least
+        # until that deadline so Agent cannot report timeout while the worker is
+        # still running. Generic custom executors retain the existing caller timeout.
+        from core.executor.executor import ExecutionEngine
+
+        if isinstance(self._executor, ExecutionEngine):
+            timeout = self._executor.timeout_for_task(task, timeout)
         is_timeout = False
         error_cat = None
         try:
@@ -1460,6 +1624,23 @@ class Agent:
             future = self._submit_execution_task(task)
             executed_task = future.result(timeout=timeout)
             if isinstance(executed_task, Task):
+                if (
+                    executed_task.status is TaskStatus.FAILED
+                    and "outcome unknown" not in str(executed_task.error or "").lower()
+                    and "not executed:" not in str(executed_task.error or "").lower()
+                    and not is_known_read_only_action(executed_task.tool, executed_task.action)
+                    and not is_known_pre_side_effect_failure(
+                        executed_task.tool, executed_task.action, executed_task.error
+                    )
+                ):
+                    # An executor may return a failed Task after invoking a handler whose
+                    # side effects cannot be inferred from an ordinary error string.
+                    executed_task.error = (
+                        "OUTCOME UNKNOWN: executor reported a failed task without an "
+                        "explicit no-execution guarantee. Do not automatically retry "
+                        "until external state is reconciled. Original error: "
+                        f"{executed_task.error or 'no error details supplied'}"
+                    )
                 task.status = executed_task.status
                 task.result = executed_task.result
                 task.error = executed_task.error
@@ -1468,7 +1649,21 @@ class Agent:
                 task.args = executed_task.args
                 result = task
             else:
-                result = executed_task
+                # The executor contract is Task -> Task. Treat an unexpected return
+                # payload as an uncertain execution outcome, not as a valid result:
+                # the handler may already have crossed a side-effect boundary.
+                error_cat = "InvalidExecutorResult"
+                result_type = type(executed_task).__name__
+                error_message = (
+                    "OUTCOME UNKNOWN: executor returned unsupported result type "
+                    f"{result_type}; expected Task. Do not automatically retry until "
+                    "the external state has been reconciled."
+                )
+                if task.status in (TaskStatus.PENDING, TaskStatus.RETRYING):
+                    task.start()
+                if task.status == TaskStatus.RUNNING:
+                    task.fail(error_message)
+                result = task
         except FuturesTimeoutError:
             is_timeout = True
             error_cat = "Timeout"
@@ -1477,15 +1672,25 @@ class Agent:
             if task.status in (TaskStatus.PENDING, TaskStatus.RETRYING):
                 task.start()
             if task.status == TaskStatus.RUNNING:
-                task.fail(f"Tool execution timed out after {timeout} seconds")
+                task.fail(
+                    f"Tool execution timed out after {timeout} seconds; "
+                    "OUTCOME UNKNOWN: the handler may still be running and may still "
+                    "cause side effects. Do not automatically retry without reconciling "
+                    "the external state."
+                )
             result = task
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - executor callbacks are untrusted; convert all failures to task state
             error_cat = type(exc).__name__
             logger.error("[EXECUTOR] Execution error in %s.%s: %s", task.tool, task.action, exc)
-            if task.status in (TaskStatus.PENDING, TaskStatus.RETRYING):
-                task.start()
-            task.fail(f"Execution error: {exc}")
-            result = task
+            result = _fail_task_after_callback_error(
+                task,
+                exc,
+                outcome_unknown=(
+                    not is_known_read_only_action(task.tool, task.action)
+                    and not is_known_pre_side_effect_failure(task.tool, task.action, str(exc))
+                ),
+            )
+            task = result
 
         if trace is not None:
             trace.record_tool_call(
@@ -1506,7 +1711,11 @@ class Agent:
 
         if result.status == TaskStatus.FAILED:
             logger.warning("Execution failed: %s", result.error)
-            if not (result.error.startswith("Execution policy") or "timed out after" in result.error):
+            if not (
+                result.error.startswith("Execution policy")
+                or "timed out after" in result.error
+                or "outcome unknown" in result.error.lower()
+            ):
                 result.error = self._friendly_error_message(result.error)
         return result
 

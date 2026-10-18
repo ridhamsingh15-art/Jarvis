@@ -138,7 +138,11 @@ class SkillsRuntime:
             True if allowed, False otherwise.
         """
         if self._policy is None:
-            return True  # No policy configured — allow (test/dev mode)
+            logger.warning(
+                "[SKILLS] Denied %s.%s for skill %s because no execution policy is configured",
+                tool, action, skill_id,
+            )
+            return False
 
         from core.execution_policy import CapabilitySource, PolicyContext, PolicyVerdict
         ctx = PolicyContext(

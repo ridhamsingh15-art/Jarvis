@@ -23,3 +23,8 @@ class ActionRegistry:
             if not handler:
                 raise ActionNotFoundError(f"No execution handler registered for action: {action_name}")
             return handler
+
+    def list_actions(self) -> list[str]:
+        """Return registered action identifiers for capability discovery."""
+        with self._lock:
+            return sorted(self._registry)

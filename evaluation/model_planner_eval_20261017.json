@@ -1,0 +1,160 @@
+{
+  "cases": 6,
+  "valid_plan_rate": 1.0,
+  "tool_sequence_accuracy": 1.0,
+  "unsupported_handling_accuracy": 1.0,
+  "total_planning_seconds": 53.343,
+  "results": [
+    {
+      "id": "largest_files",
+      "category": "filesystem_read",
+      "expected_unsupported": false,
+      "valid_plan": true,
+      "unsupported_correct": true,
+      "tool_sequence": [
+        "file.list_largest_files"
+      ],
+      "planned_steps": [
+        {
+          "id": "step1",
+          "tool": "file",
+          "action": "list_largest_files",
+          "args": {
+            "path": "C:\\Users\\ridha\\Documents",
+            "limit": 5
+          },
+          "depends_on": [],
+          "expected_outcome": "The five largest regular files in the directory are returned with their exact paths and byte sizes."
+        }
+      ],
+      "tool_sequence_correct": true,
+      "latency_seconds": 10.828
+    },
+    {
+      "id": "extension_frequency",
+      "category": "filesystem_summary",
+      "expected_unsupported": false,
+      "valid_plan": true,
+      "unsupported_correct": true,
+      "tool_sequence": [
+        "file.extension_counts"
+      ],
+      "planned_steps": [
+        {
+          "id": "step1",
+          "tool": "file",
+          "action": "extension_counts",
+          "args": {
+            "path": "C:\\Users\\ridha\\Documents",
+            "limit": 4
+          },
+          "depends_on": [],
+          "expected_outcome": "A list of file extensions with their counts, limited to the four most common."
+        }
+      ],
+      "tool_sequence_correct": true,
+      "latency_seconds": 6.075
+    },
+    {
+      "id": "largest_file_contents",
+      "category": "multi_step_dependency",
+      "expected_unsupported": false,
+      "valid_plan": true,
+      "unsupported_correct": true,
+      "tool_sequence": [
+        "file.list_largest_files",
+        "file.read_file"
+      ],
+      "planned_steps": [
+        {
+          "id": "step1",
+          "tool": "file",
+          "action": "list_largest_files",
+          "args": {
+            "path": "C:\\Users\\ridha\\Documents",
+            "limit": 1
+          },
+          "depends_on": [],
+          "expected_outcome": "The largest file's full path is returned."
+        },
+        {
+          "id": "step2",
+          "tool": "file",
+          "action": "read_file",
+          "args": {
+            "path": {
+              "$ref": "step1.result.files.0.path"
+            }
+          },
+          "depends_on": [
+            "step1"
+          ],
+          "expected_outcome": "The contents of the largest file are returned."
+        }
+      ],
+      "tool_sequence_correct": true,
+      "latency_seconds": 21.883
+    },
+    {
+      "id": "official_docs_search",
+      "category": "browser_research",
+      "expected_unsupported": false,
+      "valid_plan": true,
+      "unsupported_correct": true,
+      "tool_sequence": [
+        "browser.search_google"
+      ],
+      "planned_steps": [
+        {
+          "id": "step1",
+          "tool": "browser",
+          "action": "search_google",
+          "args": {
+            "query": "official Python documentation asyncio task groups"
+          },
+          "depends_on": [],
+          "expected_outcome": "Google search results for the official Python documentation on asyncio task groups are returned."
+        }
+      ],
+      "tool_sequence_correct": true,
+      "latency_seconds": 8.139
+    },
+    {
+      "id": "open_application",
+      "category": "desktop_control",
+      "expected_unsupported": false,
+      "valid_plan": true,
+      "unsupported_correct": true,
+      "tool_sequence": [
+        "windows.open_app"
+      ],
+      "planned_steps": [
+        {
+          "id": "step1",
+          "tool": "windows",
+          "action": "open_app",
+          "args": {
+            "app": "notepad"
+          },
+          "depends_on": [],
+          "expected_outcome": "Notepad application is opened and ready for typing."
+        }
+      ],
+      "tool_sequence_correct": true,
+      "latency_seconds": 6.418
+    },
+    {
+      "id": "ambiguous_cleanup",
+      "category": "ambiguous_request",
+      "expected_unsupported": true,
+      "valid_plan": false,
+      "unsupported_correct": true,
+      "tool_sequence": [],
+      "tool_sequence_correct": true,
+      "failure_class": "ValueError",
+      "failure_reason": "This request could delete unspecified data. Specify exact files or directories; no actions were planned or executed.",
+      "latency_seconds": 0.0
+    }
+  ],
+  "execution_performed": false
+}

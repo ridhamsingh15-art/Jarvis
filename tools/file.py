@@ -127,9 +127,7 @@ def _is_protected(path: Path, read_only: bool = False) -> bool:
     try:
         rel = path.relative_to(_PROJECT_ROOT)
         return not (
-            rel.name.startswith("jarvis_session_test")
-            or rel.name.startswith("test_")
-            or (rel.parts and rel.parts[0] in (".jarvis_test_workspace", "jarvis_test_workspace"))
+            rel.parts and rel.parts[0] in (".jarvis_test_workspace", "jarvis_test_workspace")
         )
     except ValueError:
         return False
@@ -156,7 +154,55 @@ def _validate_path(path: Path, must_exist: bool = False, read_only: bool = False
 
 
 class FileTool(BaseTool):
-    """Tool for managing files and directories."""
+    """Tool for managing files and directories, optionally bounded to a workspace."""
+
+    _MUTATING_ACTIONS = frozenset({
+        "create_file", "write_file", "append_line", "patch_file", "edit_file",
+        "create_folder", "rename", "move", "copy", "delete",
+    })
+
+    def __init__(self, workspace_root: str | Path | None = None) -> None:
+        self._workspace_root = Path(workspace_root).resolve() if workspace_root is not None else None
+
+    def _enforce_workspace_boundary(self, action: str, args: dict) -> dict:
+        if self._workspace_root is None or action not in self._MUTATING_ACTIONS:
+            return args
+        normalized = dict(args)
+        keys = ["path"] + (["dest"] if action in {"move", "copy"} else [])
+        for key in keys:
+            raw = normalized.get(key)
+            if not isinstance(raw, (str, Path)) or not str(raw).strip():
+                raise ExecutionError(f"A valid '{key}' path is required for workspace-scoped writes")
+            candidate = Path(raw)
+            if not candidate.is_absolute():
+                candidate = self._workspace_root / candidate
+            resolved = candidate.resolve(strict=False)
+            try:
+                resolved.relative_to(self._workspace_root)
+            except ValueError as exc:
+                raise ExecutionError(
+                    f"Write blocked: '{resolved}' is outside workspace '{self._workspace_root}'"
+                ) from exc
+            normalized[key] = str(resolved)
+
+        # A rename's destination is derived from ``new_name``, not ``dest``.
+        # Validate it separately: checking only the source lets ``../outside``
+        # escape the workspace even though ``path`` itself is contained.
+        if action == "rename":
+            raw_name = normalized.get("new_name")
+            if not isinstance(raw_name, str) or not raw_name.strip():
+                raise ExecutionError("A valid 'new_name' filename is required for workspace-scoped rename")
+            name_path = Path(raw_name)
+            if name_path.name != raw_name or raw_name in {".", ".."}:
+                raise ExecutionError("Rename target must be a single filename within the configured workspace")
+            target = (Path(normalized["path"]).parent / raw_name).resolve(strict=False)
+            try:
+                target.relative_to(self._workspace_root)
+            except ValueError as exc:
+                raise ExecutionError(
+                    f"Rename blocked: '{target}' is outside workspace '{self._workspace_root}'"
+                ) from exc
+        return normalized
 
     @property
     def name(self) -> str:
@@ -302,6 +348,8 @@ class FileTool(BaseTool):
         if handler is None:
             raise ExecutionError(f"Unknown file action: '{action}'")
 
+        # Check every mutating path before a handler can create directories or touch files.
+        args = self._enforce_workspace_boundary(action, args)
         return handler(args)
 
     @staticmethod
@@ -462,6 +510,8 @@ class FileTool(BaseTool):
 
         if not new_name:
             raise ExecutionError("Missing required argument: 'new_name'")
+        if Path(new_name).name != new_name or new_name in {".", ".."}:
+            raise ExecutionError("'new_name' must be a single filename, not a path")
 
         _validate_path(path, must_exist=True, read_only=True)
 
@@ -489,6 +539,10 @@ class FileTool(BaseTool):
         source = _resolve_path(args.get("path", ""))
         dest = _resolve_path(args.get("dest", ""))
 
+        # A move mutates its source as well as writing the destination. Apply
+        # both mutation protection (system/project boundaries) and read protection
+        # (sensitive credential paths) before crossing the side-effect boundary.
+        _validate_path(source, must_exist=True)
         _validate_path(source, must_exist=True, read_only=True)
         _validate_path(dest)
 

@@ -81,36 +81,42 @@ class AsyncLogger:
         """
         Background loop running on a dedicated thread.
         Pulls logs, formats, masks, and writes them to sinks.
+        Sink lifecycle belongs to this thread so shutdown cannot close a sink
+        while a queued record is being written.
         """
-        while not self._shutdown_event.is_set() or not self._queue.empty():
-            try:
-                # 100ms timeout allows the loop to check shutdown_event periodically
-                record = self._queue.get(timeout=0.1)
-                
-                # Apply secret masking
-                masked_record = self._masker.mask(record)
-                
-                # Write to all outputs
-                for formatter, sink in self._outputs:
-                    formatted_msg = formatter.format(masked_record)
-                    sink.write(formatted_msg)
-                    
-                self._queue.task_done()
-            except queue.Empty:
-                continue
-            except Exception as e:  # noqa: BLE001
-                # Catch-all to prevent the dispatcher thread from ever crashing
-                import sys
-                print(f"Logger thread error: {e}", file=sys.stderr)
+        import sys
+
+        try:
+            while not self._shutdown_event.is_set() or not self._queue.empty():
+                try:
+                    # 100ms timeout allows the loop to check shutdown_event periodically
+                    record = self._queue.get(timeout=0.1)
+                except queue.Empty:
+                    continue
+
+                try:
+                    masked_record = self._masker.mask(record)
+                    for formatter, sink in self._outputs:
+                        formatted_msg = formatter.format(masked_record)
+                        sink.write(formatted_msg)
+                except Exception as exc:  # noqa: BLE001 - logging failures must not kill the dispatcher
+                    print(f"Logger thread error: {exc}", file=sys.stderr)
+                finally:
+                    # Account for every dequeued record even if masking/formatting/a sink fails.
+                    self._queue.task_done()
+        finally:
+            # This runs only after the dispatcher has stopped touching the sinks.
+            for _, sink in self._outputs:
+                try:
+                    sink.close()
+                except Exception as exc:  # noqa: BLE001 - one bad sink must not block other cleanup
+                    print(f"Logger sink close error: {exc}", file=sys.stderr)
 
     def shutdown(self) -> None:
         """
-        Gracefully shuts down the logger, flushing remaining queued items.
+        Request shutdown and wait up to two seconds for the dispatcher to drain the queue.
+        If a sink is still busy, the dispatcher closes it itself after it finishes; this
+        method never closes a sink concurrently with an active write.
         """
         self._shutdown_event.set()
-        # Wait up to 2 seconds for the queue to flush
         self._thread.join(timeout=2.0)
-        
-        # Close all sinks
-        for _, sink in self._outputs:
-            sink.close()

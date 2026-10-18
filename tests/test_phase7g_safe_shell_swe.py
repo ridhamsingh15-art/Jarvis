@@ -337,16 +337,18 @@ class TestPhase7GSafeShellSWE:
 
     # 17. model can react to test failure
     def test_17_model_can_react_to_test_failure(self, tmp_path: Path):
+        failing_test = tmp_path / "test_intentional_failure.py"
+        failing_test.write_text("def test_intentional_failure():\n    assert False\n", encoding="utf-8")
         prov = MockSWEProvider(responses=[
-            {"type": "ACTION", "tool": "shell", "action": "run", "parameters": {"command": f"{sys.executable} -c \"exit(1)\""}},
+            {"type": "ACTION", "tool": "shell", "action": "run", "parameters": {"command": f"{sys.executable} -m pytest -q {failing_test}"}},
             {"type": "RESPONSE", "message": "Tests failed, attempting fix."},
         ])
         agent, _, _, _ = build_swe_test_agent(tmp_path, provider=prov)
-        tasks = agent.run("Run pytest", intent=IntentType.TOOL)
+        agent.run("Run pytest", intent=IntentType.TOOL)
         assert len(prov.call_history) >= 2
         second_call_prompt = prov.call_history[1]["user"]
         assert "<UNTRUSTED_TOOL_RESULT>" in second_call_prompt
-        assert "return_code=1" in second_call_prompt or "exit(1)" in second_call_prompt
+        assert "exit_code=1" in second_call_prompt or "assert False" in second_call_prompt
 
     # 18. model can rerun tests
     def test_18_model_can_rerun_tests(self, tmp_path: Path):

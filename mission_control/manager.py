@@ -100,9 +100,19 @@ class MissionControlManager(RuntimeComponent):
             await self.tick(mission_id)
             
     async def approve_mission(self, mission_id: str, reason: str) -> None:
+        """Approve a uniquely identifiable legacy reason; ambiguous duplicates fail closed."""
         mission = self.missions.get(mission_id)
         if mission:
             self.approvals.approve(mission, reason)
+            self.checkpoints.checkpoint(mission)
+            await self.tick(mission_id)
+
+    async def approve_mission_step(self, mission_id: str, step_index: int) -> None:
+        """Approve one specific zero-based mission step occurrence."""
+        mission = self.missions.get(mission_id)
+        if mission:
+            self.approvals.approve_step(mission, step_index)
+            self.checkpoints.checkpoint(mission)
             await self.tick(mission_id)
 
     def recover_mission(self, mission_id: str) -> None:

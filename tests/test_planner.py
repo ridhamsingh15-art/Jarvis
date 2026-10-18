@@ -60,5 +60,48 @@ class TestPlanner(unittest.TestCase):
         with self.assertRaises(RouterError):
             self.planner.plan("open example.com")
             
+
+
+    def test_invalid_tool_schema_retries_once(self):
+        """Malformed local-model tool envelopes get one bounded correction retry."""
+        valid = ModelResponse(
+            text='[{"tool": "browser", "action": "open", "args": {"url": "https://example.com"}}]',
+            provider_id="mock_provider",
+            model_id="mock_model",
+            latency_ms=100,
+        )
+        invalid = ModelResponse(
+            text='{"tool": "browser", "action": "open_url", "args": []}',
+            provider_id="mock_provider",
+            model_id="mock_model",
+            latency_ms=100,
+        )
+        self.mock_gateway.generate.side_effect = [invalid, valid]
+
+        tasks = self.planner.plan("open example.com")
+
+        self.assertEqual(len(tasks), 1)
+        self.assertEqual(tasks[0].tool, "browser")
+        self.assertEqual(self.mock_gateway.generate.call_count, 2)
+        retry_prompt = self.mock_gateway.generate.call_args_list[1].args[0]
+        self.assertIn("schema check", retry_prompt)
+
+    def test_invalid_tool_schema_fails_closed_after_one_retry(self):
+        from core.exceptions import ParseError
+
+        invalid = ModelResponse(
+            text='{"tool": "browser", "action": "open_url", "args": []}',
+            provider_id="mock_provider",
+            model_id="mock_model",
+            latency_ms=100,
+        )
+        self.mock_gateway.generate.side_effect = [invalid, invalid]
+
+        with self.assertRaises(ParseError):
+            self.planner.plan("open example.com")
+
+        self.assertEqual(self.mock_gateway.generate.call_count, 2)
+
+
 if __name__ == "__main__":
     unittest.main()

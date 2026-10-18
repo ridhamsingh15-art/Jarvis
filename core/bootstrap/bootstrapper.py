@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from core.config import (
     ConfigField,
     ConfigManager,
@@ -31,9 +33,17 @@ class Bootstrap:
             AutonomousGoalManager,
             DAGGoalScheduler,
             DefaultGoalEvaluator,
-            DefaultGoalPlanner,
         )
         from core.autonomy.factory import create_autonomous_goal_manager
+        from core.autonomy.mission_adapter import (
+            CrashSafeGoalStepExecutor,
+            ExecutionBackedGoalPlanner,
+        )
+        from core.registry import Registry
+        from tools.browser import BrowserTool
+        from tools.codex_desktop import CodexDesktopTool
+        from tools.file import FileTool
+        from tools.windows import WindowsTool
 
         logger = None
         container = None
@@ -70,13 +80,21 @@ class Bootstrap:
             # Foundation ConfigSnapshot remains responsible for AIOS core settings.
             event_bus = container.resolve(EventBus)
             autonomy_config = load_application_config()
+            # Keep the model-visible capability manifest and the crash-safe
+            # executor backed by the same explicit registry. Shell remains
+            # governed by the dedicated restricted ShellTool and is not added
+            # to model-generated plans.
+            tool_registry = Registry()
+            for tool in (FileTool(workspace_root=Path(__file__).resolve().parents[2]), BrowserTool(), WindowsTool(), CodexDesktopTool()):
+                tool_registry.register(tool)
             goal_manager = create_autonomous_goal_manager(
-                planner=DefaultGoalPlanner(),
+                planner=ExecutionBackedGoalPlanner(tool_registry=tool_registry),
                 scheduler=DAGGoalScheduler(),
                 evaluator=DefaultGoalEvaluator(),
                 event_bus=event_bus,
                 logger=logger,
                 config=autonomy_config,
+                step_executor=CrashSafeGoalStepExecutor(tool_registry=tool_registry),
             )
             container.register_instance(AutonomousGoalManager, goal_manager)
             

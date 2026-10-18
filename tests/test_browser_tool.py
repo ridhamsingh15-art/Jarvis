@@ -122,3 +122,23 @@ class TestExecutorActionBridge:
         result = handler(None, site="google")
         assert "google" in result
         mock_open.assert_called_once()
+
+    @patch("webbrowser.open", return_value=False)
+    def test_browser_refusal_is_not_reported_as_success(self, _mock_open):
+        import pytest
+
+        from core.exceptions import ExecutionError
+
+        with pytest.raises(ExecutionError, match="did not accept"):
+            self.browser.execute("open_url", {"url": "https://example.com"})
+
+
+def test_open_url_redacts_userinfo_and_query_from_result_and_logs(caplog):
+    from tools.browser import _safe_url_for_log
+
+    url = "https://user:password@example.com/private?token=secret#fragment"
+    with patch("webbrowser.open", return_value=True):
+        result = BrowserTool._open_url({"url": url})
+    assert result == "Opened https://example.com/private?[redacted]#[redacted]"
+    assert "password" not in result and "secret" not in result
+    assert _safe_url_for_log(url) == "https://example.com/private?[redacted]#[redacted]"

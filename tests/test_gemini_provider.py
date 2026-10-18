@@ -51,6 +51,11 @@ def test_generate_success(mock_post, gemini_provider):
     mock_post.return_value = mock_response
 
     response = gemini_provider.generate("System", "User")
+    request_url = mock_post.call_args.args[0]
+    request_headers = mock_post.call_args.kwargs["headers"]
+    assert "test_key" not in request_url
+    assert "?key=" not in request_url
+    assert request_headers["x-goog-api-key"] == "test_key"
     assert response.text == "Hello Gemini"
     assert response.provider_id == "gemini"
     assert response.token_usage.input_tokens == 20

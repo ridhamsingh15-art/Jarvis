@@ -10,6 +10,7 @@ from core.telemetry import AsyncLogger
 from .interfaces import IGoalEvaluator, IGoalPersistence, IGoalPlanner, IGoalScheduler
 from .persistence import InMemoryGoalPersistence
 from .sqlite_persistence import SQLiteGoalPersistence
+from .step_executor import IGoalStepExecutor
 
 if TYPE_CHECKING:
     from .manager import AutonomousGoalManager
@@ -43,6 +44,7 @@ def create_autonomous_goal_manager(
     event_bus: EventBus,
     logger: AsyncLogger,
     config: JarvisConfig | None = None,
+    step_executor: IGoalStepExecutor | None = None,
 ) -> AutonomousGoalManager:
     """Build a goal manager with the persistence backend selected by config.
 
@@ -58,4 +60,5 @@ def create_autonomous_goal_manager(
         evaluator=evaluator,
         event_bus=event_bus,
         logger=logger,
+        step_executor=step_executor,
     )

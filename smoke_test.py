@@ -1,41 +1,29 @@
-from core.agent import Agent
+"""Safe smoke test for the currently wired AIOS runtime. No desktop actions are triggered."""
+from core.autonomy import AutonomousGoalManager
 from core.bootstrap.bootstrapper import Bootstrap
 
 
-def main() -> None:
-    print("Starting Bootstrapper...")
+def main() -> int:
+    print("Starting JARVIS AIOS bootstrap...")
     result = Bootstrap.start()
     if not result.success or result.runtime is None:
-        print(f"Failed to start: {result.error_message}")
-        return
+        print(f"BOOTSTRAP=FAILED reason={result.error_message}")
+        return 1
 
     runtime = result.runtime
-    print("Bootstrapper finished.")
-
-    agent = runtime.container.resolve(Agent)
-    commands = [
-        "hello",
-        "open notepad",
-        "open calculator",
-        "create file test.txt",
-        "search python",
-        "remember my favorite editor is VS Code",
-    ]
-
-    for cmd in commands:
-        print(f"\n--- Testing command: {cmd} ---")
-        try:
-            tasks = agent.run(cmd)
-            print(f"Tasks generated: {len(tasks)}")
-            for t in tasks:
-                print(f"Task status: {t.status}")
-        except (OSError, RuntimeError, ValueError) as e:
-            print(f"Exception during {cmd}: {e}")
-
-    print("\nShutting down runtime...")
-    # Stop usually happens async or via some runtime manager but we're just testing the boot and agent
-    print("Shutdown complete.")
+    try:
+        manager = runtime.container.resolve(AutonomousGoalManager)
+        print("BOOTSTRAP=PASS")
+        print(f"RUNTIME={type(runtime).__name__}")
+        print(f"AUTONOMY_MANAGER={type(manager).__name__}")
+        print("SMOKE_TEST=PASS; no external or state-changing actions were executed")
+        return 0
+    except (KeyError, RuntimeError, TypeError, ValueError) as exc:
+        print(f"SMOKE_TEST=FAILED error={type(exc).__name__}: {exc}")
+        return 1
+    finally:
+        runtime.shutdown()
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

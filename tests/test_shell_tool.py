@@ -16,7 +16,15 @@ Tests:
 import sys
 from unittest.mock import Mock
 
-from tools.shell import _HIGH_RISK_PATTERNS, ShellResult, ShellTool
+import pytest
+
+from tools.shell import (
+    _HIGH_RISK_PATTERNS,
+    _SAFE_COMMAND_PREFIXES,
+    ShellResult,
+    ShellTool,
+    _check_shell_syntax,
+)
 
 
 def _tool(workspace=".", timeout=10.0, allowed_commands=None):
@@ -114,6 +122,10 @@ class TestShellToolBlockedCommands:
 
 
 class TestShellToolAllowlist:
+    def test_allowlist_rejects_prefix_lookalikes(self):
+        tool = _tool(allowed_commands=["python -c"])
+        assert tool.run('python -cat "print(1)"').blocked
+
     def test_allowlist_restricts_commands(self):
         tool = _tool(allowed_commands=["echo", "python"])
         # Allowed
@@ -195,3 +207,76 @@ class TestShellToolHighRiskPatterns:
         for cmd, should_block in test_cases:
             blocked = any(p.search(cmd) for p in _HIGH_RISK_PATTERNS)
             assert blocked == should_block, f"Command '{cmd}': expected blocked={should_block}, got {blocked}"
+
+
+def test_shell_blocks_direct_env_file_access(tmp_path):
+    tool = ShellTool(workspace_root=tmp_path)
+    result = tool.run("type .env", cwd_override=str(tmp_path))
+    assert result.blocked
+    assert ".env" in result.blocked_reason.lower()
+
+def test_quoted_and_path_qualified_nested_shell_interpreters_are_blocked():
+    commands = (
+        '"cmd.exe" /c echo harmless',
+        r'C:\Windows\System32\cmd.exe /c echo harmless',
+        '"powershell" -Command Write-Output harmless',
+        r'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe -Command Write-Output harmless',
+    )
+    for command in commands:
+        assert ShellTool.check_high_risk(command), command
+
+def test_large_subprocess_output_is_bounded_in_memory(tmp_path):
+    tool = _tool(workspace=tmp_path, allowed_commands=list(_SAFE_COMMAND_PREFIXES))
+    command = "python -c \"import sys; sys.stdout.write('x' * 1000000)\""
+    result = tool.run(command, cwd_override=tmp_path)
+    assert not result.blocked
+    assert not result.timed_out
+    assert result.return_code == 0
+    assert len(result.stdout) == 1024
+    assert result.stdout == "x" * 1024
+
+def test_sensitive_command_arguments_are_not_written_to_shell_logs(tmp_path, caplog):
+    import logging
+
+    secret_marker = "SHELL_LOG_SECRET_MARKER_8f13"
+    caplog.set_level(logging.INFO, logger="tools.shell")
+    result = _tool(workspace=tmp_path, allowed_commands=list(_SAFE_COMMAND_PREFIXES)).run(
+        f"echo {secret_marker}", cwd_override=tmp_path
+    )
+    assert result.stdout.strip() == secret_marker
+    assert secret_marker not in caplog.text
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX absolute paths differ from Windows command switches")
+def test_absolute_posix_path_outside_workspace_is_not_mistaken_for_a_flag(tmp_path):
+    tool = ShellTool(workspace_root=tmp_path)
+    reason = tool._check_workspace_boundary("cat /etc/hostname")
+    assert "outside workspace" in reason
+    assert "/etc/hostname" in reason
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX parameter expansion is not used by cmd.exe")
+@pytest.mark.parametrize(
+    "command",
+    [
+        'cat "$HOME/.ssh/id_rsa"',
+        'cat "' + chr(36) + '{HOME}/.ssh/id_rsa"',
+        'cat "$JARVIS_AUDIT_PATH"',
+        'echo "$1"',
+    ],
+)
+def test_posix_parameter_expansion_is_rejected_before_execution(command):
+    assert "parameter expansion" in _check_shell_syntax(command).lower()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX shell quoting behavior")
+def test_single_quoted_posix_dollar_text_is_not_treated_as_expansion():
+    assert _check_shell_syntax("printf '$HOME'") == ""
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX absolute path handling")
+def test_absolute_path_inside_workspace_remains_allowed_by_boundary_check(tmp_path):
+    target = tmp_path / "safe.txt"
+    target.write_text("safe", encoding="utf-8")
+    tool = ShellTool(workspace_root=tmp_path)
+    assert tool._check_workspace_boundary(f"cat {target}") == ""

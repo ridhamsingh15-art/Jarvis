@@ -149,8 +149,15 @@ class ContextBudgetManager:
         raw_val = task.result if task.status == TaskStatus.COMPLETED else task.error
         content = str(raw_val if raw_val is not None else "")
 
-        # Strip ANSI escape sequences
+        # Strip ANSI escape sequences.
         clean = re.sub(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])", "", content)
+        # Tool output is untrusted and may contain the wrapper's closing tag. Escape
+        # delimiter lookalikes before adding the trusted outer boundary.
+        clean = re.sub(
+            r"(?i)</?UNTRUSTED_TOOL_RESULT\s*>",
+            lambda match: match.group(0).replace("<", "&lt;").replace(">", "&gt;"),
+            clean,
+        )
 
         if len(clean) > limit:
             head_len = int(limit * 0.75)
@@ -186,7 +193,6 @@ class ContextBudgetManager:
         total_limit = max_total_chars or self.total_tool_result_chars
         per_result_limit = min(self.max_tool_result_chars, total_limit)
 
-        formatted_results: list[str] = []
         truncated = False
 
         # Work newest to oldest to prioritize recent results
@@ -287,7 +293,7 @@ class ContextBudgetManager:
                     suffix = "\n</UNTRUSTED_TOOL_RESULT>"
                     if prefix in inner and suffix in inner:
                         body = inner.split(prefix, 1)[1].rsplit(suffix, 1)[0]
-                        body = body[:max_chars] + f"\n... [tool result truncated to fit budget]"
+                        body = body[:max_chars] + "\n... [tool result truncated to fit budget]"
                         untrusted_obs = f"{prefix}{body}{suffix}"
                     else:
                         untrusted_obs = untrusted_obs[:max_chars] + "\n... [truncated]"

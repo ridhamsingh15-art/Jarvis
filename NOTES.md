@@ -430,3 +430,198 @@ The side-effect test uses a real subprocess, the real FileTool append action and
 - Diagnosis reproduced by running the last 20 test files alone: pytest printed all test results, then raised during `pytest_sessionfinish` in installed `_pytest/tmpdir.py:340` -> `_pytest/pathlib.py:371` -> `cleanup_dead_symlinks` at `_pytest/pathlib.py:356`. Exact error: `PermissionError: [WinError 5] Access is denied: 'C:\\Users\\ridha\\AppData\\Local\\Temp\\pytest-of-ridha\\pytest-current'`. The existing `pytest-current` is a directory reparse point with target `..` (a self-referential parent link); `Path.exists()` and `os.unlink()` both reproduced `PermissionError`. This is a corrupt shared TEMP pytest link, not a failing test or application exit hook. The link could not be repaired with the current account (PowerShell `rmdir`, Python `os.unlink`, and `fsutil reparsepoint query` all returned Access denied); it was not forcibly changed.
 - Fix: on Windows, root `conftest.py` gives each pytest process its own temporary `basetemp` unless the caller explicitly supplies one. This bypasses the corrupt shared `pytest-of-ridha` reparse point. `tests/test_pytest_process_exit.py` launches real pytest subprocesses for one passing and one intentionally failing test and checks both summary text and exact exit codes.
 - Held-out directory was not accessed. Archive and logs remain in `%TEMP%\verify_20261017_135436`.
+
+
+## Model-driven autonomous planning — 2026-10-17
+
+### Implemented in the current working tree
+- Added model-generated structured plans with unique step IDs, declared dependencies, expected-outcome metadata, and a stable topological sort. The deterministic objective parser remains a bounded fast path for known operations; the configured local LLM handles unfamiliar requests.
+- Planner capability manifests are filtered against the real crash-safe execution engine's registered action IDs. Added a public read-only capability listing to ActionRegistry/ExecutionEngine and schema metadata for FileSystemQueryTool.
+- Plan validation rejects unknown/restricted tools, unknown/missing arguments, duplicate IDs, missing dependencies, cycles, overlong objectives/responses/arguments, invalid basic argument types, and undeclared output references before mission execution. Malformed JSON gets one bounded repair attempt; model/provider errors are reported without echoing potentially sensitive exception text.
+- Added output references such as {"$ref":"discover.result.files.0.path"}. The crash-safe runner validates dependency ancestry, resolves references only from persisted completed prior-step results, type-checks resolved arguments before invoking the tool, and rejects references in shell or desktop-agent instructions.
+- Model-generated plans cannot use shell execution or unrestricted file mutations (create/write/edit/delete/move/copy/open/append). The bounded idempotent ensure_text_files capability remains available; the normal policy gate still controls execution.
+- Updated the autonomy adapter so a goal's complete plan executes under one durable mission ID; subsequent goal-step callbacks read the corresponding persisted step result instead of rerunning the mission.
+- Added a deterministic fake-LLM end-to-end test for model plan -> real registered FileTool -> persisted output reference -> second FileTool action. Added a local-model evaluation harness at evaluation/evaluate_model_planner.py with cases in evaluation/model_planner_cases.json. The harness plans only and never executes actions.
+
+### Verification
+- Focused regression set: **39 passed in 5.47s** (planner, crash-safe runner, autonomy adapter, runtime, and GUI route).
+- Full working-tree suite: **1124 passed, 1 skipped in 49.06s**, process exit code **0**.
+- Scoped Ruff on planner, crash-safe runner, adapter, registry, filesystem query tool, tests, and evaluation harness: **passed** after the final lint fix.
+- Critical Ruff rules E722/B019/S110: **passed**. Compilation: **passed**. Evaluation case JSON: **6 cases parsed**. `git diff --check`: passed after documentation whitespace cleanup.
+
+### Deliberate limitations / follow-up
+- At this initial checkpoint, the evaluation harness had not yet been run against Ollama, automatic model-driven replanning was still open, and independent postcondition verification was not implemented. The follow-up section below records the live evaluation and the subsequently implemented bounded recovery and filesystem-verifier scope.
+- `expected_outcome` remains metadata rather than arbitrary natural-language executable logic. Independent verification is action-specific; browser/desktop outcomes and arbitrary model-declared expectations remain open.
+- Pending approval management and per-step evidence are not yet surfaced as a dedicated GUI workflow. High-risk model-generated shell/file actions are excluded rather than relying on the model to authorize them.
+- No new commits were created: the repository contains other concurrent modified and untracked files, so staging entire affected files could accidentally include unrelated work. The held-out directory remains untouched.
+
+
+## Model-driven planning recovery and independent verification — 2026-10-17 follow-up
+
+### Local-model evaluation
+- Configured model: `qwen3:8b` through the local Ollama provider. Ran `evaluation/evaluate_model_planner.py` against six fixed cases; the report is saved as `evaluation/model_planner_eval_20261017.json`.
+- Measured results: **100% valid-plan rate across 5 supported cases**, **100% exact tool-sequence accuracy across those 5**, and **100% unsupported-handling accuracy for the ambiguous destructive cleanup case**. Total planning time was **53.343 seconds** for all six cases (per-case latency is in the report). The benchmark itself performs no actions.
+- The first measured pass exposed a model tendency to put an action name in the tool namespace, which was fixed with an explicit manifest example. The next pass exposed unsafe over-planning for vague cleanup language; a deterministic preflight now rejects broad requests that could authorize unspecified deletion before the LLM is called. A further reference-schema check rejects a read step that points at a result field that is not a full path, while normalizing the model's common `$ref:step.result.files[0].path` shorthand into the canonical reference object.
+
+### Model-generated real execution smoke test
+- Ran `evaluation/smoke_model_execution.py` against the configured local model. It generated the read-only sequence `file.list_largest_files` -> `file.read_file`, declared dependency on the discovery step, and used `{"$ref":"step1.result.files.0.path"}`.
+- The generated plan was executed by the real `CrashSafeMissionRunner` and registered `FileTool` against a disposable temporary workspace. Result: **PASS**, mission `COMPLETED`, both steps independently verified, mission `verification_status=verified`, expected content marker returned. No user files were touched; the temporary fixture was removed.
+- Fixed `CrashSafeMissionStore` to close each path-backed SQLite connection after commit/rollback. This avoids Windows file locks that initially prevented the disposable smoke-test directory from being cleaned up; rerunning the smoke test then exited **0** and cleaned up normally.
+
+### Recovery and verification safeguards
+- Added one bounded model-driven replan for eligible failures in the autonomy manager. It is available only when no goal step has completed and every action in the previous mission is in the replay-safe filesystem allowlist. Policy denials, approval gates, blocked actions, and unknown side-effect outcomes do not trigger automatic replanning. The replacement plan uses a new durable mission ID and must pass the same action/schema/dependency validation. Equivalent action/argument plans are not retried as a purported alternative.
+- Verified prior step evidence is retained in goal metadata for the recovery prompt. Raw `read_file` contents are not copied into that prompt; only a SHA-256 digest and character count are retained. Other verified structured outputs are bounded. Evidence from the previous mission cannot be referenced with a cross-mission `$ref`.
+- Added a migrated `verification_json` field to the crash-safe step journal and independent postcondition checks for supported filesystem actions. These check file content against disk, compare largest-file metadata and top-file selection to a fresh disk scan, recompute directory/extension statistics, compare directory entries, verify text previews, and check requested file-creation postconditions. Mission output exposes `verified`, `partial`, or `not_verified`; browser/desktop actions remain explicitly without an independent verifier.
+
+### Final verification
+- Focused planner/crash-safe/autonomy tests: **39 passed in 12.44s** after the SQLite connection fix.
+- Full working-tree suite: **1129 passed, 1 skipped in 48.34s**, process exit code **0** (unique `%TEMP%` basetemp).
+- Scoped Ruff across all changed planner, crash-safe, autonomy, tests, and evaluation files: **All checks passed**. `compileall`: **passed**. `git diff --check`: **passed**; only benign LF-to-CRLF working-copy warnings were emitted.
+- No commit was created. The worktree still contains concurrent changes and untracked user work (`jarvis_test_workspace/`, `workspace/OfficeForge/`, and other autonomy files); no bulk staging or cleanup was performed. The held-out directory remains untouched.
+
+## Mission Control verification, GUI approvals, and registry expansion — 2026-10-17 follow-up
+
+### Independent desktop and browser outcome checks
+- Added independent Windows process inventory via tasklist /FO CSV /NH for supported windows.open_app actions. A launch is verified only when the expected process image appears; unknown application mappings or unavailable inventory are not falsely marked verified.
+- Browser actions now fail if webbrowser.open() explicitly returns false. The verifier independently validates the requested HTTP(S) destination and checks the Windows browser process inventory.
+- If Chromium DevTools Protocol is explicitly enabled on loopback 127.0.0.1:9222, the verifier reads its read-only /json/list endpoint and can verify that a page with the requested host/path/query is open. Evidence redacts query values and fragments. It does not claim that the matching tab is active or that semantic page content is correct.
+- Without CDP, browser status remains partial (valid target + browser process present), because the default-browser API does not expose page URL/content. Tests cover matching and mismatching CDP page URLs, no-CDP partial status, and redaction of URL query/fragment secrets.
+
+### Mission Control GUI and approvals
+- Added gui/views/missions_view.py and wired a Missions page into the sidebar/stacked navigation.
+- The view shows recent crash-safe missions, per-step arguments/result previews, paths, errors, timestamps, independent verification evidence, pending crash-safe approvals, and legacy mission approvals.
+- Operator approval is persisted separately from execution. A separate explicit resume action is required to run a crash-safe mission; a legacy mission advances one step per explicit action. Interrupted side-effecting steps retain the existing needs-review/retry/abandon path.
+- Added CrashSafeMissionStore.pending_approvals() and resolve_pending_approval() with durable approval audit marker. Caller/model-supplied user_confirmed does not authorize an additional registered tool; the policy derives confirmation from the persisted operator approval marker. Existing explicit CLI confirmation for built-in tools is preserved for backward compatibility.
+- GUI reads JARVIS_MISSION_DB when configured and closes its read-only SQLite connection.
+
+### Broader registered-tool autonomy
+- _engine() can now extend the mission engine with additional explicitly registered BaseTool actions from the application's registry. The planner's tool manifest includes only actions that the actual engine can execute, and the same schema/dependency validation applies.
+- ExecutionPolicy.with_registered_tools() does not automatically trust an additional registered tool: its actions require explicit operator confirmation, and non-core sources remain restricted. Unregistered tools are still denied. This is a controlled capability extension, not unrestricted arbitrary code/tool execution.
+- The GUI mission route now uses build_adaptive_objective_plan() with the application's registry, so unfamiliar requests can use model planning when supported by registered tools instead of falling straight to the older fallback path.
+- Added tests proving a new registered test tool is planned/executable only after explicit approval, and that policy gates remain in force.
+
+### Expanded local-model evaluation
+- Configured local model: qwen3:8b via Ollama.
+- Extended benchmark report: evaluation/model_planner_eval_20261017_extended.json; 16 cases across filesystem inspection/summaries, multi-step output references, browser/desktop requests, unsupported/unregistered requests, ambiguous destructive cleanup, and two failure-recovery replanning scenarios.
+- Results: valid-plan rate 1.000, expected tool-sequence accuracy 1.000, unsupported-handling accuracy 1.000, recovery alternative rate 1.000 (2/2), recovery expected-sequence accuracy 1.000. Total planning time 121.746 seconds. The harness only plans; it did not execute generated benchmark plans.
+- Re-ran evaluation/smoke_model_execution.py against the live local model. The model generated file.list_largest_files -> file.read_file with $ref:step1.result.files.0.path; the real crash-safe runner executed both steps in a disposable workspace, independently verified the result, and returned COMPLETED / verified with exit code 0. Temporary workspace was cleaned up.
+
+### Verification in progress
+- Focused regression suite after GUI/registry/approval changes: 100 passed in 17.02s, exit code 0.
+- Scoped Ruff across changed planner, crash-safe, policy, browser, GUI, tests, and evaluation files (excluding core/agent.py's pre-existing unrelated lint backlog): All checks passed.
+- Critical repository Ruff rules E722,B019,S110: passed. Compilation: passed. git diff --check: passed (Git emitted only LF-to-CRLF working-copy warnings).
+- Final full test suite: **1,141 passed, 1 skipped in 49.98s**, exit code 0, using an isolated TEMP basetemp. Focused GUI/mission verification subset: **55 passed in 5.65s**.
+- No commit/staging performed. Concurrent work and untracked workspaces remain preserved; held-out content was not accessed.
+
+
+## Autonomy integration hardening — 2026-10-17
+
+### Defect found and fixed
+- Inspection found that `AutonomousGoalManager` invoked `CrashSafeGoalStepExecutor.execute()` once per `GoalStep`, while that adapter delegated each call to `execute_objective()` with the *entire* persisted mission. A multi-step autonomy goal could therefore re-enter the same whole mission repeatedly instead of running one batch and mapping its results to the goal steps.
+- Added an explicit optional `execute_plan(goal, plan)` batch-executor contract. The manager calls batch-capable executors once for the whole plan; legacy step executors retain their existing per-step behavior.
+- The crash-safe adapter validates shared mission metadata and step ordering, runs the durable mission once, checks that returned actions align with the persisted plan, and returns one structured result per step.
+- A goal is not completed through this adapter unless the mission and every step report independent verification. If any completed work exists but final verification is incomplete, it records the verified evidence available and marks the batch as partially executed to block automatic replan/replay.
+- Added unit coverage for exactly-once batch dispatch, action/result mapping, refusal to accept unverified success, and a real multi-step autonomy goal using the actual crash-safe runner and SQLite stores.
+
+### Verification
+- `pytest -q tests/test_autonomy.py tests/test_execution_backed_mission.py` → **17 passed in 8.79s** before adding the real manager integration case.
+- `pytest -q tests/test_execution_backed_mission.py::test_autonomous_goal_manager_executes_and_verifies_real_multi_step_mission` → **1 passed in 0.39s**.
+- Scoped Ruff on the changed autonomy adapter/manager and tests → **all checks passed**.
+- `git diff --check` → exit 0; only benign Git LF-to-CRLF working-copy warnings.
+- Full regression suite is being run separately; its final result must be recorded before this pass is considered complete.
+
+### Remaining limits
+- This improves the correctness of the current registered-tool path; it does not make JARVIS unrestricted or prove universal autonomy.
+- Browser semantic/page-content verification, end-to-end injected failure/replan validation across multiple tool families, and a fully integrated durable scheduled-goal service remain separate work.
+
+
+### Capability and approval continuity follow-up
+- The autonomy bootstrap now creates one explicit `core.registry.Registry` for File, Browser, Windows, and Codex Desktop tools, and injects that same registry into both `ExecutionBackedGoalPlanner` and `CrashSafeGoalStepExecutor`. This prevents the planner from advertising registry-backed actions that the executor was not given the same registry to invoke. Shell remains excluded from model-generated plans and uses its dedicated restricted handler.
+- The batch adapter now passes its injected registry to `execute_objective`, and the planner passes it to the registered-action manifest and bounded recovery planner.
+- Added `GoalInterventionRequired` to distinguish an approval/reconciliation stop from an execution failure. When the crash-safe runner reports `WAITING_APPROVAL`, `NEEDS_REVIEW`, or `RECOVERY_REQUIRED`, the adapter raises this typed signal; the manager checkpoints the goal as `PAUSED`, records the reason and mission ID, and emits `goal.intervention_required`. An explicit resume is still required after the operator resolves the mission. Ordinary failures continue to become `FAILED`.
+- Regression coverage now checks the shared bootstrap registry and that intervention pauses a goal rather than incorrectly marking it failed. Focused tests are being rerun after these follow-up changes.
+
+
+### Final regression gate for autonomy integration hardening
+- Full suite on the updated worktree: `pytest -q --basetemp %TEMP%\jarvis-general-autonomy-final` → **1148 passed, 1 skipped in 49.83s**, exit code 0.
+- Focused autonomy/adapter/bootstrap/persistence/planner suite → **47 passed in 9.40s**, exit code 0.
+- Scoped Ruff across the changed autonomy/bootstrap/planner/test files → **all checks passed**.
+- Critical Ruff rules `E722,B019,S110` across the same files → **all checks passed**.
+- `compileall` for the affected autonomy/bootstrap/mission/test modules → exit 0.
+- `git diff --check` → exit 0. Git emitted only benign line-ending conversion warnings.
+- The worktree still contains unrelated and pre-existing changes and untracked project data. No files were staged, no commit was created, and no held-out objectives were accessed.
+
+
+## Durable autonomy milestone — 2026-10-17
+
+### 1. Durable recurring goals and background service
+- Added `core/autonomy/scheduling.py`: SQLite-backed schedule definitions, run ledger, timezone-aware due times, minimum 60-second intervals, atomic due-run claims, and atomic pending-dispatch claims across multiple service instances.
+- Schedules advance from the current time when overdue; downtime does not cause a burst of missed runs.
+- Startup reconciliation maps completed/failed/cancelled goals to terminal run states, retries a schedule run only if its goal was never persisted/started, and pauses interrupted active goals for operator reconciliation. No interrupted goal is automatically resumed.
+- Added `AutonomyService`, which owns the manager's asyncio loop on a dedicated thread and has explicit startup/shutdown handling.
+- `main.py` now wires the same explicit tool registry into planning and crash-safe execution and starts the service for the desktop/CLI app lifetime. Added `--autonomy-service` for an always-on scheduler process when the GUI is closed.
+- Missions view now creates/starts goals, shows progress/verification/intervention/recovery evidence, and exposes start/pause/resume/cancel. Recurring schedules can be created, paused/resumed, inspected, and deleted. Goal/schedule/mission state refreshes every three seconds.
+- Operational guidance, optional Windows Task Scheduler setup, restart semantics, and browser debugging instructions are documented in `docs/AUTONOMY_OPERATIONS.md`. No OS scheduled task was installed automatically.
+
+### 2. Browser page inspection and deterministic outcome checks
+- Added read-only Chromium CDP DOM inspection through a loopback-only `127.0.0.1:9222` endpoint, using the declared `websockets` dependency and strict loopback target validation.
+- Browser verification can check exact expected page text/title and records page URL with query/fragment redaction, title, ready state, body hash/length, and match outcomes. Page excerpts are omitted by default and only persisted when the plan explicitly sets `capture_page_excerpt=true`.
+- Added deterministic expected-outcome contracts: `contains_text:`, `title_equals:`, `url_matches:`, `file_exists:`, `file_contains:`, `output_contains:`, and `process_running:`. False assertions fail the step; unavailable/unsupported checks do not count as verified completion.
+- Browser inspection remains partial when CDP is not enabled/reachable. Free-form natural-language expected-outcome prose is not itself proof; action-specific independent verifiers remain authoritative.
+
+### 3. Failure injection and safe replanning
+- The crash-safe autonomy adapter now permits one bounded replan only when the failed action is read-only and every earlier completed step is independently verified and read-only. Verified evidence is passed into recovery planning, and the replacement plan uses a distinct persisted mission ID.
+- Added real integration coverage where a missing-file read fails after a verified directory inspection, then a safe replacement plan reads an existing file and reaches a verified final state.
+- Added a cross-tool-family failure test (verified file inspection followed by an injected browser-action failure). The uncertain browser side effect is not replayed and no replacement mission is created.
+- Existing subprocess-kill/WAL tests remain in the full regression suite.
+
+### Validation
+- Focused autonomy/scheduling/mission/browser/GUI/planner suite after the last changes: **57 passed in 15.91s**.
+- The earlier full suite before the final atomic-claim, background-mode, and UI refinements: **1160 passed, 1 skipped in 53.20s**.
+- Final full-suite gate is being rerun after those refinements; do not treat the earlier full-suite number as final.
+- Scoped Ruff and critical rules `E722,B019,S110` passed after the last refinements; final checks will be recorded after the final full suite.
+- No files were staged or committed; unrelated and pre-existing worktree changes remain untouched.
+
+
+### Final validation gate — 2026-10-17
+- Full regression suite after scheduling, background mode, browser DOM/assertion, safe replan, and Mission Control UI changes: **1161 passed, 1 skipped in 54.25s**, exit code 0.
+- Scoped Ruff across autonomy/scheduling/service, crash-safe planner/verifier, browser tool, GUI, main entry point, and affected tests: **all checks passed**.
+- Critical Ruff rules `E722,B019,S110`: **all checks passed**.
+- `compileall` for affected Python modules: exit 0.
+- `main.py --help` includes `--autonomy-service`; CLI help smoke test passed.
+- Local environment confirms `websockets 16.1.1` and sync client API are installed.
+- `git diff --check`: exit 0; only benign LF-to-CRLF working-copy warnings.
+- Branch `feature/jarvis-control-center`, HEAD `93721c1`; no staging or commit. Existing unrelated worktree changes and untracked project folders were preserved.
+
+
+### Trustworthy execution-state recovery follow-up — 2026-10-17
+- Added a durable in-flight marker before invoking each individual executor step or whole-plan batch. It is cleared only after the corresponding result is independently verified and persisted.
+- Graceful stop/pause and startup recovery mark interrupted active work `execution_state_untrusted` with `verification_status=not_verified`. A generic step executor without a durable reconciliation ledger is refused a resume instead of replaying its whole plan.
+- The production batch executor re-enters the same crash-safe mission ledger. Verified completed steps are skipped; terminal failed side-effecting steps and unknown in-flight side effects are not automatically replayed, including after an explicit Resume click.
+- Replanning now requires an explicit `safe_replan_allowed` attestation from the execution adapter; a transient exception alone is not considered evidence that no side effect occurred.
+- Known policy-blocked steps are distinguished from unknown execution outcomes: a denied action is marked failed, while uncertain side effects remain paused for review.
+- Regression coverage includes unverified executor results, restart refusal for non-ledger executors, intervention after a previously verified generic step, and explicit resume after a cross-family browser failure without replaying the browser action.
+- Full suite after final source changes: **1163 passed, 1 skipped in 54.47s**, exit code 0.
+- Scoped Ruff and critical rules `E722,B019,S110`: **all checks passed**. `compileall`: exit 0. `main.py --help` exposes `--autonomy-service`. `git diff --check`: exit 0; only benign LF-to-CRLF working-copy warnings.
+- Created and verified `C:\Users\ridha\OneDrive\Desktop\JARVIS.lnk` targeting the project virtual-environment `pythonw.exe`, with `main.py` as its argument and the project root as its working directory.
+- No files were staged or committed. All pre-existing and untracked worktree items were preserved.
+
+## 2026-10-17 - Restore JARVIS Overview UI
+- Recreated the missing gui/views/dashboard_view.py using the surviving compiled dashboard cache as design evidence: cyan/amber animated core, runtime cards, native Windows CPU/RAM telemetry, workspace display, and quick navigation.
+- Restored Overview as the default first page and retained Chat, Memory, History, Logs, Missions, Plugins, and Settings navigation.
+- Added dashboard regression tests. GUI integration smoke passed; full suite: 1167 passed, 1 skipped. Scoped Ruff, critical lint, compileall, and git diff --check passed.
+- No commits made; existing working-tree changes preserved.
+
+## 2026-10-17 audit-remediation follow-up
+
+Applied focused fixes from the combined Antigravity/Claude/coding-agent audit evidence. The working tree and concurrent changes were preserved; no files were staged or committed.
+
+- Closed planner-disable flag mismatch; added regression coverage for the deterministic test flag.
+- Hardened nested shell classification for quoted and path-qualified interpreters; inline Python paths are confirmation-gated.
+- Removed broad project-root filename exceptions from FileTool mutation protection.
+- Filtered sensitive environment variables from Codex subprocesses and wired the configured mission database into the GUI context.
+- Changed mission execution so dependent steps require independently verified postconditions. Unverified side-effecting steps require review; output-only assertions cannot override a failed/unsupported verifier.
+- Added independent filesystem checks for common file mutations, bounded subprocess output capture, shell log argument redaction, and URL credential/query redaction.
+- Final verification after these changes: **1,203 passed, 1 skipped, 0 failed** (116.91 seconds); scoped Ruff, compileall, smoke test, CLI help, and `git diff --check` passed.
+- Full-repository Ruff comparison: 258 current findings vs. 247 at HEAD; 11 new unique signatures were confined to existing untracked `jarvis_test_workspace/` and `workspace/OfficeForge/` files, zero new tracked-file signatures, and 4 resolved baseline signatures. Those untracked files were not modified.
+- Remaining limits: arbitrary free-form semantic claims are not verification; browser DOM verification requires opt-in loopback CDP; custom tools need their own independent verifier; existing repository-wide lint debt remains; no commit/push was performed.

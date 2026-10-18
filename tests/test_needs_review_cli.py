@@ -23,7 +23,7 @@ def _cli(db: Path, workspace: Path, *args: str) -> subprocess.CompletedProcess[s
 def _create_review_case(db: Path, workspace: Path, mission_id: str) -> None:
     marker = workspace / f"{mission_id}.marker"
     step = {"tool": "shell", "action": "run", "args": {
-        "command": "python -c \"print('RETRY_OUTPUT')\"", "cwd": str(workspace),
+        "command": "echo RETRY_OUTPUT", "cwd": str(workspace),
     }}
     process = subprocess.Popen(
         [PYTHON, str(ROOT / "mission_crash_safe.py"), "--steps-json", json.dumps([step]),
@@ -84,8 +84,7 @@ def test_needs_review_list_show_and_abandon_end_to_end(tmp_path: Path) -> None:
     assert store.step(mission_id, 0)["status"] == "abandoned"
     assert "outcome is unknown" in store.step(mission_id, 0)["error"]
     # An abandoned mission is terminal; a later resume must not execute it again.
-    step = {"tool": "shell", "action": "run", "args": {"command": "python -c \"print('RETRY_OUTPUT')\"", "cwd": str(tmp_path)}}
-    resumed = _cli(db, tmp_path, "--steps-json", json.dumps([step]), "--mission-id", mission_id, "--resume")
+    resumed = _cli(db, tmp_path, "--mission-id", mission_id, "--resume")
     assert resumed.returncode == 1
     assert CrashSafeMissionStore(db).mission(mission_id)["state"] == "ABANDONED"
     assert CrashSafeMissionStore(db).step(mission_id, 0)["status"] == "abandoned"

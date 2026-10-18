@@ -84,7 +84,7 @@ class GeminiProvider(BaseProvider):
             pass
             
         start_time = time.time()
-        url = f"{self._base_url}/{model_id}:generateContent?key={self._api_key}"
+        url = f"{self._base_url}/{model_id}:generateContent"
         
         payload = {
             "contents": [
@@ -97,7 +97,7 @@ class GeminiProvider(BaseProvider):
         
         try:
             logger.debug("Sending generation request to Gemini: %s", model_id)
-            response = requests.post(url, json=payload, timeout=self._timeout)
+            response = requests.post(url, json=payload, timeout=self._timeout, headers={"x-goog-api-key": self._api_key})
             
             if response.status_code in (401, 403):
                 raise ProviderAuthenticationError("Invalid API key or unauthorized access")
@@ -156,7 +156,7 @@ class GeminiProvider(BaseProvider):
         model_id = self._default_embed_model
         start_time = time.time()
         
-        url = f"{self._base_url}/{model_id}:embedContent?key={self._api_key}"
+        url = f"{self._base_url}/{model_id}:embedContent"
         payload = {
             "model": f"models/{model_id}",
             "content": {
@@ -166,7 +166,7 @@ class GeminiProvider(BaseProvider):
         
         try:
             logger.debug("Sending embedding request to Gemini: %s", model_id)
-            response = requests.post(url, json=payload, timeout=self._timeout)
+            response = requests.post(url, json=payload, timeout=self._timeout, headers={"x-goog-api-key": self._api_key})
             
             if response.status_code in (401, 403):
                 raise ProviderAuthenticationError("Invalid API key or unauthorized access")
@@ -201,9 +201,9 @@ class GeminiProvider(BaseProvider):
         if not self._api_key:
             return ProviderHealthStatus.UNAVAILABLE
         
-        url = f"{self._base_url}/{self._default_model}?key={self._api_key}"
+        url = f"{self._base_url}/{self._default_model}"
         try:
-            response = requests.get(url, timeout=5)
+            response = requests.get(url, timeout=5, headers={"x-goog-api-key": self._api_key})
             if response.status_code == 200:
                 return ProviderHealthStatus.HEALTHY
             elif response.status_code in (401, 403):

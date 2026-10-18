@@ -21,10 +21,13 @@ from __future__ import annotations
 import ctypes
 import logging
 import math
+import ntpath
 import os
 import re
+import shlex
 import subprocess
 import sys
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -189,6 +192,7 @@ _HIGH_RISK_PATTERNS: list[re.Pattern] = [
     re.compile(r"\bpowershell.*?(?:-enc|-encodedcommand|-e\b)", re.IGNORECASE),        # encoded powershell
     re.compile(r"\bnet\s+user\b", re.IGNORECASE),         # user management
     re.compile(r"\bpasswd\b", re.IGNORECASE),             # password change
+    re.compile(r"(?:^|[\\/\s\"'])\.env(?:[.\w-]*)?(?:$|[\s\"'])", re.IGNORECASE),  # secrets file reads via shell
     re.compile(r"\.\.[/\\]|\.\.$", re.IGNORECASE),        # path traversal (../ or ..\ or ..)
 ]
 
@@ -197,6 +201,13 @@ _SAFE_COMMAND_PREFIXES: tuple[str, ...] = (
     "pytest",
     "python -m pytest",
     "py -m pytest",
+    "python -c",
+    "python.exe -c",
+    "py -c",
+    "py.exe -c",
+    "python --version",
+    "python.exe --version",
+    "py --version",
     "git status",
     "git diff",
     "git log",
@@ -215,7 +226,51 @@ _DIRECT_SHELL_LAUNCH = re.compile(
     r"^\s*(?:cmd(?:\.exe)?|powershell(?:\.exe)?|pwsh(?:\.exe)?|bash|sh|zsh|fish|wsl(?:\.exe)?)(?:\s|$)",
     re.IGNORECASE,
 )
+_NESTED_SHELL_NAMES = frozenset({
+    "cmd", "cmd.exe", "powershell", "powershell.exe", "pwsh", "pwsh.exe",
+    "bash", "sh", "zsh", "fish", "wsl", "wsl.exe",
+})
+_INLINE_INTERPRETER_NAMES = frozenset({"python", "python.exe", "py", "py.exe"})
 _WINDOWS_ENV_EXPANSION = re.compile(r"%[A-Za-z_][A-Za-z0-9_]*%|![A-Za-z_][A-Za-z0-9_]*!")
+# POSIX shells expand these outside single-quoted literals, including inside
+# double quotes. Since path validation cannot safely infer the expanded value,
+# fail closed rather than validate the literal token as if it were a filesystem path.
+_POSIX_PARAMETER_EXPANSION = re.compile(
+    r"\$(?:[A-Za-z_][A-Za-z0-9_]*|\x7b[^}\r\n]+\}|[0-9@*#?$!+-])"
+)
+
+
+def _command_tokens(command: str) -> list[str]:
+    """Tokenize enough of a command to classify its executable without running it."""
+    if not isinstance(command, str) or not command.strip():
+        return []
+    try:
+        tokens = shlex.split(command, posix=False)
+    except ValueError:
+        return []
+    return [token.strip().strip('"').strip("'") for token in tokens]
+
+
+def _executable_basename(command: str) -> str:
+    tokens = _command_tokens(command)
+    if not tokens:
+        return ""
+    return ntpath.basename(tokens[0].replace("/", "\\")).casefold()
+
+
+def _is_nested_shell_launch(command: str) -> bool:
+    """Recognize shell interpreters by basename, including quoted/absolute paths."""
+    return _executable_basename(command) in _NESTED_SHELL_NAMES
+
+
+def _is_inline_interpreter_command(command: str) -> bool:
+    """Recognize Python -c/-e execution even when its executable path is quoted."""
+    tokens = _command_tokens(command)
+    return (
+        len(tokens) >= 2
+        and ntpath.basename(tokens[0].replace("/", "\\")).casefold() in _INLINE_INTERPRETER_NAMES
+        and tokens[1].casefold() in {"-c", "-e"}
+    )
 
 
 def _coerce_positive_timeout(value: object) -> float | None:
@@ -231,6 +286,34 @@ def _coerce_positive_timeout(value: object) -> float | None:
     return timeout if math.isfinite(timeout) and timeout > 0 else None
 
 
+def _has_real_pipe_fileno(stream: Any) -> bool:
+    """Distinguish real subprocess pipes from test doubles without reading them."""
+    try:
+        descriptor = stream.fileno()
+    except (AttributeError, OSError, ValueError):
+        return False
+    return isinstance(descriptor, int) and descriptor >= 0
+
+
+def _drain_bounded_stream(stream: Any, limit: int, result: dict[str, Any]) -> None:
+    """Drain a subprocess pipe while retaining at most ``limit`` bytes in memory."""
+    retained = bytearray()
+    total = 0
+    try:
+        while True:
+            chunk = stream.read(8192)
+            if not chunk:
+                break
+            total += len(chunk)
+            remaining = limit - len(retained)
+            if remaining > 0:
+                retained.extend(chunk[:remaining])
+    except (OSError, ValueError) as exc:
+        result["read_error"] = str(exc)
+    result["data"] = bytes(retained)
+    result["total_bytes"] = total
+
+
 def _check_shell_syntax(command: str) -> str:
     """Reject shell syntax that can chain commands or expand into another command.
 
@@ -241,8 +324,8 @@ def _check_shell_syntax(command: str) -> str:
         return "Command must be a non-empty string."
     if any(ord(char) < 32 and char not in "\\t" for char in command):
         return "Control characters and multiline shell commands are blocked."
-    if _DIRECT_SHELL_LAUNCH.match(command):
-        return "Launching nested command interpreters is blocked."
+    if _is_nested_shell_launch(command):
+        return "High-risk shell launch blocked: launching nested command interpreters is blocked."
     # cmd.exe expands these even inside double-quoted arguments.
     if os.name == "nt" and _WINDOWS_ENV_EXPANSION.search(command):
         return "Windows command-shell variable expansion is blocked."
@@ -268,6 +351,8 @@ def _check_shell_syntax(command: str) -> str:
             # POSIX shells expand command substitutions inside double quotes too.
             if char == "`" or command.startswith("$(", index):
                 return "Shell command substitution is blocked."
+            if os.name != "nt" and _POSIX_PARAMETER_EXPANSION.match(command, index):
+                return "POSIX shell parameter expansion is blocked."
             continue
 
         if escaped:
@@ -288,6 +373,8 @@ def _check_shell_syntax(command: str) -> str:
             return "Unquoted shell command separators, pipes, and redirects are blocked."
         if char == "`" or command.startswith("$(", index):
             return "Shell command substitution is blocked."
+        if os.name != "nt" and _POSIX_PARAMETER_EXPANSION.match(command, index):
+            return "POSIX shell parameter expansion is blocked."
 
     if quote is not None:
         return "Unmatched shell quote is blocked."
@@ -482,7 +569,7 @@ class ShellTool(BaseTool):
         # 1. High-risk pattern & path-escape check
         block_reason = self._check_high_risk(command)
         if block_reason:
-            logger.warning("[SHELL] BLOCKED: %s | reason: %s", command[:120], block_reason)
+            logger.warning("[SHELL] BLOCKED executable=%s command_chars=%d reason=%s", _executable_basename(command), len(command), block_reason)
             return ShellResult(
                 command=command, return_code=-1, stdout="", stderr="",
                 timed_out=False, blocked=True, blocked_reason=block_reason,
@@ -508,7 +595,7 @@ class ShellTool(BaseTool):
         # 3. Allowed command prefix check
         if self._allowed_commands is not None and not self._is_allowed_prefix(command):
             reason = f"Command not in allowlist. Allowed prefixes: {self._allowed_commands}"
-            logger.warning("[SHELL] BLOCKED not-in-allowlist: %s", command[:120])
+            logger.warning("[SHELL] BLOCKED not-in-allowlist executable=%s command_chars=%d", _executable_basename(command), len(command))
             return ShellResult(
                 command=command, return_code=-1, stdout="", stderr="",
                 timed_out=False, blocked=True, blocked_reason=reason,
@@ -541,11 +628,13 @@ class ShellTool(BaseTool):
             exec_cmd = f'"{sys.executable}" -m pytest' + exec_cmd[6:]
 
         # 6. Audit log
-        logger.info("[SHELL] EXECUTE cwd=%s cmd=%s", cwd, command[:200])
+        logger.info("[SHELL] EXECUTE cwd=%s executable=%s command_chars=%d", cwd, _executable_basename(command), len(command))
 
         # 7. Run subprocess with bounded output and timeout
         proc = None
         job = None
+        reader_threads: list[threading.Thread] = []
+        output_states: dict[str, dict[str, Any]] = {}
         try:
             # A Job Object with KILL_ON_JOB_CLOSE makes Windows terminate the full
             # shell process tree if JARVIS itself is killed or crashes.
@@ -558,7 +647,7 @@ class ShellTool(BaseTool):
                 env=filtered_env,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True,
+                text=False,
                 creationflags=getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) if os.name == "nt" else 0,
             )
             if job is not None:
@@ -566,34 +655,107 @@ class ShellTool(BaseTool):
                     job.assign(proc)
                 except OSError as exc:
                     proc.kill()
-                    proc.communicate()
+                    try:
+                        proc.wait(timeout=3)
+                    except subprocess.TimeoutExpired:
+                        pass
+                    for stream in (proc.stdout, proc.stderr):
+                        if stream is not None:
+                            stream.close()
                     latency_ms = (time.perf_counter() - t0) * 1000
                     return ShellResult(
                         command=command, return_code=-1, stdout="", stderr=str(exc),
                         timed_out=False, blocked=True,
                         blocked_reason=f"Unable to enforce shell process-tree lifetime: {exc}", latency_ms=latency_ms,
                     )
+            if (
+                proc.stdout is None or proc.stderr is None
+                or not _has_real_pipe_fileno(proc.stdout)
+                or not _has_real_pipe_fileno(proc.stderr)
+            ):
+                # Unit tests may replace Popen with a mock. Keep their established
+                # communicate() contract; real OS pipes always take the bounded path.
+                try:
+                    stdout_raw, stderr_raw = proc.communicate(timeout=effective_timeout)
+                except subprocess.TimeoutExpired:
+                    if job is not None:
+                        job.terminate()
+                    else:
+                        proc.kill()
+                    stdout_raw, stderr_raw = proc.communicate()
+                    latency_ms = (time.perf_counter() - t0) * 1000
+                    return ShellResult(
+                        command=command, return_code=-1,
+                        stdout=(stdout_raw.decode("utf-8", errors="replace") if isinstance(stdout_raw, bytes) else str(stdout_raw or ""))[:self._max_output],
+                        stderr=(stderr_raw.decode("utf-8", errors="replace") if isinstance(stderr_raw, bytes) else str(stderr_raw or ""))[:self._max_output // 4],
+                        timed_out=True, blocked=False, latency_ms=latency_ms,
+                    )
+                stdout = (stdout_raw.decode("utf-8", errors="replace") if isinstance(stdout_raw, bytes) else str(stdout_raw or ""))[:self._max_output]
+                stderr = (stderr_raw.decode("utf-8", errors="replace") if isinstance(stderr_raw, bytes) else str(stderr_raw or ""))[:self._max_output // 4]
+                latency_ms = (time.perf_counter() - t0) * 1000
+                return ShellResult(
+                    command=command, return_code=proc.returncode,
+                    stdout=stdout, stderr=stderr, timed_out=False, blocked=False,
+                    latency_ms=latency_ms,
+                )
+            output_states = {"stdout": {}, "stderr": {}}
+            reader_threads = [
+                threading.Thread(
+                    target=_drain_bounded_stream,
+                    args=(proc.stdout, self._max_output, output_states["stdout"]),
+                    daemon=True,
+                ),
+                threading.Thread(
+                    target=_drain_bounded_stream,
+                    args=(proc.stderr, self._max_output // 4, output_states["stderr"]),
+                    daemon=True,
+                ),
+            ]
+            for reader in reader_threads:
+                reader.start()
+
+            timed_out = False
             try:
-                stdout_raw, stderr_raw = proc.communicate(timeout=effective_timeout)
+                proc.wait(timeout=effective_timeout)
             except subprocess.TimeoutExpired:
+                timed_out = True
                 if job is not None:
                     job.terminate()
                 else:
                     proc.kill()
-                stdout_raw, stderr_raw = proc.communicate()
-                latency_ms = (time.perf_counter() - t0) * 1000
-                logger.warning("[SHELL] TIMEOUT after %.1fs: %s", effective_timeout, command[:120])
-                return ShellResult(
-                    command=command, return_code=-1, stdout=stdout_raw[:self._max_output],
-                    stderr=stderr_raw[:self._max_output // 4], timed_out=True, blocked=False,
-                    latency_ms=latency_ms,
-                )
-            stdout = (stdout_raw or "")[: self._max_output]
-            stderr = (stderr_raw or "")[: self._max_output // 4]
+                try:
+                    proc.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=3)
+
+            # Close the kill-on-close job before joining readers so detached child
+            # processes cannot keep inherited pipe handles open after the shell exits.
+            if job is not None:
+                job.close()
+                job = None
+            for reader in reader_threads:
+                reader.join(timeout=3)
+            if any(reader.is_alive() for reader in reader_threads):
+                for stream in (proc.stdout, proc.stderr):
+                    if stream is not None:
+                        stream.close()
+                for reader in reader_threads:
+                    reader.join(timeout=1)
+
+            stdout = output_states.get("stdout", {}).get("data", b"").decode("utf-8", errors="replace")
+            stderr = output_states.get("stderr", {}).get("data", b"").decode("utf-8", errors="replace")
+            stdout_bytes = output_states.get("stdout", {}).get("total_bytes", len(stdout))
             latency_ms = (time.perf_counter() - t0) * 1000
+            if timed_out:
+                logger.warning("[SHELL] TIMEOUT after %.1fs executable=%s command_chars=%d", effective_timeout, _executable_basename(command), len(command))
+                return ShellResult(
+                    command=command, return_code=-1, stdout=stdout, stderr=stderr,
+                    timed_out=True, blocked=False, latency_ms=latency_ms,
+                )
             logger.info(
                 "[SHELL] DONE return_code=%d latency=%.1fms stdout_bytes=%d",
-                proc.returncode, latency_ms, len(stdout),
+                proc.returncode, latency_ms, stdout_bytes,
             )
             return ShellResult(
                 command=command, return_code=proc.returncode,
@@ -607,11 +769,20 @@ class ShellTool(BaseTool):
                         job.terminate()
                     else:
                         proc.kill()
-                    proc.communicate(timeout=3)
+                    proc.wait(timeout=3)
                 except (OSError, subprocess.TimeoutExpired) as cleanup_exc:
                     logger.debug("Shell process cleanup after error was incomplete: %s", cleanup_exc)
+            if job is not None:
+                job.close()
+                job = None
+            if proc is not None:
+                for stream in (proc.stdout, proc.stderr):
+                    if stream is not None:
+                        stream.close()
+            for reader in reader_threads:
+                reader.join(timeout=1)
             latency_ms = (time.perf_counter() - t0) * 1000
-            logger.error("[SHELL] ERROR: %s", exc)
+            logger.error("[SHELL] ERROR type=%s", type(exc).__name__)
             return ShellResult(
                 command=command, return_code=-1, stdout="", stderr=str(exc),
                 timed_out=False, blocked=False, latency_ms=latency_ms,
@@ -624,6 +795,11 @@ class ShellTool(BaseTool):
     # Security and boundary helpers
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def is_inline_interpreter_command(command: str) -> bool:
+        """Return whether a command invokes Python inline code (always approval-gated)."""
+        return _is_inline_interpreter_command(command)
+
     @classmethod
     def check_high_risk(cls, command: str) -> str:
         """Fail closed for destructive syntax, including quotes and encoded shells.
@@ -632,8 +808,8 @@ class ShellTool(BaseTool):
         command so quoting, command chaining, or environment-variable paths cannot
         hide destructive verbs from the policy gate.
         """
-        if _DIRECT_SHELL_LAUNCH.match(command) and not re.search(r"-(?:enc(?:odedcommand)?|e)\b", command, re.IGNORECASE):
-            return "Launching nested command interpreters is blocked."
+        if _is_nested_shell_launch(command):
+            return "High-risk shell launch blocked: launching nested command interpreters is blocked."
         candidates = [command]
         normalized = command.strip()
         # A command can be wrapped as one quoted argument or quote individual tokens.
@@ -675,9 +851,13 @@ class ShellTool(BaseTool):
 
         for token in tokens[1:]:
             clean_token = token.strip("'\"")
-            # Skip flags, but not Windows drive-rooted paths such as C:\\.
-            if clean_token.startswith(("-", "/")) and not (
+            # A leading slash is an option prefix for many Windows commands, but
+            # is an absolute path on POSIX. Never skip POSIX absolute paths here.
+            is_windows_drive_rooted = (
                 len(clean_token) > 2 and clean_token[1] == ":" and clean_token[0].isalpha()
+            )
+            if clean_token.startswith("-") or (
+                os.name == "nt" and clean_token.startswith("/") and not is_windows_drive_rooted
             ):
                 continue
 
@@ -709,7 +889,11 @@ class ShellTool(BaseTool):
 
     def _is_allowed_prefix(self, command: str) -> bool:
         cmd_lower = command.strip().lower()
-        return any(cmd_lower.startswith(prefix.lower()) for prefix in self._allowed_commands or [])
+        prefixes = tuple(prefix.lower() for prefix in self._allowed_commands or [])
+        token_boundaries = tuple(
+            prefix + separator for prefix in prefixes for separator in (" ", "\t")
+        )
+        return cmd_lower in prefixes or cmd_lower.startswith(token_boundaries)
 
     def _resolve_cwd(self, cwd_override: str | None) -> Path | None:
         """Resolve cwd relative to the workspace and reject traversal/symlink escapes."""

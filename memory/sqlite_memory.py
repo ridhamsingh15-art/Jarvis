@@ -9,14 +9,33 @@ module. The database and table are auto-created on first use.
 import json
 import logging
 import sqlite3
+import threading
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
+from uuid import uuid4
 
 from core.exceptions import MemoryError
 from memory.base_memory import BaseMemory
 from memory.models import MemoryEntry
 
 logger = logging.getLogger(__name__)
+
+# Serialize writes across SqliteMemory instances targeting the same database.
+# SQLite still provides cross-process locking; WAL + busy_timeout handle readers
+# and writers outside this process.
+_WRITER_LOCKS_GUARD = threading.Lock()
+_WRITER_LOCKS: dict[str, threading.RLock] = {}
+
+
+def _writer_lock_for(path: str) -> threading.RLock:
+    key = str(Path(path).expanduser().resolve())
+    with _WRITER_LOCKS_GUARD:
+        lock = _WRITER_LOCKS.get(key)
+        if lock is None:
+            lock = threading.RLock()
+            _WRITER_LOCKS[key] = lock
+        return lock
 
 _CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS memory (
@@ -60,6 +79,13 @@ _DELETE_ALL_SQL = "DELETE FROM memory"
 _DELETE_ALL_FACTS_SQL = "DELETE FROM memory_facts"
 
 
+def _normalize_timestamp(timestamp: datetime) -> datetime:
+    """Return a timezone-aware UTC timestamp; treat legacy naive values as UTC."""
+    if timestamp.tzinfo is None or timestamp.utcoffset() is None:
+        return timestamp.replace(tzinfo=timezone.utc)
+    return timestamp.astimezone(timezone.utc)
+
+
 class SqliteMemory(BaseMemory):
     """SQLite implementation of the Jarvis memory backend.
 
@@ -74,15 +100,27 @@ class SqliteMemory(BaseMemory):
             db_path: Path to the SQLite database file.
                 Parent directories are created if needed.
         """
-        self._db_path = db_path
+        self._in_memory = str(db_path) == ":memory:"
+        self._uri = self._in_memory
+        if self._in_memory:
+            # Each operation opens its own connection, so use a unique shared-cache
+            # memory URI and keep an anchor connection alive for this instance.
+            self._db_path = f"file:jarvis_memory_{uuid4().hex}?mode=memory&cache=shared"
+        else:
+            self._db_path = str(db_path)
+        self._writer_lock = _writer_lock_for(self._db_path)
+        self._anchor_connection = self._connect() if self._in_memory else None
         self._ensure_database()
 
     def _ensure_database(self) -> None:
         """Create the database file and table if they don't exist."""
         try:
-            Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
+            if not self._in_memory:
+                Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
 
-            with self._connect() as conn:
+            with self._writer_lock, self._connection() as conn:
+                if not self._in_memory:
+                    conn.execute("PRAGMA journal_mode = WAL")
                 conn.execute(_CREATE_TABLE_SQL)
                 conn.execute(_CREATE_FACTS_TABLE_SQL)
 
@@ -96,9 +134,20 @@ class SqliteMemory(BaseMemory):
         Returns:
             sqlite3.Connection with row factory enabled.
         """
-        conn = sqlite3.connect(self._db_path)
+        conn = sqlite3.connect(self._db_path, timeout=10.0, uri=self._uri)
         conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA busy_timeout = 10000")
         return conn
+
+    @contextmanager
+    def _connection(self):
+        """Yield a transaction-scoped connection and always close it."""
+        conn = self._connect()
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
 
     def get_connection(self) -> sqlite3.Connection:
         """Returns a new sqlite3 Connection."""
@@ -116,12 +165,12 @@ class SqliteMemory(BaseMemory):
         try:
             tasks_json = json.dumps(entry.tasks, default=str)
 
-            with self._connect() as conn:
+            with self._writer_lock, self._connection() as conn:
                 conn.execute(
                     _INSERT_SQL,
                     (
                         entry.id,
-                        entry.timestamp.isoformat(),
+                        _normalize_timestamp(entry.timestamp).isoformat(),
                         entry.user_input,
                         tasks_json,
                         entry.summary,
@@ -142,7 +191,7 @@ class SqliteMemory(BaseMemory):
             List of MemoryEntry objects, most recent first.
         """
         try:
-            with self._connect() as conn:
+            with self._connection() as conn:
                 rows = conn.execute(_SELECT_RECENT_SQL, (limit,)).fetchall()
 
             return [self._row_to_entry(row) for row in rows]
@@ -163,7 +212,7 @@ class SqliteMemory(BaseMemory):
         try:
             pattern = f"%{query}%"
 
-            with self._connect() as conn:
+            with self._connection() as conn:
                 rows = conn.execute(_SEARCH_SQL, (pattern, pattern, limit)).fetchall()
 
             return [self._row_to_entry(row) for row in rows]
@@ -178,7 +227,7 @@ class SqliteMemory(BaseMemory):
             MemoryError: If the clear operation fails.
         """
         try:
-            with self._connect() as conn:
+            with self._writer_lock, self._connection() as conn:
                 conn.execute(_DELETE_ALL_SQL)
                 conn.execute(_DELETE_ALL_FACTS_SQL)
 
@@ -189,7 +238,7 @@ class SqliteMemory(BaseMemory):
     def store_fact(self, key: str, value: str) -> None:
         """Store or replace a user fact using a stable, normalized key."""
         try:
-            with self._connect() as conn:
+            with self._writer_lock, self._connection() as conn:
                 conn.execute(
                     """
                     INSERT INTO memory_facts (key, value, updated_at)
@@ -206,7 +255,7 @@ class SqliteMemory(BaseMemory):
     def get_fact(self, key: str) -> str | None:
         """Return a stored user fact, if present."""
         try:
-            with self._connect() as conn:
+            with self._connection() as conn:
                 row = conn.execute(
                     "SELECT value FROM memory_facts WHERE key = ?", (key,)
                 ).fetchone()
@@ -217,7 +266,7 @@ class SqliteMemory(BaseMemory):
     def get_all_facts(self) -> dict[str, str]:
         """Return all stored user facts."""
         try:
-            with self._connect() as conn:
+            with self._connection() as conn:
                 rows = conn.execute("SELECT key, value FROM memory_facts").fetchall()
             return {str(row["key"]): str(row["value"]) for row in rows}
         except sqlite3.Error as exc:
@@ -235,9 +284,8 @@ class SqliteMemory(BaseMemory):
         """
         return MemoryEntry(
             id=row["id"],
-            timestamp=datetime.fromisoformat(row["timestamp"]).replace(
-                tzinfo=timezone.utc
-            ),
+            timestamp=_normalize_timestamp(datetime.fromisoformat(row["timestamp"]))
+            ,
             user_input=row["user_input"],
             tasks=json.loads(row["tasks_json"]),
             summary=row["summary"],

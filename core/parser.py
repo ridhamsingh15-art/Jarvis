@@ -17,10 +17,6 @@ _THINK_PATTERN = re.compile(r"<think>.*?</think>", re.DOTALL)
 # Pattern to match markdown code fences
 _FENCE_PATTERN = re.compile(r"```(?:json)?\s*", re.IGNORECASE)
 
-# Pattern to find first JSON object or array
-_JSON_PATTERN = re.compile(r"(\{.*\}|\[.*\])", re.DOTALL)
-
-
 def parse_json(text: str) -> dict | list[dict]:
     """Extract and parse JSON from raw LLM output.
 
@@ -48,17 +44,21 @@ def parse_json(text: str) -> dict | list[dict]:
     # Trim whitespace
     cleaned = cleaned.strip()
 
-    # Find first JSON structure
-    match = _JSON_PATTERN.search(cleaned)
-
-    if not match:
-        raise ParseError(
-            f"No JSON found in LLM output: {text[:200]}"
-        )
+    # Decode from the first object/array boundary. raw_decode consumes exactly
+    # one JSON value, including nested objects, and ignores later trailing content.
+    # Do not greedily span from the first opening delimiter to the last closing
+    # delimiter: valid JSON followed by another snippet would otherwise fail.
+    start = next(
+        (index for index, char in enumerate(cleaned) if char in "{["),
+        None,
+    )
+    if start is None:
+        raise ParseError(f"No JSON found in LLM output: {text[:200]}")
 
     try:
-        return json.loads(match.group(1))
+        value, _end = json.JSONDecoder().raw_decode(cleaned, start)
+        return value
     except json.JSONDecodeError as exc:
-        raise ParseError(
-            f"Malformed JSON in LLM output: {exc}"
-        ) from exc
+        # Fail closed on the first candidate rather than extracting a valid nested
+        # object from a malformed outer payload.
+        raise ParseError(f"Malformed JSON in LLM output: {exc}") from exc

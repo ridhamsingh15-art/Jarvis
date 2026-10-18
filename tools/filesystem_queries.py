@@ -22,6 +22,35 @@ class FileSystemQueryTool:
             "list_directory_details",
         )
 
+    @staticmethod
+    def get_action_definitions():
+        """Return argument metadata for actions registered by the mission engine."""
+        from core.action_definition import ActionDefinition
+
+        return {
+            "directory_file_stats": ActionDefinition(
+                name="directory_file_stats",
+                description="Count direct child files and identify the largest file.",
+                required_args=["path"],
+            ),
+            "extension_counts": ActionDefinition(
+                name="extension_counts",
+                description="Count file extensions in a directory.",
+                required_args=["path"],
+                optional_args=["limit"],
+            ),
+            "ensure_text_files": ActionDefinition(
+                name="ensure_text_files",
+                description="Idempotently create requested .txt files without overwriting existing files.",
+                required_args=["path", "files"],
+            ),
+            "list_directory_details": ActionDefinition(
+                name="list_directory_details",
+                description="List direct child entries and file sizes.",
+                required_args=["path"],
+            ),
+        }
+
     def execute(self, action: str, args: dict[str, Any]) -> str:
         handler = {
             "directory_file_stats": self._directory_file_stats,

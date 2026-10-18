@@ -74,19 +74,76 @@ class Planner:
         system_prompt = self._build_system_prompt(context)
         reqs = requirements or self._model_selector.select_requirements(user_input)
         
-        # Use Gateway for text generation with routed requirements
-        response = self._gateway.generate(system_prompt, user_input, requirements=reqs)
-        raw_response = response.text
+        # Local models can emit malformed JSON or structurally invalid tool calls.
+        # Permit one schema-correction retry; never normalize an invalid payload.
+        # Provider/router errors are intentionally not retried here.
+        from core.exceptions import ParseError
 
-        logger.debug("Raw LLM response: %s", raw_response[:300])
+        last_error: Exception | None = None
+        for attempt in range(2):
+            attempt_prompt = system_prompt
+            if attempt:
+                attempt_prompt += (
+                    "\n\nYour previous output failed the tool-call schema check: "
+                    f"{type(last_error).__name__}: {last_error}. Return only a valid "
+                    "JSON object or array. Each action must contain non-empty string "
+                    "fields 'tool' and 'action' and an object field 'args'. Do not "
+                    "include extra top-level action fields or markdown."
+                )
+            response = self._gateway.generate(
+                attempt_prompt, user_input, requirements=reqs
+            )
+            raw_response = response.text
+            logger.debug("Raw LLM response length: %d", len(raw_response))
 
-        parsed = parse_json(raw_response)
-        normalized = normalize(parsed)
-        tasks = self._create_tasks(normalized)
+            try:
+                parsed = parse_json(raw_response)
+                self._validate_action_schema(parsed)
+                normalized = normalize(parsed)
+                tasks = self._create_tasks(normalized)
+                if not tasks:
+                    raise ParseError("Planner returned an empty task list")
+            except ParseError as exc:
+                last_error = exc
+                if attempt == 0:
+                    logger.warning("Planner output failed parsing/schema validation; retrying once (%s)", type(exc).__name__)
+                    continue
+                raise ParseError("Planner output remained invalid after one schema-correction retry") from exc
+            except (ValueError, TypeError, AttributeError) as exc:
+                last_error = ParseError(f"Invalid action structure: {type(exc).__name__}")
+                if attempt == 0:
+                    logger.warning("Planner output had an invalid action structure; retrying once (%s)", type(exc).__name__)
+                    continue
+                raise ParseError("Planner output remained invalid after one schema-correction retry") from exc
 
-        logger.info("Created %d task(s)", len(tasks))
+            logger.info("Created %d task(s)", len(tasks))
+            return tasks
 
-        return tasks
+        raise ParseError("Planner failed to produce a valid plan") from last_error
+
+    @staticmethod
+    def _validate_action_schema(parsed: Any) -> None:
+        """Validate the external tool-call envelope before normalization."""
+        from core.exceptions import ParseError
+
+        actions = [parsed] if isinstance(parsed, dict) else parsed
+        if not isinstance(actions, list) or not actions:
+            raise ParseError("Planner output must be a non-empty action object or array")
+        for index, item in enumerate(actions):
+            if not isinstance(item, dict):
+                raise ParseError(f"Action {index} must be a JSON object")
+            unknown = set(item) - {"tool", "action", "args"}
+            if unknown:
+                raise ParseError(f"Action {index} has unsupported fields: {sorted(unknown)}")
+            if not isinstance(item.get("tool"), str) or not item["tool"].strip():
+                raise ParseError(f"Action {index} requires a non-empty string 'tool'")
+            if not isinstance(item.get("action"), str) or not item["action"].strip():
+                raise ParseError(f"Action {index} requires a non-empty string 'action'")
+            if "args" in item and not isinstance(item["args"], dict):
+                raise ParseError(f"Action {index} field 'args' must be a JSON object")
+            args = item.get("args", {})
+            if any(not isinstance(key, str) for key in args):
+                raise ParseError(f"Action {index} argument names must be strings")
 
     def _build_system_prompt(self, context: str = "") -> str:
         """Build the system prompt dynamically from the Registry.

@@ -36,3 +36,6 @@ dist/
 
 # External tools and clones
 tools/toutatis/
+
+# Generated codebase export (may embed ignored backups and scratch snapshots)
+jarvis_full_codebase.txt

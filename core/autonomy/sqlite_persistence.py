@@ -181,6 +181,13 @@ class SQLiteGoalPersistence(IGoalPersistence):
         for goal in self.list_goals():
             if goal.state in (GoalState.RUNNING, GoalState.PLANNING):
                 paused = goal.copy(state=GoalState.PAUSED)
+                paused.metadata["execution_state_untrusted"] = True
+                paused.metadata["verification_status"] = "not_verified"
+                paused.metadata["intervention_kind"] = "unknown_outcome"
+                paused.metadata["intervention_required"] = (
+                    "JARVIS restarted while this goal was active. Reconcile the durable action ledger "
+                    "and verify the real-world postcondition before continuing."
+                )
                 self.save_goal(paused)
                 recovered.append(paused)
         return recovered

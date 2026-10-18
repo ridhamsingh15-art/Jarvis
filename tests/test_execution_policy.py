@@ -231,3 +231,122 @@ class TestExecutionPolicyDefaultSafety:
         for tool, action in dangerous:
             result = policy.check(_ctx(tool, action))
             assert result.verdict == PolicyVerdict.DENY, f"{tool}.{action} should be DENY"
+
+
+@pytest.mark.parametrize(
+    "action",
+    ["patch_file", "edit_file", "rename", "move", "copy", "append_line", "delete"],
+)
+def test_destructive_file_mutations_require_explicit_core_approval(action):
+    policy = ExecutionPolicy(allow_destructive_from_core=True)
+    result = policy.check(_ctx("file", action, args={"path": "inside-workspace.txt", "content": "x"}))
+    assert result.verdict == PolicyVerdict.REQUIRE_CONFIRMATION
+
+
+def test_write_file_requires_approval_only_when_overwriting_existing_file(tmp_path):
+    policy = ExecutionPolicy(allow_destructive_from_core=True)
+    target = tmp_path / "write.txt"
+    new_file = policy.check(_ctx("file", "write_file", args={"path": str(target), "content": "new"}))
+    assert new_file.verdict == PolicyVerdict.ALLOW
+    target.write_text("old", encoding="utf-8")
+    overwrite = policy.check(_ctx("file", "write_file", args={"path": str(target), "content": "new"}))
+    assert overwrite.verdict == PolicyVerdict.REQUIRE_CONFIRMATION
+
+
+def test_inline_python_execution_requires_explicit_approval():
+    policy = ExecutionPolicy(allow_destructive_from_core=True)
+    result = policy.check(_ctx("shell", "run", args={"command": 'python -c "print(1)"'}))
+    assert result.verdict == PolicyVerdict.REQUIRE_CONFIRMATION
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        '"C:\\Python312\\python.exe" -c "print(1)"',
+        r'C:\Python312\python.exe -c "print(1)"',
+        '"py.exe" -e "print(1)"',
+    ],
+)
+def test_quoted_or_path_qualified_inline_python_requires_approval(command):
+    policy = ExecutionPolicy(allow_destructive_from_core=True)
+    result = policy.check(_ctx("shell", "run", args={"command": command}))
+    assert result.verdict == PolicyVerdict.REQUIRE_CONFIRMATION
+
+
+def test_relative_write_path_uses_configured_workspace_for_overwrite_check(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    target = workspace / "existing.txt"
+    target.write_text("original", encoding="utf-8")
+    policy = ExecutionPolicy(allow_destructive_from_core=True, workspace_root=workspace)
+
+    overwrite = policy.check(
+        _ctx("file", "write_file", args={"path": "existing.txt", "content": "replacement"})
+    )
+    new_file = policy.check(
+        _ctx("file", "write_file", args={"path": "new.txt", "content": "new"})
+    )
+
+    assert overwrite.verdict == PolicyVerdict.REQUIRE_CONFIRMATION
+    assert new_file.verdict == PolicyVerdict.ALLOW
+    assert target.read_text(encoding="utf-8") == "original"
+
+
+def test_registered_tool_policy_copy_preserves_workspace_overwrite_boundary(tmp_path):
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "existing.txt").write_text("original", encoding="utf-8")
+    policy = ExecutionPolicy(
+        allow_destructive_from_core=True,
+        workspace_root=workspace,
+    ).with_registered_tools(frozenset({"extra_tool"}))
+
+    result = policy.check(
+        _ctx("file", "write_file", args={"path": "existing.txt", "content": "replacement"})
+    )
+
+    assert result.verdict == PolicyVerdict.REQUIRE_CONFIRMATION
+
+@pytest.mark.parametrize("invalid", ["false", "true", 0, 1, None, [], {}])
+def test_non_boolean_confirmation_never_authorizes_a_destructive_action(invalid):
+    policy = ExecutionPolicy(allow_destructive_from_core=True)
+    result = policy.check(
+        _ctx("file", "delete_file", user_confirmed=invalid)
+    )
+    assert result.verdict == PolicyVerdict.DENY
+    assert "user_confirmed must be a boolean" in result.reason
+
+
+@pytest.mark.parametrize("invalid_tool", [None, "", "  ", [], {}])
+def test_malformed_tool_name_fails_closed_without_raising(invalid_tool):
+    result = ExecutionPolicy().check(
+        PolicyContext(tool=invalid_tool, action="read_file")
+    )
+    assert result.verdict == PolicyVerdict.DENY
+    assert "tool must be a non-empty string" in result.reason
+
+
+@pytest.mark.parametrize("invalid_action", [None, "", "  ", [], {}])
+def test_malformed_action_name_fails_closed_without_raising(invalid_action):
+    result = ExecutionPolicy().check(
+        PolicyContext(tool="file", action=invalid_action)
+    )
+    assert result.verdict == PolicyVerdict.DENY
+    assert "action must be a non-empty string" in result.reason
+
+
+@pytest.mark.parametrize("invalid_source", ["core", "plugin", "mcp", None, []])
+def test_source_must_be_trusted_enum_not_a_string_or_arbitrary_object(invalid_source):
+    result = ExecutionPolicy(allow_destructive_from_core=True).check(
+        _ctx("file", "delete_file", source=invalid_source, user_confirmed=True)
+    )
+    assert result.verdict == PolicyVerdict.DENY
+    assert "source must be a CapabilitySource" in result.reason
+
+
+@pytest.mark.parametrize("invalid_args", [None, [], "{}", 1])
+def test_non_dictionary_policy_arguments_fail_closed(invalid_args):
+    result = ExecutionPolicy().check(
+        _ctx("file", "write_file", args=invalid_args)
+    )
+    assert result.verdict == PolicyVerdict.DENY
+    assert "args must be a dictionary" in result.reason

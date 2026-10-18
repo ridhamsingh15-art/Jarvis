@@ -33,3 +33,38 @@ def test_main_cli_lists_shows_and_abandons_crash_safe_needs_review(tmp_path: Pat
     resolved = _main(db, "--resolve-needs-review", "main-review", "--step", "1", "--resolution", "abandon")
     assert resolved.returncode == 0 and "MISSION_STATE=ABANDONED" in resolved.stdout
     assert CrashSafeMissionStore(db).step("main-review", 0)["status"] == "abandoned"
+
+
+def test_gui_context_receives_custom_mission_db(monkeypatch, tmp_path: Path) -> None:
+    from types import SimpleNamespace
+
+    import core.model_manager as model_manager_module
+    import gui
+    import main as jarvis_main
+
+    custom_db = str(tmp_path / "custom-missions.sqlite3")
+    args = SimpleNamespace(
+        needs_review=False, show_needs_review=None, resolve_needs_review=None,
+        mission=None, resume=False, models=False, mission_db=custom_db,
+        cli=False, autonomy_service=False,
+    )
+    captured = {}
+    monkeypatch.setattr(jarvis_main, "setup_logging", lambda: None)
+    monkeypatch.setattr(jarvis_main, "parse_args", lambda: args)
+    monkeypatch.setattr(jarvis_main, "load_config", lambda: object())
+    monkeypatch.setattr(
+        model_manager_module, "ModelManager",
+        lambda _config: SimpleNamespace(startup_health_check=lambda: None),
+    )
+    monkeypatch.setattr(
+        jarvis_main, "build_agent",
+        lambda: {"agent": object(), "autonomy_service": None},
+    )
+    monkeypatch.setattr(
+        gui, "launch_gui",
+        lambda _agent, config_ctx: captured.update(config_ctx=config_ctx),
+    )
+
+    jarvis_main.main()
+
+    assert captured["config_ctx"]["mission_db"] == custom_db

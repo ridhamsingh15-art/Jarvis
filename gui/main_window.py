@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from PySide6.QtCore import Slot
+from PySide6.QtCore import Qt, Signal, Slot
 from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QHBoxLayout,
@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 
 from gui.footer import Footer
 from gui.header import Header
+from gui.qt_event_bridge import QtEventBridge
 from gui.sidebar import Sidebar
 from gui.themes.theme import ThemeManager, build_stylesheet
 from gui.views.chat_view import ChatView
@@ -31,6 +32,7 @@ from gui.views.dashboard_view import DashboardView
 from gui.views.history_view import HistoryView
 from gui.views.logs_view import LogsView
 from gui.views.memory_view import MemoryView
+from gui.views.missions_view import MissionsView
 from gui.views.plugins_view import PluginsView
 from gui.views.settings_view import SettingsView
 
@@ -47,10 +49,14 @@ _PAGE_INDEX: dict[str, int] = {
     "plugins": 4,
     "settings": 5,
     "dashboard": 6,
+    "missions": 7,
 }
 
 
 class MainWindow(QMainWindow):
+    # Core events are exposed to GUI consumers through Qt queued signals.
+    core_event_received = Signal(object)
+
     """Primary application window.
 
     Args:
@@ -66,6 +72,13 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._agent = agent
         self._ctx = config_ctx or {}
+        self._event_bridge: QtEventBridge | None = None
+        event_bus = self._ctx.get("event_bus")
+        if event_bus is not None:
+            self._event_bridge = QtEventBridge(event_bus, parent=self)
+            self._event_bridge.event_received.connect(
+                self.core_event_received, Qt.ConnectionType.QueuedConnection
+            )
         self._configure_window()
         self._build_ui()
         self._connect_signals()
@@ -154,6 +167,12 @@ class MainWindow(QMainWindow):
         )
         self._stack.addWidget(self._dashboard_view)    # 6 (original dashboard slot)
 
+        self._missions_view = MissionsView(
+            self._ctx.get("mission_db"), registry=registry,
+            execution_policy=self._ctx.get("execution_policy"),
+            autonomy_service=self._ctx.get("autonomy_service"),
+        )
+        self._stack.addWidget(self._missions_view)     # 7 (new page)
         self._stack.setCurrentIndex(_PAGE_INDEX["dashboard"])
 
         right.addWidget(self._stack, stretch=1)
@@ -196,6 +215,13 @@ class MainWindow(QMainWindow):
         QShortcut(
             QKeySequence("Ctrl+K"), self
         ).activated.connect(self._focus_chat_input)
+
+    def closeEvent(self, event) -> None:
+        """Detach the EventBus subscription before the window is destroyed."""
+        if self._event_bridge is not None:
+            self._event_bridge.close()
+            self._event_bridge = None
+        super().closeEvent(event)
 
     # ── Navigation ───────────────────────────────────────────
 
