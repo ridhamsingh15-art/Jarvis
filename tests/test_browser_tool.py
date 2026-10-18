@@ -133,12 +133,15 @@ class TestExecutorActionBridge:
             self.browser.execute("open_url", {"url": "https://example.com"})
 
 
-def test_open_url_redacts_userinfo_and_query_from_result_and_logs(caplog):
+def test_open_url_rejects_embedded_credentials_and_redacts_url_evidence(caplog):
+    import pytest
+
+    from core.exceptions import ExecutionError
     from tools.browser import _safe_url_for_log
 
     url = "https://user:password@example.com/private?token=secret#fragment"
-    with patch("webbrowser.open", return_value=True):
-        result = BrowserTool._open_url({"url": url})
-    assert result == "Opened https://example.com/private?[redacted]#[redacted]"
-    assert "password" not in result and "secret" not in result
+    with patch("webbrowser.open") as mock_open, pytest.raises(ExecutionError, match="credentials"):
+        BrowserTool._open_url({"url": url})
+    mock_open.assert_not_called()
+    assert "password" not in caplog.text and "secret" not in caplog.text
     assert _safe_url_for_log(url) == "https://example.com/private?[redacted]#[redacted]"

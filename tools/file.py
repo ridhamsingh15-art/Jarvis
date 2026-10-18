@@ -18,6 +18,10 @@ from tools.base_tool import BaseTool
 
 logger = logging.getLogger(__name__)
 
+_MAX_READ_CHARS = 64000
+_MAX_DIRECTORY_ENTRIES = 200
+_READ_TRUNCATION_MARKER = "\n\n[JARVIS: file content truncated after 64000 characters; additional content remains.]"
+
 # Directories that must never be modified or deleted (prefix match)
 _PROTECTED_PREFIXES: tuple[str, ...] = (
     os.environ.get("SYSTEMROOT", r"C:\Windows"),
@@ -73,24 +77,17 @@ def _is_sensitive_read_path(path: Path) -> bool:
     return False
 
 
-def _resolve_path(raw: str) -> Path:
-    """Resolve a user-supplied path string to an absolute Path.
-
-    Args:
-        raw: Raw path string from the user.
-
-    Returns:
-        Resolved absolute Path.
-
-    Raises:
-        ExecutionError: If the path string is empty.
-    """
-    raw = raw.strip()
-
-    if not raw:
+def _resolve_path(raw: str | Path) -> Path:
+    """Resolve a user-supplied path without leaking raw path-resolution errors."""
+    if not isinstance(raw, (str, Path)):
+        raise ExecutionError("Path must be a non-empty string.")
+    raw_text = str(raw).strip()
+    if not raw_text:
         raise ExecutionError("Path cannot be empty")
-
-    return Path(raw).resolve()
+    try:
+        return Path(raw_text).expanduser().resolve()
+    except (OSError, RuntimeError, TypeError, ValueError) as exc:
+        raise ExecutionError("Path could not be safely resolved.") from exc
 
 
 def _is_protected(path: Path, read_only: bool = False) -> bool:
@@ -324,6 +321,12 @@ class FileTool(BaseTool):
         Raises:
             ExecutionError: If the action fails.
         """
+        # Normalize the legacy content alias before schema validation. Keep it
+        # out of ActionDefinition so ToolIntelligenceManager still performs its
+        # canonical content -> text normalization before the strict Validator.
+        if action == "create_file" and isinstance(args, dict) and "content" in args and "text" not in args:
+            args = {key: value for key, value in args.items() if key != "content"} | {"text": args["content"]}
+        args = self.validate_action_call(action, args)
         from collections.abc import Callable
         dispatch: dict[str, Callable] = {
             "create_file": self._create_file,
@@ -362,9 +365,12 @@ class FileTool(BaseTool):
             raise ExecutionError(f"Already exists: '{path}'")
 
         path.parent.mkdir(parents=True, exist_ok=True)
-        text = args.get("text")
+        # "content" is a legacy alias used by existing mission payloads.
+        text = args.get("text", args.get("content"))
         if text is not None:
-            path.write_text(str(text), encoding="utf-8")
+            if not isinstance(text, str):
+                raise ExecutionError("Arguments 'text'/'content' must be a string.")
+            path.write_text(text, encoding="utf-8")
         else:
             path.touch(exist_ok=False)
         logger.info("Created file: %s", path)
@@ -425,6 +431,10 @@ class FileTool(BaseTool):
             args.get("replace_text") or args.get("new_content")
         )
         content_override = args.get("content")
+        if old_text is not None and not isinstance(old_text, str):
+            raise ExecutionError("Replacement target text must be a string.")
+        if new_text is not None and not isinstance(new_text, str):
+            raise ExecutionError("Replacement text must be a string.")
 
         if content_override is not None and old_text is None:
             return FileTool._write_file(args)
@@ -459,19 +469,27 @@ class FileTool(BaseTool):
         if not path.is_dir():
             raise ExecutionError(f"Not a directory: '{path}'")
 
-        entries = sorted(path.iterdir())
+        entries: list[Path] = []
+        for entry in path.iterdir():
+            entries.append(entry)
+            if len(entries) > _MAX_DIRECTORY_ENTRIES:
+                break
+        truncated = len(entries) > _MAX_DIRECTORY_ENTRIES
+        entries = sorted(entries[:_MAX_DIRECTORY_ENTRIES])
 
-        if not entries:
+        if not entries and not truncated:
             return f"Directory '{path.name}' is empty"
 
         lines: list[str] = [f"Contents of {path}:"]
-
         for entry in entries:
             prefix = "[DIR] " if entry.is_dir() else "      "
             lines.append(f"  {prefix}{entry.name}")
 
-        logger.info("Listed directory: %s (%d items)", path, len(entries))
-
+        if truncated:
+            lines.append(
+                f"[JARVIS: listing truncated after {_MAX_DIRECTORY_ENTRIES} entries; more entries may exist.]"
+            )
+        logger.info("Listed directory: %s (%d items, truncated=%s)", path, len(entries), truncated)
         return "\n".join(lines)
 
     @staticmethod
@@ -673,9 +691,17 @@ class FileTool(BaseTool):
         if not path.is_file():
             raise ExecutionError(f"Not a file: '{path}'")
         try:
-            content = path.read_text(encoding="utf-8")
-            logger.info("Read file: %s (%d chars)", path, len(content))
+            with path.open("r", encoding="utf-8") as stream:
+                content = stream.read(_MAX_READ_CHARS + 1)
+            truncated = len(content) > _MAX_READ_CHARS
+            if truncated:
+                content = content[:_MAX_READ_CHARS] + _READ_TRUNCATION_MARKER
+            logger.info("Read file: %s (returned_chars=%d, truncated=%s)", path, len(content), truncated)
             return content
+        except UnicodeDecodeError as exc:
+            raise ExecutionError(
+                f"File '{path.name}' is not valid UTF-8 text; open it with an appropriate application instead."
+            ) from exc
         except OSError as exc:
             raise ExecutionError(f"Failed to read '{path.name}': {exc}") from exc
 

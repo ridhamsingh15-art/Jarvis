@@ -203,30 +203,12 @@ def _browser_url_matches(expected: str, actual: str) -> bool:
 
 
 def _verify_browser_dispatch(action: str, args: dict[str, Any]) -> dict[str, Any]:
-    """Check destination validity and browser process independently; never claim page-load proof."""
-    from urllib.parse import quote_plus, urlsplit
+    """Check browser process/page evidence using the exact BrowserTool URL policy."""
+    from tools.browser import build_browser_target
 
-    from tools.browser import _KNOWN_SITES
-
-    target = ""
-    if action == "search_google" and isinstance(args.get("query"), str) and args["query"].strip():
-        target = "https://www.google.com/search?q=" + quote_plus(args["query"].strip())
-    elif action == "open_url" and isinstance(args.get("url"), str) and args["url"].strip():
-        target = args["url"].strip()
-        if not target.startswith(("http://", "https://")):
-            target = "https://" + target
-    elif action == "open_site" and isinstance(args.get("site"), str):
-        site = args["site"].strip().casefold()
-        target = _KNOWN_SITES.get(site, "")
-        if not target and "." in site and not site.endswith("."):
-            target = "https://" + site.removeprefix("www.")
     try:
-        parsed = urlsplit(target)
-        _ = parsed.port  # Force invalid-port validation instead of accepting malformed URLs.
-        valid_target = parsed.scheme in {"http", "https"} and bool(parsed.hostname) and not parsed.username and not parsed.password
-    except ValueError:
-        valid_target = False
-    if not valid_target:
+        target = build_browser_target(action, args)
+    except (ExecutionError, TypeError, ValueError):
         return {"status": "failed", "error": "Requested browser destination is not a valid HTTP(S) URL."}
     browser_images = {"chrome.exe", "msedge.exe", "firefox.exe", "brave.exe", "opera.exe", "vivaldi.exe"}
     images = _wait_for_process_images(browser_images)
@@ -359,7 +341,7 @@ def _verify_file_mutation_outcome(
             target = path.resolve(strict=True)
             if not target.is_file():
                 return {"status": "failed", "error": "Expected file is missing after mutation."}
-            expected = args.get("content") if action == "write_file" else args.get("text")
+            expected = args.get("content") if action == "write_file" else args.get("text", args.get("content"))
             if expected is None:
                 return {"status": "verified", "checks": ["empty_file_exists"]} if target.stat().st_size == 0 else {"status": "failed", "error": "Created empty file contains unexpected data."}
             return {"status": "verified", "checks": ["file_content_matches_requested_text"]} if isinstance(expected, str) and target.read_text(encoding="utf-8") == expected else {"status": "failed", "error": "File contents do not match the requested text."}
@@ -462,10 +444,18 @@ def _verify_action_outcome(
         return {"status": "not_supported", "method": "no independent verifier registered"}
     try:
         if action == "read_file":
+            from tools.file import _MAX_READ_CHARS, _READ_TRUNCATION_MARKER
+
             path = Path(str(args["path"])).expanduser().resolve(strict=True)
-            if not path.is_file() or not isinstance(output, str) or path.read_text(encoding="utf-8") != output:
+            if not path.is_file() or not isinstance(output, str):
                 raise ValueError("Read output does not match the file's current contents.")
-            return {"status": "verified", "checks": ["file_exists", "content_matches_disk"]}
+            with path.open("r", encoding="utf-8") as stream:
+                expected_content = stream.read(_MAX_READ_CHARS + 1)
+            if len(expected_content) > _MAX_READ_CHARS:
+                expected_content = expected_content[:_MAX_READ_CHARS] + _READ_TRUNCATION_MARKER
+            if expected_content != output:
+                raise ValueError("Read output does not match the bounded file content currently on disk.")
+            return {"status": "verified", "checks": ["file_exists", "bounded_content_matches_disk"]}
 
         if action in {"list_largest_files", "summarize_files", "directory_file_stats", "extension_counts", "list_directory_details", "ensure_text_files"}:
             data = json.loads(output) if isinstance(output, str) else output

@@ -491,8 +491,12 @@ class ShellTool(BaseTool):
                     return s
             return s
 
+        args = self.validate_action_call(action, args, aliases={"shell_run": "run"})
         if action in ("run", "shell_run"):
             command = _to_cmd_str(args.get("command") or args.get("cmd") or args.get("executable"))
+            if not command:
+                from core.exceptions import ExecutionError
+                raise ExecutionError("Shell action requires a non-empty command, cmd, or executable argument.")
             extra_args = args.get("args") or args.get("arguments") or args.get("params") or args.get("parameters")
             if extra_args:
                 extra_str = _to_cmd_str(extra_args)

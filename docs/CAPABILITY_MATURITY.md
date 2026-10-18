@@ -23,7 +23,7 @@ These are the current evidence-based maturity estimates. Revise each capability 
 | 1 | Core conversational agent and orchestration | 10% | 100% | **ACCEPTED — gate complete** |
 | 2 | Best-model strategy and provider routing | 8% | 100% | **ACCEPTED — gate complete** |
 | 3 | Planning, reasoning and multi-step execution | 9% | 100% | **ACCEPTED - gate complete** |
-| 4 | Computer use: files, shell, browser and applications | 10% | 75% | QUEUED |
+| 4 | Computer use: files, shell, browser and applications | 10% | 100% | **ACCEPTED - gate complete** |
 | 5 | Long-term personal memory | 7% | 50% | QUEUED |
 | 6 | Adaptive personality and personalization | 4% | 25% | QUEUED |
 | 7 | Voice input and output | 7% | 0% | QUEUED |
@@ -38,7 +38,7 @@ These are the current evidence-based maturity estimates. Revise each capability 
 | 16 | Deployment and operational management | 2% | 50% | QUEUED |
 | | **Total** | **100%** | | |
 
-Initial weighted baseline: **54.25 / 100**. Current weighted score after accepting Gates 1-3: **63.00 / 100**. These are rubric-based progress estimates, not objective proof that the overall vision is complete.
+Initial weighted baseline: **54.25 / 100**. Current weighted score after accepting Gates 1-4: **73.00 / 100**. These are rubric-based progress estimates, not objective proof that the overall vision is complete.
 
 ## Gate 1 — Core conversational agent and orchestration
 
@@ -132,6 +132,42 @@ This gate does not claim arbitrary mission dispatch: ReasoningManager currently 
 - The objective planner's existing regression suite validates dependency ordering, output-reference ancestry and path semantics, cycle/undeclared-reference rejection, unsupported actions, and a two-step output-reference flow executed through the crash-safe objective runner in a temporary workspace. Its model responses are mocked; no live provider requests or user-data mutation were made.
 - **Boundary kept explicit:** a mission registry is not currently wired to the reasoning verifier, so required_missions fails verification instead of being assumed available. Live provider/model quality, computer-use coverage, durable mission recovery guarantees, and broad release observability remain outside this gate.
 - Capability 3 is accepted; Gate 4 remains queued and was not started.
+
+## Gate 4 - Computer use: files, shell, browser and applications
+
+**Status: ACCEPTED at 100% within this gate's documented scope (2026-10-18).** All capability-specific acceptance criteria below were executed and passed. Explicit limits on direct browser verification and platform-specific tests remain recorded.
+
+### Scope
+
+Accept first-party local tool access across FileTool, ShellTool, BrowserTool, and WindowsTool, along with the crash-safe mission verifier that validates browser destinations and bounded file-read output. Preserve the existing ExecutionPolicy, registry/validator, shell sandbox, sensitive-path checks, workspace boundaries, process-tree termination, credential environment filtering, Codex desktop confirmation posture, and crash-safe mission execution.
+
+This gate does not claim that every browser page can be inspected: page-level assertions require the crash-safe verifier and an enabled, accessible local Chromium inspection endpoint. A successful browser API call proves the launch request was accepted, not that the page loaded. Likewise, a Windows process launch proves only that the launch request was accepted; app readiness is checked separately where the crash-safe runner supports it.
+
+### Acceptance criteria
+
+1. **Direct-call contract:** each first-party tool rejects malformed action names, non-object argument payloads, missing required arguments, and unknown fields before dispatch. Tool-specific values such as paths, URLs, app names, and commands receive explicit validation; malformed inputs must not reach browser/process/file side effects.
+2. **Browser destination safety:** one shared target builder/validator is used by the direct BrowserTool and crash-safe browser verifier. Only valid HTTP(S) destinations are supported; embedded credentials, malformed ports/hosts, control characters, backslash/whitespace ambiguity, unsupported schemes, and overlong URLs are rejected. Successful direct launch messages explicitly distinguish request acceptance from page-load/content verification.
+3. **Bounded file output:** text reads are capped at 64,000 characters with an explicit truncation marker; directory listings return at most 200 entries and explicitly indicate truncation. The crash-safe verifier checks the same bounded read projection against current disk content. Path-resolution failures, non-text files, invalid patch value types, sensitive paths, protected paths, and workspace escapes fail closed.
+4. **Restricted shell invariants:** the direct shell dispatcher applies the action schema and requires a non-empty command. Existing command-risk checks, cwd/workspace validation, environment secret filtering, timeouts, output caps, and process-tree lifetime protection remain intact and covered by regressions.
+5. **Application-launch integrity:** the Windows tool accepts only a known application key, uses a fixed executable mapping without shell execution or model-supplied command arguments, and does not claim app readiness solely because process launch was accepted.
+6. **Crash-safe integration:** browser URL verification and bounded file-read verification agree with the actual tool contracts. Existing guarded Codex desktop delegation and mission-runner execution flow are covered by their current mocked/temporary-workspace regression tests.
+7. **Regression acceptance:** focused computer-use/file/browser/shell/policy/mission/Codex tests, the Capability 1-3 regression suites, whole-package compilation, safe smoke test, supported CLI help checks, targeted Ruff, staged diff check, and the full repository suite pass. Existing skips and platform limitations are reviewed.
+8. **Preservation and publication:** Capabilities 1-3 remain accepted; changes are scoped to the computer-use tools, their crash-safe verification seam, tests, and this ledger. Do not include generated codebase dumps, environment files, or temporary scripts in commits.
+
+### Gate 4 worklog
+
+- Gate opened on 2026-10-18. Baseline verified at commit fa50400221e11550febbe81ea3c15f7f30743152; branch feature/jarvis-control-center was clean and matched origin before changes.
+- Baseline focused computer-use/file/browser/shell/policy set: **197 passed, 8 skipped in 2.45s**.
+- **2026-10-18 - accepted at 100% within the documented scope.** Added BaseTool.validate_action_call for shared runtime validation of action names, JSON-object argument envelopes, required arguments, and unknown fields. Applied it to FileTool, BrowserTool, WindowsTool, and ShellTool; kept ShellTool's compatibility action alias and reject empty commands before execution.
+- Added a shared HTTP(S) URL normalizer and browser-target builder used by direct browser actions and the crash-safe browser verifier. It rejects embedded credentials, unsupported URL schemes, malformed host/port values, control characters, whitespace/backslash ambiguity, and overlong URLs. Direct BrowserTool success messages now state that they represent an accepted open request, not page-load/content verification. Legacy friendly-domain normalization (such as youtube.com) remains supported.
+- Bounded FileTool text reads to 64,000 characters and directory listings to 200 entries, with explicit truncation markers. Updated the crash-safe independent read verifier to compare the exact bounded projection. Hardened path-resolution errors, UTF-8 handling, and patch argument types; preserved existing sensitive-path and workspace containment checks.
+- Kept the create_file ActionDefinition strict (text is the declared optional input) so ToolIntelligenceManager still normalizes the legacy content alias into text; FileTool direct/isolated calls preserve the old content alias and the crash-safe verifier checks the correct postcondition.
+- Tightened Windows app-launch argument handling and use of fixed allowlisted commands with Popen([...], shell=False). The result message explicitly avoids claiming app readiness merely because the launch request was accepted.
+- Added tests/test_computer_use_acceptance.py for URL normalization/rejection, direct-call schemas, shared browser verification, bounded output, shell call validation, Windows fixed mappings, and Validator/Registry contract alignment. Expanded computer-use/mission integrations: **270 passed, 8 skipped in 34.70s**. Reproduced prior full-suite failure regressions: **65 passed in 3.01s**; parameter-normalization/crash-stage/acceptance follow-up: **35 passed in 1.39s**.
+- Final full repository test run: **1,514 passed, 8 skipped, 0 failed in 99.46s**. The 8 skips are platform-specific: 1 directory-symlink test skipped because symlink creation is unavailable in this environment, plus 7 POSIX-only shell tests skipped on Windows (path semantics, POSIX parameter expansion, shell quoting, and POSIX absolute-path handling).
+- Whole-package compileall passed. Safe runtime smoke reported **SMOKE_TEST=PASS; no external or state-changing actions were executed**. main.py --help, mission_crash_safe.py --help, and mission_control.cli --help passed. Targeted Ruff passed; git diff --check passed with Git's LF-to-CRLF warnings only.
+- **Scope boundaries remain explicit:** direct BrowserTool confirms only that the default-browser open request was accepted. Browser page/DOM assertions require the crash-safe verifier and an available local Chromium inspection endpoint; Windows process-name checks cannot prove readiness for an application already running. Live page interaction, every possible app, always-on screen perception, and general unrestricted automation are not claimed by this gate.
+- Capability 4 is accepted. Capability 5 remains queued and was not started.
 
 ## Operating rule
 
