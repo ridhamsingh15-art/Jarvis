@@ -4,6 +4,8 @@ import logging
 from core.cognition.context import ShortTermContext
 from core.llm import LLMClient
 from core.reasoning.execution_plan import ExecutionPlan
+from providers.capabilities import Capability
+from providers.provider_models import InferenceRequirements
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +68,18 @@ Respond ONLY with valid JSON matching this schema:
 """
         
         try:
-            resp = self._llm.generate(system_prompt, prompt)
+            if isinstance(self._llm, LLMClient):
+                resp = self._llm.generate(
+                    system_prompt, prompt,
+                    requirements=InferenceRequirements(
+                        capabilities=frozenset([Capability.REASONING]),
+                        role="reasoning",
+                        task_complexity="COMPLEX",
+                        prefer_local=True,
+                    ),
+                )
+            else:
+                resp = self._llm.generate(system_prompt, prompt)
             text = resp.text if hasattr(resp, "text") else str(resp)
             if "```json" in text:
                 text = text.split("```json")[1].split("```")[0]
@@ -89,8 +102,8 @@ Respond ONLY with valid JSON matching this schema:
             )
             return plan
             
-        except Exception as e:
-            logger.warning(f"Reasoning planner failed: {e}. Falling back to default.")
+        except Exception as exc:  # noqa: BLE001 - safe default plan on model/parse failure
+            logger.warning("Reasoning planner failed (%s); using default plan.", type(exc).__name__)
             return ExecutionPlan(
                 ordered_steps=[f"Address user request: {user_input}"],
                 fallback_strategy="Ask user for clarification."

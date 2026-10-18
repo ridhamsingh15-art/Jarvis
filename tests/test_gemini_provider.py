@@ -14,8 +14,8 @@ from providers.provider_models import ProviderHealthStatus
 def gemini_provider():
     config = {
         "api_key": "test_key",
-        "default_model": "gemini-1.5-pro-latest",
-        "default_embedding_model": "text-embedding-004",
+        "default_model": "gemini-3.8-flash",
+        "default_embedding_model": "gemini-embedding-2",
         "timeout_seconds": 1
     }
     provider = GeminiProvider(config=config)

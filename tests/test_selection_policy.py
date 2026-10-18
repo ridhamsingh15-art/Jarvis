@@ -54,6 +54,38 @@ class TestWeightedScorePolicy(unittest.TestCase):
         ranked = self.policy.rank_providers(self.candidates, req3)
         self.assertEqual(ranked[0], self.p_remote)
 
+    def test_measured_latency_breaks_provider_ties(self):
+        local = MockProvider("local", "Local", [Capability.CHAT], is_local=False)
+        fast = MockProvider("fast", "Fast", [Capability.CHAT], is_local=False)
+        self.health.record_latency("local", 1800.0)
+        self.health.record_latency("fast", 80.0)
+        ranked = self.policy.rank_providers([local, fast], InferenceRequirements())
+        self.assertEqual(ranked[0], fast)
+
+    def test_cost_estimate_breaks_ties_without_claiming_unknown_cost_is_free(self):
+        class PricedProvider(MockProvider):
+            def __init__(self, provider_id, cost):
+                super().__init__(provider_id, provider_id, [Capability.CHAT], is_local=False)
+                self.cost = cost
+
+            def estimate_cost(self, input_tokens, output_tokens, model_id=None):
+                return self.cost
+
+        affordable = PricedProvider("affordable", 0.0001)
+        expensive = PricedProvider("expensive", 0.004)
+        ranked = self.policy.rank_providers([expensive, affordable], InferenceRequirements())
+        self.assertEqual(ranked[0], affordable)
+
+    def test_configured_provider_preference_still_wins_over_latency_tie_breaker(self):
+        slow = MockProvider("primary", "Primary", [Capability.CHAT], is_local=False)
+        fast = MockProvider("fallback", "Fallback", [Capability.CHAT], is_local=False)
+        self.health.record_latency("primary", 5000.0)
+        self.health.record_latency("fallback", 1.0)
+        ranked = self.policy.rank_providers(
+            [slow, fast], InferenceRequirements(prefer_provider="primary")
+        )
+        self.assertEqual(ranked[0], slow)
+
     def test_empty_candidates(self):
         ranked = self.policy.rank_providers([], InferenceRequirements())
         self.assertEqual(ranked, [])

@@ -51,7 +51,10 @@ def test_gui_context_receives_custom_mission_db(monkeypatch, tmp_path: Path) -> 
     captured = {}
     monkeypatch.setattr(jarvis_main, "setup_logging", lambda: None)
     monkeypatch.setattr(jarvis_main, "parse_args", lambda: args)
-    monkeypatch.setattr(jarvis_main, "load_config", lambda: object())
+    monkeypatch.setattr(
+        jarvis_main, "load_config",
+        lambda: SimpleNamespace(provider="gemini", fallback_providers=()),
+    )
     monkeypatch.setattr(
         model_manager_module, "ModelManager",
         lambda _config: SimpleNamespace(startup_health_check=lambda: None),

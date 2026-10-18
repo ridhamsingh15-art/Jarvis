@@ -25,3 +25,6 @@ class ModelRouterConfig:
     
     # Future extensibility flags
     future_extension_flags: dict[str, Any] = field(default_factory=dict)
+    default_coding_provider: str | None = None
+    default_vision_provider: str | None = None
+    default_fast_provider: str | None = None

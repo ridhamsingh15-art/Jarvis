@@ -4,6 +4,8 @@ import logging
 from core.cognition.context import ShortTermContext
 from core.executive.models import Complexity, ExecutionStrategy, GoalType
 from core.llm import LLMClient
+from providers.capabilities import Capability
+from providers.provider_models import InferenceRequirements
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +53,18 @@ Respond ONLY with valid JSON matching this schema:
 }}
 """
         try:
-            response = self._llm.generate("You are a helpful JSON-only assistant.", prompt)
+            if isinstance(self._llm, LLMClient):
+                response = self._llm.generate(
+                    "You are a helpful JSON-only assistant.", prompt,
+                    requirements=InferenceRequirements(
+                        capabilities=frozenset([Capability.REASONING]),
+                        role="reasoning",
+                        task_complexity="COMPLEX",
+                        prefer_local=True,
+                    ),
+                )
+            else:
+                response = self._llm.generate("You are a helpful JSON-only assistant.", prompt)
             text = response.text if hasattr(response, "text") else str(response)
             if "```json" in text:
                 text = text.split("```json")[1].split("```")[0]
@@ -81,8 +94,8 @@ Respond ONLY with valid JSON matching this schema:
                 requires_mission=bool(data.get("requires_mission", False)),
                 requires_planning=bool(data.get("requires_planning", False))
             )
-        except Exception as e:
-            logger.warning(f"Executive reasoning failed: {e}. Falling back to default strategy.")
+        except Exception as exc:  # noqa: BLE001 - safe default strategy on model/parse failure
+            logger.warning("Executive reasoning failed (%s); using default strategy.", type(exc).__name__)
             # Fallback safe strategy
             return ExecutionStrategy(
                 goal=GoalType.CONVERSATION,

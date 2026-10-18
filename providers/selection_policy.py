@@ -45,30 +45,54 @@ class WeightedScorePolicy(SelectionPolicy):
         candidates: list[BaseProvider],
         requirements: InferenceRequirements,
     ) -> list[BaseProvider]:
-        """Rank providers using a simple weighted scoring algorithm."""
+        """Rank providers by configuration preference, privacy, health, latency and cost.
+
+        Cost/latency scores are tie-breakers for provider selection—not promises.
+        Monetary comparison uses a representative 1,024-input/256-output request;
+        explicit max-cost and max-latency requirements are filtered by ModelRouter
+        before this ranking step.
+        """
         if not candidates:
             return []
 
         def score_provider(provider: BaseProvider) -> float:
             score = 0.0
 
-            # 1. Soft Preference
+            # Configuration and request preferences are intentionally strongest:
+            # selecting a primary provider is explicit unless it fails.
             if requirements.prefer_provider and provider.provider_id == requirements.prefer_provider:
                 score += 100.0
 
-            # 2. Locality (Privacy)
+            resolved_model = provider.resolve_model_id(requirements)
+            if requirements.prefer_model and resolved_model == requirements.prefer_model:
+                score += 25.0
+
+            # Privacy/locality preference.
             if requirements.prefer_local and provider.is_local:
                 score += 50.0
 
-            # 3. Health status penalty
-            health_status = self._health_monitor.health(provider.provider_id)
-            if health_status == ProviderHealthStatus.DEGRADED:
+            # Degraded providers remain usable as fallback candidates, but rank lower.
+            if self._health_monitor.health(provider.provider_id) == ProviderHealthStatus.DEGRADED:
                 score -= 50.0
 
-            # Note: Task complexity and historical latency would be factored
-            # in here for a more advanced production implementation.
+            # A measured latency estimate makes healthy alternatives rankable. Unknown
+            # latency receives a small neutral score instead of an invented measurement.
+            latency = self._health_monitor.average_latency_ms(provider.provider_id)
+            if latency is not None:
+                score += max(0.0, 20.0 - min(20.0, float(latency) / 250.0))
+
+            # Use a transparent reference request for cost ranking. Unknown prices
+            # contribute no score; a cost ceiling is enforced separately and never
+            # treats unknown vendor pricing as free.
+            try:
+                model_id = provider.resolve_model_id(requirements)
+                estimated_cost = provider.estimate_cost(1024, 256, model_id)
+            except Exception:  # noqa: BLE001 - a scoring failure must not prevent fallback routing.
+                estimated_cost = None
+            if estimated_cost is not None and estimated_cost >= 0:
+                score += max(0.0, 10.0 - min(10.0, float(estimated_cost) * 2000.0))
 
             return score
 
-        # Sort descending by score. Stable sort preserves original registry order as tiebreaker.
+        # Stable sort preserves registry order when scores are equal.
         return sorted(candidates, key=score_provider, reverse=True)

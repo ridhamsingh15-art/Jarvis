@@ -112,12 +112,25 @@ ollama serve
 
 ### Environment Variables (Optional)
 
+**Privacy by default:** the default configuration registers Ollama only. Cloud providers are not automatically enabled as fallbacks. Setting `JARVIS_FALLBACK_PROVIDERS=gemini,minimax` explicitly opts in to sending prompts to those third-party providers if earlier providers fail. Only enable providers and credentials you intend JARVIS to use.
+
+Provider role model overrides use `JARVIS_GEMINI_MODEL_REASONING`, `JARVIS_GEMINI_MODEL_CODING`, `JARVIS_MINIMAX_MODEL_REASONING`, and corresponding `_VISION`/`_FAST` suffixes. The `max_cost_per_request` router constraint is an estimate, not a billing cap; cloud estimates require an explicit `max_output_tokens` ceiling and a model with known published pricing.
+
 | Variable | Default | Description |
 |---|---|---|
-| `JARVIS_MODEL` | `qwen3:8b` | Ollama model name |
+| `JARVIS_PROVIDER` | `ollama` | Primary provider: `ollama`, `gemini`, or `minimax` |
+| `JARVIS_MODEL` | Provider-specific | Primary model override (for Ollama, defaults to `qwen3:8b`) |
+| `JARVIS_FALLBACK_PROVIDERS` | empty | Optional comma-separated fallback IDs, e.g. `gemini,minimax`; empty keeps inference on the primary only |
+| `JARVIS_PROVIDER_REASONING` | Primary provider | Optional provider override for reasoning requests |
+| `JARVIS_PROVIDER_CODING` | Primary provider | Optional provider override for coding requests |
+| `JARVIS_PROVIDER_VISION` | Primary provider | Optional provider override for vision requests |
+| `JARVIS_PROVIDER_FAST` | Primary provider | Optional provider override for fast/tool requests |
+| Role-provider overrides | Primary or listed fallback | Overrides referring to a provider that is not enabled are rejected at startup |
+| `GEMINI_API_KEY` | unset | Required only when Gemini is selected as primary or opted in as a fallback |
+| `MINIMAX_API_KEY` | unset | Required only when MiniMax is selected as primary or opted in as a fallback |
 | `OLLAMA_HOST` | `http://localhost:11434` | Ollama server URL |
-| `JARVIS_MAX_RETRIES` | `3` | Max LLM retry attempts |
-| `JARVIS_TIMEOUT` | `30` | Request timeout (seconds) |
+| `JARVIS_MAX_RETRIES` | `3` | Provider retry attempts |
+| `JARVIS_TIMEOUT` | `30` | Provider request timeout (seconds) |
 | `JARVIS_MEMORY_DB` | `~/.jarvis/memory.db` | Path to memory database |
 
 ---

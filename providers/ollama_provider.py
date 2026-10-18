@@ -68,7 +68,6 @@ class OllamaProvider(BaseProvider):
             Capability.CHAT,
             Capability.CODING,
             Capability.REASONING,
-            Capability.VISION,
             Capability.EMBEDDINGS,
             Capability.TOOL_USE,
         ])
@@ -110,6 +109,10 @@ class OllamaProvider(BaseProvider):
 
         return self._models.get("general", self._default_model)
 
+    def resolve_model_id(self, requirements: InferenceRequirements | None = None) -> str:
+        """Return the actual configured model tag this request would use."""
+        return self._resolve_model(requirements)
+
     def generate(
         self,
         system_prompt: str,
@@ -125,6 +128,13 @@ class OllamaProvider(BaseProvider):
             options["num_ctx"] = self._num_ctx
         if self._num_predict is not None:
             options["num_predict"] = self._num_predict
+        if requirements and requirements.max_output_tokens is not None:
+            current = options.get("num_predict")
+            options["num_predict"] = (
+                min(current, requirements.max_output_tokens)
+                if isinstance(current, int) and current > 0
+                else requirements.max_output_tokens
+            )
         if requirements and getattr(requirements, "min_context_length", None):
             options["num_ctx"] = max(options.get("num_ctx", 0), requirements.min_context_length)
 
@@ -268,12 +278,18 @@ class OllamaProvider(BaseProvider):
             if resp.status_code == 200:
                 return resp.json().get("models", [])
             return []
-        except Exception as exc:
+        except (requests.exceptions.RequestException, ValueError) as exc:
             logger.warning("Failed to query Ollama installed models: %s", exc)
             return []
 
     def shutdown(self) -> None:
         logger.info("Shutting down %s provider", self.display_name)
+
+    def estimate_embedding_cost(
+        self, input_tokens: int, model_id: str | None = None
+    ) -> float:
+        del input_tokens, model_id
+        return 0.0
 
     def estimate_cost(
         self,

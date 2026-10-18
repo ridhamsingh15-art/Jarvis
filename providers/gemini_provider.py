@@ -36,8 +36,10 @@ class GeminiProvider(BaseProvider):
     def __init__(self, config: dict[str, Any] | None = None):
         self._config = config or PROVIDER_CONFIG.get("gemini", {})
         self._api_key = self._config.get("api_key") or os.environ.get("GEMINI_API_KEY")
-        self._default_model = self._config.get("default_model", "gemini-1.5-pro-latest")
-        self._default_embed_model = self._config.get("default_embedding_model", "text-embedding-004")
+        self._default_model = self._config.get("default_model", "gemini-3.8-flash")
+        self._models = dict(self._config.get("models", {}))
+        self._models.setdefault("general", self._default_model)
+        self._default_embed_model = self._config.get("default_embedding_model", "gemini-embedding-2")
         self._timeout = self._config.get("timeout_seconds", 30)
         self._base_url = "https://generativelanguage.googleapis.com/v1beta/models"
         self._is_initialized = False
@@ -55,7 +57,6 @@ class GeminiProvider(BaseProvider):
         return frozenset([
             Capability.CHAT,
             Capability.REASONING,
-            Capability.VISION,
             Capability.EMBEDDINGS,
             Capability.TOOL_USE,
         ])
@@ -70,6 +71,35 @@ class GeminiProvider(BaseProvider):
             raise ProviderConfigurationError("Gemini API key not found in config or environment")
         self._is_initialized = True
 
+    def _resolve_model(self, requirements: InferenceRequirements | None) -> str:
+        """Select a configured provider-native model for the requested role."""
+        if requirements and requirements.prefer_model:
+            return requirements.prefer_model
+        if requirements and requirements.role:
+            model = self._models.get(str(requirements.role).lower())
+            if model:
+                return model
+        if requirements:
+            if Capability.CODING in requirements.capabilities or Capability.REASONING in requirements.capabilities:
+                return self._models.get("reasoning" if Capability.REASONING in requirements.capabilities else "coding", self._default_model)
+            if Capability.VISION in requirements.capabilities:
+                return self._models.get("vision", self._default_model)
+            if requirements.task_complexity in {"SIMPLE", 1, 2, 3}:
+                return self._models.get("fast", self._default_model)
+        return self._models.get("general", self._default_model)
+
+    def context_window_tokens(
+        self, requirements: InferenceRequirements | None = None
+    ) -> int | None:
+        model = self._resolve_model(requirements)
+        if model in {"gemini-4-argon", "gemini-3.8-flash", "gemini-3.5-flash-lite"}:
+            return 1_048_576
+        return None
+
+    def resolve_model_id(self, requirements: InferenceRequirements | None = None) -> str:
+        """Return the actual configured model tag this request would use."""
+        return self._resolve_model(requirements)
+
     def generate(
         self,
         system_prompt: str,
@@ -79,9 +109,7 @@ class GeminiProvider(BaseProvider):
         if not self._is_initialized:
             self.initialize()
             
-        model_id = self._default_model
-        if requirements and requirements.prefer_provider == self.provider_id:
-            pass
+        model_id = self._resolve_model(requirements)
             
         start_time = time.time()
         url = f"{self._base_url}/{model_id}:generateContent"
@@ -94,6 +122,10 @@ class GeminiProvider(BaseProvider):
                 "parts": [{"text": system_prompt}]
             }
         }
+        if requirements and requirements.max_output_tokens is not None:
+            payload["generationConfig"] = {
+                "maxOutputTokens": requirements.max_output_tokens
+            }
         
         try:
             logger.debug("Sending generation request to Gemini: %s", model_id)
@@ -217,15 +249,35 @@ class GeminiProvider(BaseProvider):
         logger.info("Shutting down %s provider", self.display_name)
         self._is_initialized = False
 
+    def estimate_embedding_cost(
+        self, input_tokens: int, model_id: str | None = None
+    ) -> float | None:
+        """Estimate standard text embedding cost from published pricing."""
+        model = (model_id or self._default_embed_model).lower()
+        if model == "gemini-embedding-2":
+            return max(0, input_tokens) * 0.20 / 1_000_000
+        return None
+
     def estimate_cost(
         self,
         input_tokens: int,
         output_tokens: int,
         model_id: str | None = None,
-    ) -> float:
-        model = model_id or self._default_model
-        if "pro" in model.lower():
-            return (input_tokens * 3.5 / 1000000) + (output_tokens * 10.5 / 1000000)
-        elif "flash" in model.lower():
-            return (input_tokens * 0.075 / 1000000) + (output_tokens * 0.30 / 1000000)
-        return 0.0
+    ) -> float | None:
+        """Return a conservative estimate using published non-promotional rates.
+
+        Prices can change. Unknown models intentionally return None so budget-aware
+        routing will not treat an unknown cloud model as free.
+        """
+        model = (model_id or self._default_model).lower()
+        # Standard rates effective after the currently advertised introductory
+        # period, rounded up to avoid choosing a cloud model on an underpriced estimate.
+        if "gemini-4-argon" in model:
+            input_rate, output_rate = 4.00, 20.00
+        elif "gemini-3.8-flash" in model:
+            input_rate, output_rate = 1.50, 7.50
+        elif "gemini-3.5-flash-lite" in model:
+            input_rate, output_rate = 0.30, 2.50
+        else:
+            return None
+        return (input_tokens * input_rate + output_tokens * output_rate) / 1_000_000

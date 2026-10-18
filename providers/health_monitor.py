@@ -39,6 +39,7 @@ class HealthMonitor:
         self._consecutive_failures: dict[str, int] = {}
         self._total_failures: dict[str, int] = {}  # for unavailable threshold
         self._consecutive_successes: dict[str, int] = {}
+        self._latency_ewma_ms: dict[str, float] = {}
 
     def mark_success(self, provider_id: str) -> None:
         """Record a successful operation for a provider."""
@@ -81,6 +82,22 @@ class HealthMonitor:
             elif state != ProviderHealthStatus.UNAVAILABLE and self._total_failures[provider_id] >= self._unavailable_threshold:
                 self._states[provider_id] = ProviderHealthStatus.UNAVAILABLE
                 logger.error("Provider %s: %s -> UNAVAILABLE (%d total failures)", provider_id, state.name, self._total_failures[provider_id])
+
+    def record_latency(self, provider_id: str, latency_ms: float) -> None:
+        """Track smoothed successful latency for routing decisions."""
+        if isinstance(latency_ms, bool) or not isinstance(latency_ms, (int, float)) or latency_ms < 0:
+            return
+        with self._lock:
+            previous = self._latency_ewma_ms.get(provider_id)
+            self._latency_ewma_ms[provider_id] = (
+                float(latency_ms) if previous is None
+                else (0.25 * float(latency_ms)) + (0.75 * previous)
+            )
+
+    def average_latency_ms(self, provider_id: str) -> float | None:
+        """Return the smoothed latency, or None before a successful observation."""
+        with self._lock:
+            return self._latency_ewma_ms.get(provider_id)
 
     def health(self, provider_id: str) -> ProviderHealthStatus:
         """Get the current health status of a provider."""

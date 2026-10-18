@@ -39,6 +39,33 @@ class InferenceRequirements:
     task_complexity: str = "MODERATE"
     prefer_model: str | None = None
     role: str | None = None
+    max_output_tokens: int | None = None
+
+    def __post_init__(self) -> None:
+        """Reject invalid hard bounds before they reach provider APIs."""
+        if self.max_latency_ms is not None and (
+            isinstance(self.max_latency_ms, bool)
+            or not isinstance(self.max_latency_ms, int)
+            or self.max_latency_ms < 0
+        ):
+            raise ValueError("max_latency_ms must be a non-negative integer or None")
+        if self.max_cost_per_request is not None and (
+            isinstance(self.max_cost_per_request, bool)
+            or self.max_cost_per_request < 0
+        ):
+            raise ValueError("max_cost_per_request must be non-negative or None")
+        if self.min_context_length is not None and (
+            isinstance(self.min_context_length, bool)
+            or not isinstance(self.min_context_length, int)
+            or self.min_context_length <= 0
+        ):
+            raise ValueError("min_context_length must be a positive integer or None")
+        if self.max_output_tokens is not None and (
+            isinstance(self.max_output_tokens, bool)
+            or not isinstance(self.max_output_tokens, int)
+            or self.max_output_tokens <= 0
+        ):
+            raise ValueError("max_output_tokens must be a positive integer or None")
 
 
 @dataclass(frozen=True)

@@ -23,14 +23,28 @@ PROVIDER_CONFIG: dict[str, dict[str, Any]] = {
     },
     "gemini": {
         "api_key": "",  # To be loaded from environment or secret manager
-        "default_model": "gemini-1.5-pro-latest",
-        "default_embedding_model": "text-embedding-004",
+        "default_model": "gemini-3.8-flash",
+        "default_embedding_model": "gemini-embedding-2",
         "timeout_seconds": 30,
+        "models": {
+            "general": "gemini-3.8-flash",
+            "reasoning": "gemini-4-argon",
+            "coding": "gemini-4-argon",
+            "vision": "gemini-3.8-flash",
+            "fast": "gemini-3.5-flash-lite",
+        },
     },
     "minimax": {
         "api_key": "",
         "base_url": "https://api.minimax.io",
         "default_model": "MiniMax-M2.7",
         "timeout_seconds": 30,
+        "models": {
+            "general": "MiniMax-M2.7",
+            "reasoning": "MiniMax-M2.7",
+            "coding": "MiniMax-M2.7",
+            "vision": "MiniMax-M2.7",
+            "fast": "MiniMax-M2.7-highspeed",
+        },
     },
 }

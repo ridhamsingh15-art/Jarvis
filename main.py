@@ -90,20 +90,14 @@ def _build_infra(config) -> InfraContext:
     """Build core infrastructure: registry, router, executor, event bus."""
     from unittest.mock import MagicMock
 
-    from config.model_config import ModelRouterConfig
     from core.events.bus import EventBus
     from core.executor.action_registry import ActionRegistry
     from core.executor.executor import ExecutionEngine
     from core.identity.manager import IdentityManager
     from core.llm import LLMClient
-    from core.model_router import ModelRouter
     from core.telemetry.levels import LogLevel
     from core.telemetry.logger import AsyncLogger
-    from providers.fallback_manager import FallbackManager
-    from providers.health_monitor import HealthMonitor
-    from providers.provider_factory import ProviderFactory
-    from providers.provider_registry import ProviderRegistry
-    from providers.selection_policy import WeightedScorePolicy
+    from providers.runtime_setup import build_model_gateway
 
     # Tools
     windows_tool = WindowsTool()
@@ -118,32 +112,11 @@ def _build_infra(config) -> InfraContext:
     registry.register(file_tool)
     registry.register(shell_tool)
 
-    # Provider / model router
+    # Provider / model router. Additional providers are added only by explicit
+    # JARVIS_FALLBACK_PROVIDERS configuration; no cloud egress is enabled by default.
     logger.info("Selected provider: %s", config.provider)
     logger.info("Selected model: %s", config.model)
-    provider_config = {
-        "default_model": config.model,
-        "default_embedding_model": config.embedding_model,
-        "timeout_seconds": config.request_timeout,
-        "max_retries": config.max_retries,
-        "retry_backoff_seconds": config.retry_backoff_seconds,
-        "models": config.get_role_models(),
-    }
-    if config.provider == "ollama":
-        provider_config["base_url"] = config.ollama_host
-
-    provider = ProviderFactory.create_provider(config.provider, config=provider_config)
-    health_monitor = HealthMonitor()
-    provider_registry = ProviderRegistry(health_monitor)
-    provider_registry.register(provider)
-
-    gateway = ModelRouter(
-        config=ModelRouterConfig(prefer_local=True),
-        registry=provider_registry,
-        selection_policy=WeightedScorePolicy(health_monitor),
-        fallback_manager=FallbackManager(),
-        health_monitor=health_monitor,
-    )
+    gateway = build_model_gateway(config)
 
     # Action registry + executor
     action_registry = ActionRegistry()
@@ -187,7 +160,7 @@ def _build_infra(config) -> InfraContext:
     async_logger = AsyncLogger(level=LogLevel.INFO, masker=dummy_masker, outputs=[])
     event_bus = EventBus(logger=async_logger)
 
-    llm_client = LLMClient(config)
+    llm_client = LLMClient(config, gateway=gateway)
 
     from core.execution_policy import ExecutionPolicy
     execution_policy = ExecutionPolicy(
@@ -816,7 +789,8 @@ def main() -> None:
 
     from core.model_manager import ModelManager
     config = load_config()
-    ModelManager(config).startup_health_check()
+    if config.provider == "ollama" or "ollama" in config.fallback_providers:
+        ModelManager(config).startup_health_check()
 
     ctx = build_agent()
     # Mission Control must use the same journal as the CLI/runtime configuration.

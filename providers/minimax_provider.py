@@ -38,6 +38,8 @@ class MiniMaxProvider(BaseProvider):
             "/"
         )
         self._default_model = self._config.get("default_model", "MiniMax-M2.7")
+        self._models = dict(self._config.get("models", {}))
+        self._models.setdefault("general", self._default_model)
         self._timeout = float(self._config.get("timeout_seconds", 30))
         self._is_initialized = False
 
@@ -64,24 +66,58 @@ class MiniMaxProvider(BaseProvider):
             )
         self._is_initialized = True
 
+    def _resolve_model(self, requirements: InferenceRequirements | None) -> str:
+        """Select a configured MiniMax model for the requested semantic role."""
+        if requirements and requirements.prefer_model:
+            return requirements.prefer_model
+        if requirements and requirements.role:
+            model = self._models.get(str(requirements.role).lower())
+            if model:
+                return model
+        if requirements:
+            if Capability.CODING in requirements.capabilities:
+                return self._models.get("coding", self._default_model)
+            if Capability.REASONING in requirements.capabilities:
+                return self._models.get("reasoning", self._default_model)
+            if requirements.task_complexity in {"SIMPLE", 1, 2, 3}:
+                return self._models.get("fast", self._default_model)
+        return self._models.get("general", self._default_model)
+
+    def context_window_tokens(
+        self, requirements: InferenceRequirements | None = None
+    ) -> int | None:
+        model = self._resolve_model(requirements).lower()
+        if model in {"minimax-m2.7", "minimax-m2.7-highspeed"}:
+            return 200_000
+        return None
+
+    def resolve_model_id(self, requirements: InferenceRequirements | None = None) -> str:
+        """Return the actual configured model tag this request would use."""
+        return self._resolve_model(requirements)
+
     def generate(
         self,
         system_prompt: str,
         user_prompt: str,
         requirements: InferenceRequirements | None = None,
     ) -> ModelResponse:
-        del requirements
         if not self._is_initialized:
             self.initialize()
 
+        model_id = self._resolve_model(requirements)
         started_at = time.monotonic()
         try:
             response = requests.post(
                 f"{self._base_url}/v1/text/chatcompletion_v2",
                 headers={"Authorization": f"Bearer {self._api_key}"},
                 json={
-                    "model": self._default_model,
+                    "model": model_id,
                     "stream": False,
+                    **(
+                        {"max_tokens": requirements.max_output_tokens}
+                        if requirements and requirements.max_output_tokens is not None
+                        else {}
+                    ),
                     "messages": [
                         {"role": "system", "name": "JARVIS", "content": system_prompt},
                         {"role": "user", "name": "user", "content": user_prompt},
@@ -113,7 +149,7 @@ class MiniMaxProvider(BaseProvider):
         return ModelResponse(
             text=text,
             provider_id=self.provider_id,
-            model_id=self._default_model,
+            model_id=model_id,
             latency_ms=int((time.monotonic() - started_at) * 1000),
             token_usage=TokenUsage(
                 input_tokens=input_tokens,
@@ -122,7 +158,7 @@ class MiniMaxProvider(BaseProvider):
                     usage.get("total_tokens", input_tokens + output_tokens)
                 ),
             ),
-            cost=0.0,
+            cost=self.estimate_cost(input_tokens, output_tokens, model_id),
         )
 
     def embed(
@@ -155,8 +191,20 @@ class MiniMaxProvider(BaseProvider):
     def shutdown(self) -> None:
         self._is_initialized = False
 
+    def estimate_embedding_cost(
+        self, input_tokens: int, model_id: str | None = None
+    ) -> float | None:
+        del input_tokens, model_id
+        return None
+
     def estimate_cost(
         self, input_tokens: int, output_tokens: int, model_id: str | None = None
-    ) -> float:
-        del input_tokens, output_tokens, model_id
-        return 0.0
+    ) -> float | None:
+        model = (model_id or self._default_model).lower()
+        if model.endswith("-highspeed"):
+            input_rate, output_rate = 0.60, 2.40
+        elif model in {"minimax-m2.7", "minimax-m2.7-highspeed"}:
+            input_rate, output_rate = 0.30, 1.20
+        else:
+            return None
+        return (input_tokens * input_rate + output_tokens * output_rate) / 1_000_000

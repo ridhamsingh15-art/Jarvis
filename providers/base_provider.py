@@ -92,6 +92,24 @@ class BaseProvider(ABC):
     def shutdown(self) -> None:
         """Graceful cleanup of resources."""
 
+    def resolve_model_id(self, requirements: InferenceRequirements | None = None) -> str | None:
+        """Return the provider's best-known model ID for a request."""
+        return getattr(self, "_default_model", None)
+
+    def context_window_tokens(
+        self, requirements: InferenceRequirements | None = None
+    ) -> int | None:
+        """Return a documented input-context limit for the selected model, if known."""
+        del requirements
+        return None
+
+    def estimate_embedding_cost(
+        self, input_tokens: int, model_id: str | None = None
+    ) -> float | None:
+        """Estimate embedding cost, or None when no reliable estimate is available."""
+        del input_tokens, model_id
+        return None
+
     def supports(self, capability: Capability) -> bool:
         """Check if this provider supports a specific capability.
         
@@ -109,7 +127,7 @@ class BaseProvider(ABC):
         input_tokens: int,
         output_tokens: int,
         model_id: str | None = None,
-    ) -> float:
+    ) -> float | None:
         """Estimate the cost of a request in USD.
         
         Args:
