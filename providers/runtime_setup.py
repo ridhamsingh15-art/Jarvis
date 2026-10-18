@@ -73,6 +73,10 @@ def _provider_config(config: JarvisConfig, provider_id: str, *, primary: bool) -
         roles["general"] = values["default_model"]
         for role in ("reasoning", "coding", "vision", "fast"):
             override = os.environ.get(f"JARVIS_{provider_id.upper()}_MODEL_{role.upper()}")
+            if primary and not override:
+                # Generic role overrides target the active primary provider.
+                # Fallbacks must use their provider-qualified names to avoid model mixups.
+                override = os.environ.get(f"JARVIS_MODEL_{role.upper()}")
             if override:
                 roles[role] = override.strip()
         values["models"] = roles

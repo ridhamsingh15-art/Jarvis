@@ -525,6 +525,28 @@ def test_estimated_cost_uses_current_model_rates_and_unknown_is_not_free():
     assert minimax.estimate_cost(1_000, 1_000, "unknown-model") is None
 
 
+def test_minimax_default_uses_current_m3_model_and_context_window():
+    from providers.minimax_provider import MiniMaxProvider
+    provider = MiniMaxProvider({"api_key": "test"})
+    assert provider.resolve_model_id() == "MiniMax-M3"
+    assert provider.context_window_tokens() == 1_000_000
+    assert provider.estimate_cost(100_000, 10_000) == pytest.approx(0.042)
+    assert provider.estimate_cost(600_000, 10_000) == pytest.approx(0.384)
+
+
+def test_gemini_model_context_is_only_advertised_when_verified():
+    from providers.gemini_provider import GeminiProvider
+    assert GeminiProvider({"api_key": "test", "default_model": "gemini-4-argon"}).context_window_tokens() == 1_048_576
+    assert GeminiProvider({"api_key": "test", "default_model": "gemini-3.8-flash"}).context_window_tokens() is None
+
+
+def test_cloud_providers_advertise_coding_support():
+    from providers.gemini_provider import GeminiProvider
+    from providers.minimax_provider import MiniMaxProvider
+    assert Capability.CODING in GeminiProvider({"api_key": "test"}).capabilities
+    assert Capability.CODING in MiniMaxProvider({"api_key": "test"}).capabilities
+
+
 def test_gemini_and_minimax_model_resolution_honors_role_and_explicit_model():
     from providers.gemini_provider import GeminiProvider
     from providers.minimax_provider import MiniMaxProvider

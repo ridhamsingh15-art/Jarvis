@@ -37,7 +37,7 @@ class MiniMaxProvider(BaseProvider):
         self._base_url = self._config.get("base_url", "https://api.minimax.io").rstrip(
             "/"
         )
-        self._default_model = self._config.get("default_model", "MiniMax-M2.7")
+        self._default_model = self._config.get("default_model", "MiniMax-M3")
         self._models = dict(self._config.get("models", {}))
         self._models.setdefault("general", self._default_model)
         self._timeout = float(self._config.get("timeout_seconds", 30))
@@ -53,7 +53,7 @@ class MiniMaxProvider(BaseProvider):
 
     @property
     def capabilities(self) -> frozenset[Capability]:
-        return frozenset({Capability.CHAT, Capability.REASONING, Capability.TOOL_USE})
+        return frozenset({Capability.CHAT, Capability.CODING, Capability.REASONING, Capability.TOOL_USE})
 
     @property
     def is_local(self) -> bool:
@@ -87,6 +87,8 @@ class MiniMaxProvider(BaseProvider):
         self, requirements: InferenceRequirements | None = None
     ) -> int | None:
         model = self._resolve_model(requirements).lower()
+        if model == "minimax-m3":
+            return 1_000_000
         if model in {"minimax-m2.7", "minimax-m2.7-highspeed"}:
             return 200_000
         return None
@@ -201,9 +203,14 @@ class MiniMaxProvider(BaseProvider):
         self, input_tokens: int, output_tokens: int, model_id: str | None = None
     ) -> float | None:
         model = (model_id or self._default_model).lower()
-        if model.endswith("-highspeed"):
+        if model == "minimax-m3":
+            # Official standard-rate table distinguishes inputs above 512K.
+            input_rate, output_rate = (
+                (0.60, 2.40) if input_tokens > 512_000 else (0.30, 1.20)
+            )
+        elif model == "minimax-m2.7-highspeed":
             input_rate, output_rate = 0.60, 2.40
-        elif model in {"minimax-m2.7", "minimax-m2.7-highspeed"}:
+        elif model == "minimax-m2.7":
             input_rate, output_rate = 0.30, 1.20
         else:
             return None

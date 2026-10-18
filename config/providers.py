@@ -37,13 +37,13 @@ PROVIDER_CONFIG: dict[str, dict[str, Any]] = {
     "minimax": {
         "api_key": "",
         "base_url": "https://api.minimax.io",
-        "default_model": "MiniMax-M2.7",
+        "default_model": "MiniMax-M3",
         "timeout_seconds": 30,
         "models": {
-            "general": "MiniMax-M2.7",
-            "reasoning": "MiniMax-M2.7",
-            "coding": "MiniMax-M2.7",
-            "vision": "MiniMax-M2.7",
+            "general": "MiniMax-M3",
+            "reasoning": "MiniMax-M3",
+            "coding": "MiniMax-M3",
+            "vision": "MiniMax-M3",
             "fast": "MiniMax-M2.7-highspeed",
         },
     },

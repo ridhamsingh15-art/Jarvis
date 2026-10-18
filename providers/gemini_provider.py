@@ -56,6 +56,7 @@ class GeminiProvider(BaseProvider):
     def capabilities(self) -> frozenset[Capability]:
         return frozenset([
             Capability.CHAT,
+            Capability.CODING,
             Capability.REASONING,
             Capability.EMBEDDINGS,
             Capability.TOOL_USE,
@@ -92,7 +93,7 @@ class GeminiProvider(BaseProvider):
         self, requirements: InferenceRequirements | None = None
     ) -> int | None:
         model = self._resolve_model(requirements)
-        if model in {"gemini-4-argon", "gemini-3.8-flash", "gemini-3.5-flash-lite"}:
+        if model == "gemini-4-argon":
             return 1_048_576
         return None
 
